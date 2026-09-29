@@ -15,15 +15,15 @@ import { Field, FormAlert } from '../../components/common/FormField';
 const RESEND_COOLDOWN = 60;
 const CODE_LENGTH = 6;
 
-// `Signup` routes here when the account was created but the verification email
-// could not be sent. The user has no code to enter, so this screen leads with
-// the resend action instead of an empty input.
-const emailFailed = params.get('reason') === 'email-failed';
-
 const VerifyEmail = () => {
   const { token: pathToken } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
+
+  // `Signup` routes here when the account was created but the verification
+  // email could not be sent. The user has no code to enter, so this screen
+  // leads with the resend action instead of an empty input.
+  const emailFailed = params.get('reason') === 'email-failed';
 
   // The email body carries a bare code, so a link with the code in the path
   // arrives from the API's `verification.verifyUrl` and from a pasted link.
@@ -294,3 +294,4 @@ const VerifyEmail = () => {
 };
 
 export default VerifyEmail;
+

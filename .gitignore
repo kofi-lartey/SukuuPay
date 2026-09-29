@@ -33,10 +33,11 @@ build/
 .cache/
 *.local
 
-# Mock check harness — `npm run check:mock` bundles this before running it, so
-# only the generated output is ignored. The entry, runner and config are source
-# and are meant to be reviewed and committed.
+# Mock check harness — `npm run check:mock` and `npm run check:auth` bundle
+# these before running them, so only the generated output is ignored. The entry,
+# runner and config are source and are meant to be reviewed and committed.
 .mockcheck/out/
+.mockcheck/out-auth/
 
 # Editor
 .vscode/*
