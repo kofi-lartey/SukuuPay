@@ -1,0 +1,82 @@
+# Netlify build + SPA routing for the SukuuPay frontend.
+#
+# This file lives in `frontend/`, alongside the package.json Netlify builds.
+# Netlify only reads a netlify.toml at the ROOT of the base directory it was
+# configured with — and the site is already deploying with its base directory
+# set to `frontend`, because there is no package.json at the repo root. A copy
+# at the repo root is silently ignored, which is what left every deep link 404ing
+# on the first deploy. Change the base directory in the Netlify UI to "."
+# if you ever want this file to live one level up instead.
+#
+# The app uses `BrowserRouter`, so the URL path is owned by React Router rather
+# than by files on disk. Without the rewrite below, any request that isn't
+# `/assets/*` or `/index.html` would be looked up on disk and 404 — breaking
+# every deep link, the worst case being the onboarding wizard, whose four steps
+# are separate URLs (`/onboarding/school-profile`, `/onboarding/payment-setup`,
+# `/onboarding/import-students`, `/onboarding/send-reminder`). A user who
+# bookmarks step 3 or follows a shared link would land on a dead page.
+#
+# Verified against the live site before this file existed:
+#   /reset-password/abc123 -> 404
+#   /verify-email/abc123   -> 404
+# Those are the two emailed callback routes, so a broken reset link locks a user
+# out of their account rather than merely costing them a bookmark.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Vite runs `vite build` by default and emits to `dist/`, so no redirect is
+# needed for the build itself — only for client-side routing below.
+#
+# `status = 200` rather than the legacy `200!`: Netlify serves the SPA shell
+# and the browser resolves the route, so this is a rewrite, not a redirect.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Vite fingerprints these under /assets, and the catch-all above already sends
+# unmatched paths to index.html. Explicitly passing the build output through
+# keeps them immutable-cacheable for a year.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# The bundle is rebuilt whenever a source file changes, and the filenames are
+# content-hashed, so index.html itself must never be cached — a stale one pins
+# visitors to the previous deploy's JS and breaks the app after a release.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# Security headers. The directives below are derived from what the app actually
+# loads — an over-tight CSP here only fails in production, with a blank page
+# and a console full of violations, so each entry is accounted for:
+#   script-src 'self'      — the only scripts are the Vite bundle. No CDN, no
+#                            inline script in index.html.
+#   style-src 'unsafe-inline' — required twice over: React sets inline
+#                            `style` attributes (Step2/Step4 previews, Tailwind
+#                            arbitrary values), and index.html loads the Google
+#                            Fonts stylesheet, which needs
+#                            fonts.googleapis.com in style-src.
+#   font-src               — Plus Jakarta Sans, served from fonts.gstatic.com.
+#   img-src                — inline data: URLs, Unsplash photos on the
+#                            marketing pages (Hero, PhoneMockup, HowItWorks),
+#                            and Cloudinary, which serves the school logos and
+#                            receipts uploaded at runtime.
+#   connect-src            — the API. Without this origin listed, CORS passes
+#                            and the browser blocks the response anyway.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Content-Security-Policy = "default-src 'self'; connect-src 'self' https://sukuupay-backend.onrender.com; img-src 'self' data: blob: https://images.unsplash.com https://res.cloudinary.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"

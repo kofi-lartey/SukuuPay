@@ -6,8 +6,8 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// frontend/.mockcheck/netlify.mjs -> repo root, where netlify.toml lives.
-const root = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
+// frontend/.mockcheck/netlify.mjs -> the frontend dir, where netlify.toml lives.
+const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const toml = readFileSync(join(root, 'netlify.toml'), 'utf8');
 
 let depth = 0;
@@ -20,9 +20,22 @@ for (const ch of toml) {
 }
 console.log(depth === 0 ? 'OK   bracket balance' : `FAIL bracket balance ${depth}`);
 
-for (const key of ['base', 'command', 'publish', 'NODE_VERSION']) {
+for (const key of ['command', 'publish', 'NODE_VERSION']) {
   console.log(`  ${toml.includes(key) ? 'OK  ' : 'FAIL'} ${key}`);
 }
+
+// `base` must NOT be set. Netlify's base directory is already `frontend`, and a
+// `base` key here would prepend it a second time, so the build would look for
+// frontend/frontend/package.json and fail.
+const baseKey = toml.match(/^\s*base\s*=/m);
+console.log(`  ${baseKey ? 'FAIL' : 'OK  '} no redundant "base" key${baseKey ? ' — would double the base dir' : ''}`);
+
+// Guards the failure that actually shipped once: a netlify.toml at the repo
+// root is ignored, because Netlify reads the file from the base directory.
+const strayRoot = join(root, '..', 'netlify.toml');
+console.log(
+  `  ${existsSync(strayRoot) ? 'FAIL' : 'OK  '} no netlify.toml at the repo root${existsSync(strayRoot) ? ' — silently ignored' : ''}`
+);
 
 const publish = toml.match(/publish\s*=\s*"([^"]+)"/)?.[1];
 const base = toml.match(/base\s*=\s*"([^"]+)"/)?.[1];

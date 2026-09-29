@@ -17,6 +17,20 @@ export const ROUTES = {
 
 export const APP_NAME = 'SukuuPay';
 
+/**
+ * The deployed frontend origin.
+ *
+ * Only needed for links that must be absolute and clickable outside a running
+ * app — emails, SMS, "open in a new tab" targets. Everything inside the SPA
+ * should use `ROUTES` and a relative path instead, so the app keeps working on
+ * a Netlify preview domain or `localhost` without a rebuild.
+ *
+ * This is the frontend, not the API. The backend has its own `CLIENT_URL`, and
+ * the two must agree: the emailed verification and reset links are built there
+ * and opened here, so a mismatch breaks sign-in.
+ */
+export const APP_URL = 'https://sukuupay.netlify.app';
+
 /** Single source of truth for the copyright year across every page. */
 export const APP_YEAR = 2025;
 
