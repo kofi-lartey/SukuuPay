@@ -1,0 +1,91 @@
+import React from 'react';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
+import AppChrome from './components/layout/AppChrome';
+import OnboardingGuard from './routes/OnboardingGuard';
+
+import Home from './pages/Home';
+import Features from './pages/Features';
+import HowItWorks from './pages/HowItWorks';
+import Pricing from './pages/Pricing';
+import ForSchools from './pages/ForSchools';
+import Contact from './pages/Contact';
+import Login from './pages/auth/Login';
+import Signup from './pages/auth/Signup';
+import VerifyEmail from './pages/auth/VerifyEmail';
+import ResetPassword from './pages/auth/ResetPassword';
+import NewPassword from './pages/auth/NewPassword';
+import Dashboard from './pages/Dashboard';
+import OnboardingLayout from './pages/onboarding/OnboardingLayout';
+import Step1SchoolProfile from './pages/onboarding/Step1SchoolProfile';
+import Step2PaymentSetup from './pages/onboarding/Step2PaymentSetup';
+import Step3ImportStudents from './pages/onboarding/Step3ImportStudents';
+import Step4SendReminder from './pages/onboarding/Step4SendReminder';
+import { Terms, Privacy } from './pages/Legal';
+import NotFound from './pages/NotFound';
+
+function App() {
+  return (
+    <AuthProvider>
+      {/*
+        ToastProvider sits above BrowserRouter so any page or future
+        non-router surface (the marketing navbar, a future worker) can raise a
+        notification without a route context.
+      */}
+      <ToastProvider>
+        <BrowserRouter>
+          {/*
+            AppChrome owns the navbar and footer for every route below it. It
+            sits outside <Routes> so it mounts once and stays mounted for the
+            life of the app; only the page component below <Outlet /> changes.
+          */}
+          <Routes>
+            <Route element={<AppChrome />}>
+              <Route path="/" element={<Home />} />
+              <Route path="/features" element={<Features />} />
+              <Route path="/how-it-works" element={<HowItWorks />} />
+              <Route path="/pricing" element={<Pricing />} />
+              <Route path="/for-schools" element={<ForSchools />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/privacy" element={<Privacy />} />
+
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+              {/* Both reset routes are listed: the previous exact-match check
+                  missed `/reset-password/:token`, so the emailed reset link
+                  rendered the new-password screen without the auth chrome. */}
+              <Route path="/verify-email" element={<VerifyEmail />} />
+              <Route path="/verify-email/:token" element={<VerifyEmail />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/reset-password/:token" element={<NewPassword />} />
+
+              {/* `/dashboard` keeps the marketing navbar and footer it has
+                  always had; only the guard around it is new. */}
+              <Route element={<OnboardingGuard />}>
+                <Route path="/dashboard" element={<Dashboard />} />
+              </Route>
+
+              <Route path="*" element={<NotFound />} />
+            </Route>
+
+            {/* The wizard is a sibling of AppChrome, not a child: it renders
+                its own Navbar and must not pick up the marketing footer. */}
+            <Route element={<OnboardingGuard />}>
+              <Route path="/onboarding" element={<OnboardingLayout />}>
+                <Route index element={<Navigate to="school-profile" replace />} />
+                <Route path="school-profile" element={<Step1SchoolProfile />} />
+                <Route path="payment-setup" element={<Step2PaymentSetup />} />
+                <Route path="import-students" element={<Step3ImportStudents />} />
+                <Route path="send-reminder" element={<Step4SendReminder />} />
+              </Route>
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </ToastProvider>
+    </AuthProvider>
+  );
+}
+
+export default App;

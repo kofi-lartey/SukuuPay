@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment — any `.env.*` variant may hold live credentials. NEVER commit.
+# The blanket rule is deliberate: naming only the variants that exist today
+# would silently commit a `.env.staging` or `.env.production` added later.
+.env
+.env.*
+!.env.example
+!.env.mock
+
+# `.env.example` and `.env.mock` are committed on purpose: they hold no secrets,
+# only a base URL and a boolean, and `.env.mock` is what `npm run dev:mock`
+# reads. The `!` lines must come after the blanket rule above to take effect.
+#
+# Note the difference from Backend/.gitignore, which re-includes only
+# `.env.example` — that pattern would discard `.env.mock` here.
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build output
+dist/
+dist-ssr/
+build/
+.cache/
+*.local
+
+# Mock check harness — `npm run check:mock` bundles this before running it, so
+# only the generated output is ignored. The entry, runner and config are source
+# and are meant to be reviewed and committed.
+.mockcheck/out/
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+
+# Runtime / OS noise
+.DS_Store
+Thumbs.db
+*.pid
+*.seed
+
+# Test + coverage output
+coverage/
+.nyc_output/
