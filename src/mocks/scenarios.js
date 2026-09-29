@@ -78,6 +78,13 @@ export const SCENARIOS = [
     config: { latencyMs: 150, slowImport: true, mockOnlyEnabled: true },
   },
   {
+    id: 'email-send-fails',
+    label: 'Verification email fails to send',
+    description:
+      'Signup succeeds but the provider rejects the send, returning 502 / EMAIL_SEND_FAILED. The account exists. Used to check that the wizard lands on the resend screen instead of stranding the user on a form for an account they already own.',
+    config: { latencyMs: 300, mockOnlyEnabled: true },
+  },
+  {
     id: 'fail-profile',
     label: 'Step 1 save rejected (422)',
     description: 'The server rejects the profile. The wizard must show the message and must not advance to Step 2.',

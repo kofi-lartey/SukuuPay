@@ -231,6 +231,10 @@ const Signup = () => {
     setErrors((prev) => ({ ...prev, [name]: undefined }));
   };
 
+  // Declared before `handleSubmit`, which uses it: a `const` further down the
+  // component body is in its temporal dead zone when the handler runs.
+  const email = form.email.trim().toLowerCase();
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setFormError('');
@@ -243,7 +247,7 @@ const Signup = () => {
     try {
       const response = await signup({
         name: form.principalName.trim(),
-        email: form.email.trim().toLowerCase(),
+        email: email,
         phone: `+233${form.phone.replace(/\D/g, '').replace(/^233/, '')}`,
         password: form.password,
         position: form.schoolClassification,
@@ -253,6 +257,17 @@ const Signup = () => {
           region: form.region,
         },
       });
+
+      // The account exists but the code was never delivered. Re-rendering the
+      // completed form here would invite a resubmit, which can only fail as a
+      // duplicate email. Send the user to the one screen that can still help.
+      if (response.partial) {
+        navigate(`/verify-email?email=${encodeURIComponent(email)}&reason=email-failed`, {
+          replace: true,
+        });
+        return;
+      }
+
       setResult(response);
     } catch (error) {
       setFormError(error.message || 'Failed to create account. Please try again.');
@@ -260,8 +275,6 @@ const Signup = () => {
       setLoading(false);
     }
   };
-
-  const email = form.email.trim().toLowerCase();
 
   if (result) {
     return (

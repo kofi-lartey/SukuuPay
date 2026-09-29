@@ -31,12 +31,28 @@ export const login = async (email, password) => {
 /**
  * The API issues no session on signup — the account must verify its email first.
  * Returns the created user plus the verification metadata for the next screen.
+ *
+ * Throws on a genuine failure (validation, duplicate email, a dead network).
+ * One case is not a failure: the account is created but the verification email
+ * could not be sent, which the API reports as 502 / `EMAIL_SEND_FAILED`. That
+ * returns normally with `partial: true` so the caller can route the user to the
+ * resend screen instead of showing them a form for an account they already own.
+ * Rethrowing it as a plain error is what strands users on a dead-end form.
  */
 export const signup = async (payload) => {
   try {
     const { data } = await api.post('/auth/signup', payload);
     return { user: data.user, verification: data.verification, message: data.message };
   } catch (error) {
+    if (error?.response?.data?.code === 'EMAIL_SEND_FAILED') {
+      return {
+        user: null,
+        verification: null,
+        message: error.response.data.message,
+        partial: true,
+        emailSent: false,
+      };
+    }
     throw toError(error, 'Failed to create account. Please try again.');
   }
 };

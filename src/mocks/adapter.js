@@ -226,6 +226,10 @@ export const mockAdapter = async (config) => {
             message: error.message,
             code: error.code,
             errors: error.errors,
+            // Some failures carry extra machine-readable fields — notably the
+            // partial signup, which sets `emailSent: false`. Spread them so the
+            // mocked error body matches the real one field for field.
+            ...(error.extra || {}),
           },
           status,
           statusText: status === 200 ? 'OK' : 'Error',

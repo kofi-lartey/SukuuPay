@@ -118,6 +118,21 @@ const signup = ({ body }) => {
   const code = String(Math.floor(Math.random() * 900000) + 100000);
   db.verificationTokens.set(code, user._id);
 
+  // Reproduces the real `authController.signup` path where `user.save()` has
+  // already committed but the provider send failed. The account exists; only
+  // the email is missing. Without this, the partial-success branch in
+  // `services/auth.js` — the one that keeps a user off a dead-end signup form —
+  // cannot be exercised at all.
+  if (getScenarioId() === 'email-send-fails') {
+    const err = new MockError(
+      502,
+      'Account created but the verification email could not be sent. Please resend it.',
+      'EMAIL_SEND_FAILED'
+    );
+    err.extra = { emailSent: false };
+    throw err;
+  }
+
   return {
     user: publicUser(user),
     // Surfaced so a tester can complete verification without reading the
@@ -138,13 +153,28 @@ const verifyEmail = ({ params }) => {
   return { user: publicUser(user), tokens: issueToken(user._id), message: 'Email verified' };
 };
 
+/**
+ * `POST /auth/resend-verification`
+ *
+ * The response is deliberately identical for a registered unverified address,
+ * an already-verified address, and an address that does not exist — which is
+ * what `authController.resendVerification` does. An earlier version of this
+ * mock answered 404 USER_NOT_FOUND for unknown addresses, which turned the
+ * endpoint into a user-enumeration oracle: a caller could tell a registered
+ * address from an unregistered one. Matching the real controller matters here
+ * because the neutrality is a security property, not a cosmetic one.
+ */
 const resendVerification = ({ body }) => {
   const user = getDb().users.find((u) => u.email === String(body?.email || '').toLowerCase());
-  if (!user) throw new MockError(404, 'No account found for that email', 'USER_NOT_FOUND');
-  if (user.isEmailVerified) return { message: 'That address is already verified' };
+  const neutral = {
+    message: 'If the account exists and is unverified, a new code has been sent.',
+  };
+
+  if (!user || user.isEmailVerified) return neutral;
+
   const code = String(Math.floor(Math.random() * 900000) + 100000);
   getDb().verificationTokens.set(code, user._id);
-  return { message: 'A new verification code has been sent', verification: { code } };
+  return { ...neutral, verification: { code } };
 };
 
 const forgotPassword = ({ body }) => {

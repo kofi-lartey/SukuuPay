@@ -141,9 +141,14 @@ export const FormAlert = ({ tone = 'error', children }) => {
     error: 'border-red-200 bg-red-50 text-red-700',
     success: 'border-brand-200 bg-brand-50 text-brand-800',
     info: 'border-slate-200 bg-slate-50 text-slate-700',
+    // Amber, not red: used when something went wrong but the account itself is
+    // fine and the user has a working next step. Red reads as "you are stuck".
+    warning: 'border-amber-200 bg-amber-50 text-amber-800',
   };
   return (
     <div
+      // Errors interrupt; everything else is announced politely. A failed
+      // verification send is recoverable, so it must not be an `alert`.
       role={tone === 'error' ? 'alert' : 'status'}
       className={`rounded-lg border px-3 py-2.5 text-[13px] font-semibold ${tones[tone]}`}
     >

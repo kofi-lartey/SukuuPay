@@ -31,7 +31,7 @@ const { getSchool, updateSchool, updatePayoutAccount, verifyHubtel } = await imp
 const { bulkImport, createStudent, listStudents } = await import('../src/services/students.js');
 const { sendBulk, getSmsBalance } = await import('../src/services/sms.js');
 const { getMe } = await import('../src/services/user.js');
-const { login } = await import('../src/services/auth.js');
+const { login, signup, resendVerificationEmail } = await import('../src/services/auth.js');
 
 installMockApi();
 
@@ -499,6 +499,69 @@ await check('import-all-valid accepts rows the client would have flagged', async
   const result = await bulkImport(csvFile(cleanRows(3)), { schoolId });
   expect(result.created === 3, `expected 3 created, got ${result.created}`);
   return '3 accepted with the phone/parent checks bypassed';
+});
+
+// -- Signup partial success: account created, verification email failed -----
+
+const newSchoolSignup = (email, phone) => ({
+  name: 'Dr. Kwame Mensah',
+  email,
+  phone,
+  password: 'MockPass123!',
+  position: 'Headteacher',
+  school: { name: 'Prampram Basic & JHS', classification: 'Private', region: 'Greater Accra' },
+});
+
+await check('signup returns a created account with a code under healthy', async () => {
+  resetDb('new-admin');
+  setScenario('healthy');
+  const result = await signup(newSchoolSignup('fresh@school.edu.gh', '+233244567890'));
+  expect(result.partial === undefined, 'unexpected partial flag');
+  expect(result.verification?.code, 'no verification code returned');
+  return `code ${result.verification.code}`;
+});
+
+await check('a duplicate signup is a 409, not a partial success', () =>
+  expectStatus(signup(newSchoolSignup('fresh@school.edu.gh', '+233244567890')), 409, 'signup'));
+
+await check('email-send-fails: signup reports partial success rather than throwing', async () => {
+  // The regression this guards. The API answers 502 / EMAIL_SEND_FAILED; the
+  // service must turn that into a normal return so the page can route to the
+  // resend screen. If it rethrows, the user is stranded on a completed signup
+  // form for an account they already own, and resubmitting can only 409.
+  resetDb('new-admin');
+  setScenario('email-send-fails');
+  const result = await signup(newSchoolSignup('unreachable@school.edu.gh', '+233244567891'));
+  expect(result.partial === true, `expected partial true, got ${result.partial}`);
+  expect(result.emailSent === false, 'expected emailSent false');
+});
+
+await check('the account really does exist after a failed send', async () => {
+  // If this is false, the "your account was created" copy is a lie and the
+  // resend would silently do nothing.
+  const users = getDb().users.filter((u) => u.email === 'unreachable@school.edu.gh');
+  expect(users.length === 1, `expected 1 persisted user, found ${users.length}`);
+  expect(users[0].isEmailVerified === false, 'the account should be unverified');
+  return 'persisted and unverified, as the copy claims';
+});
+
+await check('resend recovers the account after a failed send', async () => {
+  await resendVerificationEmail('unreachable@school.edu.gh');
+  const user = getDb().users.find((u) => u.email === 'unreachable@school.edu.gh');
+  expect(user, 'user vanished');
+  expect(user.isEmailVerified === false, 'resend must not verify the account by itself');
+  return 'resend is neutral and leaves the account unverified';
+});
+
+await check('resend never reveals whether an address is registered', async () => {
+  // A registered unverified address and a nonexistent one must be
+  // indistinguishable, or this endpoint enumerates the user base.
+  let knownFailed = false;
+  let unknownFailed = false;
+  try { await resendVerificationEmail('unreachable@school.edu.gh'); } catch { knownFailed = true; }
+  try { await resendVerificationEmail('nobody-at-all@example.com'); } catch { unknownFailed = true; }
+  expect(knownFailed === unknownFailed, 'registered and unknown addresses behaved differently');
+  return 'both answered identically';
 });
 
 setScenario('healthy');
