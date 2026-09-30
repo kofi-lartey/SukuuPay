@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Download, Plus, TriangleAlert } from 'lucide-react';
 import { useDashboardOverview } from '../../hooks/useDashboardOverview';
-import { formatCount } from '../../utils/format';
+import { useAuth } from '../../context/AuthContext';
+import useToast from '../../hooks/useToast';
+import { exportStudents } from '../../services/students';
+import RecordManualPaymentDialog from '../../components/dashboard/RecordManualPaymentDialog';
 import KpiRow from './overview/KpiRow';
 import CollectionsCard from './overview/CollectionsCard';
 import PaymentChannelsCard from './overview/PaymentChannelsCard';
@@ -20,14 +23,28 @@ import UpcomingInstallmentsCard from './overview/UpcomingInstallmentsCard';
  * the two must not interleave — a full-width alert between two charts would read
  * as part of the narrative and get skipped.
  *
- * Every figure arrives from `useDashboardOverview`, and its `isDemo` flag drives
- * the indicator under the title. The design's "LIVE SYNC ACTIVE" marker is
- * rendered *only* when that flag is false: a bursar reconciling a real figure
- * against a bank statement must never be told a screen is live when it is
- * serving fixtures.
+ * Every figure arrives from `useDashboardOverview`, which reads it from the API.
+ * The subtitle under the title used to be a fixture: it read "Term 1 • Academic
+ * Year 2025/2026 • Basic & JHS Campus" for a school called "Prampram Basic
+ * School", on every live deployment, next to a green "Live sync active" badge.
+ * The School model has no campus and no current week, so those are gone; the line
+ * is now the school's own name, city and academic year, or nothing at all if the
+ * school record has not loaded.
  */
 const Overview = () => {
-  const { data, loading, isDemo, seriesFor } = useDashboardOverview();
+  const { user } = useAuth();
+  const { data, loading, isFallback, seriesFor, refresh } = useDashboardOverview(user?.schoolId);
+  const { success, error: errorToast } = useToast();
+  const [recording, setRecording] = useState(false);
+
+  const onExport = () => {
+    // The roster export is the same file the Students module produces, so
+    // "Export Financial Report" hands over the roster rather than a second shape
+    // of the same data with different column names to reconcile.
+    exportStudents({ status: 'all', perPage: 100, format: 'csv' })
+      .then(({ filename }) => success(`Downloaded ${filename}`))
+      .catch((error) => errorToast(error.message));
+  };
 
   if (loading || !data) {
     return (
@@ -45,6 +62,16 @@ const Overview = () => {
   const { school, term, kpis, channels, transactions, transactionCount, upcomingInstallments, smsBroadcast } =
     data;
 
+  // Built from what the school actually has set, and omitted rather than padded
+  // — a subtitle reading "Term • Academic Year • " tells a bursar nothing.
+  const subtitle = [
+    term.term,
+    term.academicYear ? `Academic Year ${term.academicYear}` : '',
+    school.city,
+  ]
+    .filter(Boolean)
+    .join(' • ');
+
   return (
     <>
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
@@ -52,10 +79,10 @@ const Overview = () => {
           <p className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
             Overview
             <span className="h-1 w-1 rounded-full bg-slate-300" aria-hidden="true" />
-            {isDemo ? (
+            {isFallback ? (
               <span className="inline-flex items-center gap-1.5 text-amber-600">
                 <TriangleAlert className="h-3.5 w-3.5" aria-hidden="true" />
-                Demo data
+                Not connected
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 text-brand-700">
@@ -68,22 +95,29 @@ const Overview = () => {
           <h1 className="mt-1.5 text-2xl font-extrabold tracking-tight text-ink sm:text-3xl">
             Dashboard Overview
           </h1>
-          <p className="mt-1 text-[13px] font-semibold text-slate-500">
-            {term.term} • Academic Year {term.academicYear} • {school.campus}
-          </p>
+          {subtitle && (
+            <p className="mt-1 text-[13px] font-semibold text-slate-500">{subtitle}</p>
+          )}
         </div>
 
         {/*
-          Header actions. Both are real links into modules that exist as routes,
-          so neither is a dead control — but they are disabled while the Overview
-          is on demo data, because "Export Financial Report" on figures the
-          service did not produce would hand a bursar a file of fiction.
+          Header actions. Both are real now: each opens something, and each is
+          disabled *only* while the API has not answered.
+
+          They used to be permanently disabled with a tooltip, which was the
+          honest response to fixture data and the wrong thing to ship as the
+          product's only state — a bursar who cannot record the cash in their desk
+          has no way to reconcile the day's takings at all. The hook's
+          `isFallback` decides which of the two it is, so a live deployment gets a
+          working button and an unreachable one still cannot record a payment
+          against numbers that were never stored.
         */}
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <button
             type="button"
-            disabled={isDemo}
-            title={isDemo ? 'Available once reports are wired' : 'Export this term’s figures'}
+            onClick={onExport}
+            disabled={isFallback}
+            title={isFallback ? 'Available once the dashboard can reach the API' : 'Export this term’s figures'}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-extrabold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
           >
             <Download className="h-4 w-4" aria-hidden="true" />
@@ -92,8 +126,13 @@ const Overview = () => {
 
           <button
             type="button"
-            disabled={isDemo}
-            title={isDemo ? 'Available once payments are wired' : 'Record a cash or cheque payment'}
+            onClick={() => setRecording(true)}
+            disabled={isFallback}
+            title={
+              isFallback
+                ? 'Available once the dashboard can reach the API'
+                : 'Record a cash, cheque or bank transfer payment'
+            }
             className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-[13px] font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
@@ -106,28 +145,33 @@ const Overview = () => {
 
       <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="flex flex-col gap-4 xl:col-span-2">
-          <CollectionsCard term={term} seriesFor={seriesFor} isDemo={isDemo} />
+          <CollectionsCard term={term} seriesFor={seriesFor} />
           <RecentTransactionsCard
             transactions={transactions}
             totalCount={transactionCount}
-            isDemo={isDemo}
+            isDemo={isFallback}
           />
         </div>
 
         <div className="flex flex-col gap-4">
-          <PaymentChannelsCard channels={channels} isDemo={isDemo} />
-          <BroadcastSmsCard broadcast={smsBroadcast} isDemo={isDemo} />
-          <UpcomingInstallmentsCard upcoming={upcomingInstallments} isDemo={isDemo} />
+          <PaymentChannelsCard channels={channels} />
+          <BroadcastSmsCard broadcast={smsBroadcast} />
+          <UpcomingInstallmentsCard upcoming={upcomingInstallments} />
         </div>
       </div>
 
-      {isDemo && (
-        <p className="mt-4 text-[11px] font-semibold text-slate-400">
-          Every figure on this page is a fixture from src/data/dashboardDemo.js, not a
-          school’s real position. {formatCount(kpis.totalStudents.value)} students is
-          the demo roster, not a count of anyone.
+      {isFallback && (
+        <p className="mt-4 text-[11px] font-semibold text-amber-700">
+          The dashboard could not reach the API, so every figure above is empty rather
+          than estimated. Nothing on this page is a placeholder.
         </p>
       )}
+
+      <RecordManualPaymentDialog
+        open={recording}
+        onClose={() => setRecording(false)}
+        onRecorded={refresh}
+      />
     </>
   );
 };

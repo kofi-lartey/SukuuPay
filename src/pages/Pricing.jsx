@@ -234,8 +234,13 @@ const Pricing = () => {
               <Building2 size={24} />
             </div>
             <div>
+              {/* Was "Trusted by over 180 Ghanaian private institutions", which
+                  contradicted the auth aside's "140+ Schools" and the how-it-works
+                  strip's "180+ Partner Ghanaian Schools" — three invented counts
+                  that never agreed. The platform is in a pilot batch; the honest
+                  claim is the cohort, not a reach number. */}
               <p className="text-sm font-bold text-ink sm:text-base">
-                Trusted by over 180 Ghanaian private institutions
+                Now onboarding our first pilot schools
               </p>
               <p className="text-xs text-slate-500">
                 From pre-schools in East Legon to high schools in Tema &amp; Kumasi
@@ -243,16 +248,13 @@ const Pricing = () => {
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-8 text-center">
-            <div>
-              <p className="font-display text-2xl font-extrabold text-ink">GH₵ 34.2M</p>
-              <p className="text-[11px] uppercase text-slate-500">Fees collected in 2024</p>
-            </div>
-            <div className="border-l border-slate-200 pl-8">
-              <p className="font-display text-2xl font-extrabold text-ink">99.8%</p>
-              <p className="text-[11px] uppercase text-slate-500">MoMo success rate</p>
-            </div>
-          </div>
+          {/* Both figures were invented, and they disagreed with the rest of the
+              site: "GH₵ 34.2M Fees collected in 2024" against the how-it-works
+              strip's "GH₵ 42M+ Processed Safely in 2024", and "99.8% MoMo success
+              rate" against the login and signup asides' "99.8% MoMo SLA uptime
+              guarantee". The platform has processed no fees at all. Removed rather
+              than replaced — a pricing page does not need a track-record strip to
+              state its prices. */}
         </div>
       </section>
     </div>

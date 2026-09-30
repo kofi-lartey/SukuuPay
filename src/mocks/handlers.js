@@ -685,6 +685,26 @@ const updateSchool = ({ params, body, user }) => {
   delete data['location.longitude'];
   delete data['location.source'];
 
+  // `academic.classes` is the one nested write a school admin actually needs:
+  // a self-provisioned school gets no classes, and without them the roster's
+  // class filter, the Add Student dropdown, the import validator and the
+  // graduation guard are all empty. `updateSchoolSchema` accepts the flattened
+  // dotted key, so the real API persists it — dropping it here would make a
+  // mock-mode class save silently no-op, which is the one failure mode this
+  // mock exists to prevent.
+  if (data['academic.classes'] !== undefined) {
+    const list = data['academic.classes'];
+    if (!Array.isArray(list)) {
+      errors.classes = '"academic.classes" must be an array';
+    } else if (list.some((c) => typeof c !== 'string' || c.trim().length > 50)) {
+      errors.classes = '"academic.classes" items must be strings of at most 50 characters';
+    } else {
+      data.__classes = list.map((c) => c.trim());
+    }
+  }
+  // Never persisted verbatim — the dotted key is transport, not a field.
+  delete data['academic.classes'];
+
   if (Object.keys(errors).length) {
     const [field, message] = Object.entries(errors)[0];
     throw new MockError(422, message, 'VALIDATION_ERROR', errors, field);
@@ -716,9 +736,19 @@ const updateSchool = ({ params, body, user }) => {
     };
   }
 
+  // Same treatment for the class list: written onto the existing `academic`
+  // object rather than replacing it, so currentTerm, currentYear, termsPerYear,
+  // gradingSystem and finalYearClasses survive a class save. The real service
+  // assigns the one nested key; replacing the subdocument would drop them.
+  if (data.__classes) {
+    school.academic = { ...(school.academic || {}), classes: data.__classes };
+  }
+
   return {
     ...school,
-    __stripped: Object.keys(data).filter((k) => !ALLOWED.includes(k) && !k.startsWith('location.')),
+    __stripped: Object.keys(data).filter(
+      (k) => !ALLOWED.includes(k) && !k.startsWith('location.') && !k.startsWith('__')
+    ),
   };
 };
 
@@ -823,7 +853,15 @@ const listStudents = ({ query, user }) => {
     rows = rows.filter((s) => s.studentName.toLowerCase().includes(needle));
   }
   if (query?.class) rows = rows.filter((s) => s.studentClass === query.class);
-  if (query?.status) rows = rows.filter((s) => s.status === query.status);
+  // `'all'` means "no filter", exactly as `buildRosterFilter` treats it on the
+  // real service. The mock used to compare `s.status === query.status` for any
+  // truthy value, so a client sending `status=all` — which is what the Students
+  // module's "All Records" option does — got an empty roster here and the whole
+  // roster in production. A mock that disagrees with the backend about the one
+  // value both accept is worse than no mock.
+  if (query?.status && query.status !== 'all') {
+    rows = rows.filter((s) => s.status === query.status);
+  }
   // `balance` is not a real sortable field on the real API; the wizard uses it
   // to show the worst debtor first, so the mock honours it.
   if (query?.sortBy === 'balance') {
@@ -1019,6 +1057,203 @@ const listAlumni = ({ params, query }) => {
       totalPages: Math.max(1, Math.ceil(rows.length / limit)),
       hasNext: page * limit < rows.length,
     },
+  };
+};
+
+// ── Public pay surface ──────────────────────────────────────────────────────
+//
+// Unauthenticated, reached by an SMS link, and keyed on the pay token rather
+// than a session. The mock keeps its own token map because a fixture student has
+// a `payLink` but no real token, and the client reads the token off the end of
+// the URL.
+
+const payTokenOf = (student) => String(student.payLink || '').split('/').pop();
+
+// A deliberately narrow projection, mirroring the real `getStudentByPayToken`:
+// a name, a class, three figures, a deadline and the school. No guardian phone
+// numbers cross this boundary, so the mock must not invent any.
+const publicStudent = (student, school) => ({
+  id: student._id,
+  studentId: student.studentId,
+  studentName: student.studentName,
+  studentClass: student.studentClass,
+  totalOwed: student.totalOwed,
+  totalPaid: student.totalPaid,
+  balance: student.balance,
+  deadline: student.deadline,
+  school: school
+    ? { _id: school._id, schoolCode: school.schoolCode, name: school.name }
+    : null,
+});
+
+const getPayView = ({ params }) => {
+  const db = getDb();
+  const student = db.students.find((s) => payTokenOf(s) === params.token);
+  if (!student) {
+    throw new MockError(404, 'Invalid or expired payment link', 'INVALID_TOKEN');
+  }
+  const school = db.schools.find((s) => s._id === student.schoolId);
+  return {
+    student: publicStudent(student, school),
+    payLink: student.payLink,
+  };
+};
+
+const initiatePay = ({ params, body }) => {
+  const db = getDb();
+  const student = db.students.find((s) => payTokenOf(s) === params.token);
+  if (!student) {
+    throw new MockError(404, 'Invalid or expired payment link', 'INVALID_TOKEN');
+  }
+  if (!Number.isInteger(body?.amount) || body.amount < 1) {
+    throw new MockError(422, 'Amount must be at least 1 pesewa', 'VALIDATION_ERROR');
+  }
+  if (body.amount > (student.balance || 0)) {
+    throw new MockError(400, 'That is more than the balance due', 'AMOUNT_EXCEEDS_BALANCE');
+  }
+
+  // Stays pending: the real gateway settles by webhook, and the client polls.
+  // Returning `completed` here would skip the only state a real parent sees.
+  db.payments.push({
+    _id: objectId(db.payments.length + 500),
+    paymentId: `MOCK-PAY-${db.payments.length + 1}`,
+    studentId: student._id,
+    schoolId: student.schoolId,
+    amount: body.amount,
+    currency: 'GHS',
+    status: 'pending',
+    paymentMethod: 'momo',
+    provider: 'mtn',
+    momoPhoneNumber: body.phoneNumber || null,
+    momoNetwork: body.momoNetwork || 'UNKNOWN',
+    reference: `TXN-MOCK-${db.payments.length + 1}`,
+    description: body.description || 'Mobile Money payment',
+    createdAt: new Date().toISOString(),
+  });
+
+  return {
+    status: 'pending',
+    hubtelTransactionId: `MOCK-TXN-${db.payments.length + 1}`,
+    hubtelOrderId: `MOCK-ORD-${db.payments.length + 1}`,
+    message: 'Check your phone for the prompt',
+  };
+};
+
+const verifyPay = ({ params }) => {
+  const db = getDb();
+  const student = db.students.find((s) => payTokenOf(s) === params.token);
+  if (!student) {
+    throw new MockError(404, 'Invalid or expired payment link', 'INVALID_TOKEN');
+  }
+  const pending = db.payments.find(
+    (p) => p.studentId === student._id && p.status === 'pending'
+  );
+  return { status: pending ? pending.status : 'completed' };
+};
+
+/**
+ * Record a payment taken at the bursar's desk.
+ *
+ * Mirrors `manualPayment.service.js`: the payment row *and* the student's
+ * `totalPaid`/`balance` move together. A mock that only wrote the payment would
+ * make the feature look finished while the roster, the KPI band and every report
+ * still showed the old figure — which is the exact failure the real service's
+ * transaction exists to prevent.
+ *
+ * The guards match too: `momo` is refused (a Mobile Money payment is confirmed
+ * by the gateway, so a hand-recorded one is a second claim on the same money),
+ * and an amount above the balance needs `allowOverpayment`.
+ */
+const recordManualPayment = ({ body, user }) => {
+  const db = getDb();
+  const schoolId = resolveSchoolId(user, body?.schoolId);
+  if (!schoolId) throw new MockError(403, 'No school in scope', 'NO_SCHOOL_SCOPE');
+
+  if (!body?.studentRef) throw new MockError(400, 'A student is required', 'STUDENT_REQUIRED');
+  if (!Number.isInteger(body.amount) || body.amount <= 0) {
+    throw new MockError(400, 'Amount must be a positive whole number of pesewas', 'INVALID_AMOUNT');
+  }
+  if (!['cash', 'card', 'bank_transfer'].includes(body.method || 'cash')) {
+    throw new MockError(400, 'Method must be cash, card or bank_transfer', 'INVALID_METHOD');
+  }
+
+  const ref = String(body.studentRef).toUpperCase();
+  const student = studentsFor(schoolId).find(
+    (s) => s.studentId === ref || s._id === body.studentRef
+  );
+  if (!student) throw new MockError(404, 'Student not found', 'NOT_FOUND');
+
+  const balance = student.balance || 0;
+  if (body.amount > balance && !body.allowOverpayment) {
+    throw new MockError(
+      400,
+      `That is more than the ${balance} pesewas outstanding. Set allowOverpayment to record a credit.`,
+      'AMOUNT_EXCEEDS_BALANCE'
+    );
+  }
+
+  const at = new Date().toISOString();
+  const sequence = db.payments.length + 1;
+  const paymentId = `MOCK-MAN-${sequence}`;
+
+  db.payments.push({
+    _id: objectId(90000 + sequence),
+    paymentId,
+    studentId: student._id,
+    schoolId,
+    amount: body.amount,
+    currency: 'GHS',
+    status: 'completed',
+    paymentMethod: body.method || 'cash',
+    provider: 'manual',
+    reference: body.reference || null,
+    description: body.notes || `Manual payment — ${(body.method || 'cash').replace(/_/g, ' ')}`,
+    receiptNumber: `RCP-${paymentId}`,
+    initiatedAt: at,
+    completedAt: at,
+    // Set, so a later provider webhook is a no-op — as on the real service.
+    settlement: { appliedAt: at, reference: body.reference || null },
+    createdAt: at,
+    createdBy: user._id,
+  });
+
+  student.totalPaid = (student.totalPaid || 0) + body.amount;
+  student.balance = (student.totalOwed || 0) - student.totalPaid;
+
+  const school = db.schools.find((s) => s._id === schoolId);
+  if (school?.stats) {
+    school.stats.totalPaymentsThisMonth = (school.stats.totalPaymentsThisMonth || 0) + 1;
+  }
+
+  return {
+    payment: { paymentId, amount: body.amount, status: 'completed', provider: 'manual' },
+    student: {
+      _id: student._id,
+      studentId: student.studentId,
+      studentName: student.studentName,
+      totalPaid: student.totalPaid,
+      balance: student.balance,
+    },
+  };
+};
+
+/** `GET /payments` — the dashboard's recent activity and the Payments module. */
+const listPayments = ({ query, user }) => {
+  const db = getDb();
+  const schoolId = resolveSchoolId(user, query?.schoolId);
+  if (!schoolId) throw new MockError(400, 'A schoolId is required', 'NO_SCHOOL_SCOPE');
+
+  let rows = db.payments.filter((p) => p.schoolId === schoolId);
+  if (query?.studentId) rows = rows.filter((p) => p.studentId === query.studentId);
+  if (query?.status) rows = rows.filter((p) => p.status === query.status);
+
+  rows = [...rows].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  const perPage = Number(query?.perPage) || 20;
+  const page = Number(query?.page) || 1;
+  return {
+    payments: rows.slice((page - 1) * perPage, page * perPage),
+    meta: { page, perPage, total: rows.length, totalPages: Math.ceil(rows.length / perPage) },
   };
 };
 
@@ -1503,6 +1738,21 @@ export const ROUTES = [
   ['GET', /^\/cohorts\/detail\/(?<cohortId>[^/]+)$/, getCohortDetail],
   ['GET', /^\/cohorts\/(?<schoolId>[^/]+)$/, listCohorts],
   ['GET', /^\/alumni\/(?<schoolId>[^/]+)$/, listAlumni],
+
+  // Unauthenticated, and registered last: the mock resolves routes in order, and
+  // a pay token looks like any other single segment.
+  ['POST', /^\/pay\/(?<token>[^/]+)\/initiate$/, initiatePay],
+  ['POST', /^\/pay\/(?<token>[^/]+)\/verify$/, verifyPay],
+  ['GET', /^\/pay\/(?<token>[^/]+)\/receipt\/(?<paymentId>[^/]+)$/, () => ({
+    __raw: { message: 'Receipts are a PDF in production; the mock returns JSON.' },
+  })],
+  ['GET', /^\/pay\/(?<token>[^/]+)$/, getPayView],
+
+  // Before `/payments`, whose id segment is `:paymentId`. Both use a named group
+  // because the adapter's positional fallback would call the first segment
+  // `token`.
+  ['POST', /^\/payments\/record$/, recordManualPayment],
+  ['GET', /^\/payments$/, listPayments],
 
   ['POST', /^\/sms\/bulk\/([^/]+)$/, sendBulkSms, { mockOnly: true }],
   ['GET', /^\/admin\/sms-balance$/, getSmsBalance],

@@ -26,6 +26,15 @@ import {
 import { Field } from '../../components/common/FormField';
 
 // Sliding Carousel Data for the Login Aside panel
+//
+// The `stat` on each slide was a fabricated track-record number — "GH₵ 42M+
+// Disbursed", "140+ Partner Schools", "5.0 Verified Rating" — and the `highlight`
+// on the third was the same 1,200-student reconciliation claim the deleted
+// testimonial made, with no customer attached to it this time. None had a source,
+// and the 42M/140+/99.8% set appeared at three different values across four pages.
+//
+// `stat` is now a statement about what the product does, which a visitor can check
+// by signing up, rather than a number the visitor has to take on trust.
 const slideContent = [
   {
     badge: "TERM 1 & 2 ADMISSIONS LIVE",
@@ -33,23 +42,23 @@ const slideContent = [
     description: "Eliminate cash leakage, automate MoMo reconciliation, and offer flexible installment plans parents love.",
     icon: Gift,
     highlight: "Zero onboarding & maintenance fees for pilot schools.",
-    stat: "GH₵ 42M+ Disbursed"
+    stat: "MoMo, card & bank transfer"
   },
   {
     badge: "INSTITUTIONAL AUTOMATION",
     title: "Instant Push-USSD to Parent Handsets.",
     description: "Accept payments straight via MTN MoMo, Telecel Cash & AT Money with real-time bursary dashboard updates.",
     icon: Smartphone,
-    highlight: "99.8% MoMo SLA uptime guarantee across all networks.",
-    stat: "140+ Partner Schools"
+    highlight: "Every payment reconciled against the student's balance automatically.",
+    stat: "MTN · Telecel · AT"
   },
   {
     badge: "DEDICATED SUPPORT",
     title: "Local Onboarding & Roster Uploads.",
     description: "Hands-on local account representatives to help your bursary team transition smoothly.",
     icon: Headphones,
-    highlight: "Reconcile 1,200+ student payments in just 15 minutes.",
-    stat: "5.0 Verified Rating"
+    highlight: "Bring your existing roster as a spreadsheet and we will load it.",
+    stat: "CSV & Excel import"
   }
 ];
 

@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-  CircleCheck,
-  Clock,
-  GraduationCap,
-  TrendingUp,
-  TriangleAlert,
-  Users,
-} from 'lucide-react';
+import { GraduationCap, TrendingUp, TriangleAlert, Users } from 'lucide-react';
 import Tile, { CediValue } from '../../../components/dashboard/ui/Tile';
 import Badge from '../../../components/dashboard/ui/Badge';
 import ProgressBar from '../../../components/dashboard/charts/ProgressBar';
@@ -19,6 +12,19 @@ import { formatCediShort, formatCount, formatPercent } from '../../../utils/form
  * how many students, how much is owed, how much has come in, who is late. Only
  * the collected figure is green — it is the only one that is an achievement —
  * and only the overdue tile is red, carrying the only urgent badge.
+ *
+ * **Every figure here is read straight from `GET /students/stats`.** The band
+ * used to carry four more numbers from `data/dashboardDemo.js` — a 98%
+ * "enrolled in MoMo direct billing" rate, a "vs L/T +12%" delta, a "11 on
+ * Installment grace" count, and a "across all classes (P1 to JHS 3)" scope note.
+ * None of them has a source: the stats endpoint returns no enrollment rate, no
+ * prior-term comparison and no grace cohort, so they were decoration that read
+ * as measurement. The notes are gone rather than reworded, because a bursar
+ * reconciling these tiles against a bank statement is owed only the number that
+ * came from the server.
+ *
+ * The two that survive are derived, not stored: the collection rate is
+ * `collected / expectedOwed`, and the overdue amount is the server's own sum.
  */
 const KpiRow = ({ kpis }) => (
   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -26,29 +32,12 @@ const KpiRow = ({ kpis }) => (
       label="Total Students"
       icon={Users}
       value={formatCount(kpis.totalStudents.value)}
-      footer={
-        <p className="flex items-start gap-2 text-[11px] font-semibold leading-snug text-slate-500">
-          <CircleCheck className="mt-px h-3.5 w-3.5 shrink-0 text-brand-600" aria-hidden="true" />
-          <span>
-            <span className="font-extrabold text-brand-700">
-              {formatPercent(kpis.totalStudents.enrollmentPercent)}
-            </span>{' '}
-            {kpis.totalStudents.enrollmentNote}
-          </span>
-        </p>
-      }
     />
 
     <Tile
       label="Total Expected Owed"
       icon={GraduationCap}
       value={<CediValue pesewas={kpis.expectedOwed.amount} />}
-      footer={
-        <p className="flex items-start gap-2 text-[11px] font-semibold leading-snug text-slate-500">
-          <GraduationCap className="mt-px h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
-          {kpis.expectedOwed.scopeNote}
-        </p>
-      }
     />
 
     <Tile
@@ -56,12 +45,6 @@ const KpiRow = ({ kpis }) => (
       icon={TrendingUp}
       accent
       valueTone="text-brand-700"
-      badge={
-        <Badge tone="green" icon={TrendingUp}>
-          {kpis.collected.deltaPercent > 0 ? '+' : ''}
-          {kpis.collected.deltaPercent}% {kpis.collected.deltaLabel}
-        </Badge>
-      }
       value={<CediValue pesewas={kpis.collected.amount} tone="text-brand-700" />}
       footer={
         <div className="space-y-2">
@@ -94,18 +77,10 @@ const KpiRow = ({ kpis }) => (
       }
       value={formatCount(kpis.overdue.students)}
       footer={
-        <div className="flex items-center justify-between gap-3">
-          <p className="flex items-start gap-2 text-[11px] font-semibold leading-snug text-slate-500">
-            <Clock className="mt-px h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
-            <span>
-              <span className="font-extrabold text-ink">{kpis.overdue.onGrace}</span>{' '}
-              {kpis.overdue.graceNote}
-            </span>
-          </p>
-          <p className="shrink-0 text-[11px] font-extrabold text-red-600">
-            {formatCediShort(kpis.overdue.amount)}
-          </p>
-        </div>
+        <p className="flex items-center justify-between gap-3 text-[11px] font-extrabold text-red-600">
+          <span className="font-semibold text-slate-500">Outstanding overdue</span>
+          {formatCediShort(kpis.overdue.amount)}
+        </p>
       }
     />
   </div>

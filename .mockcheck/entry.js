@@ -30,6 +30,8 @@ const { resetDb, setScenario, getDb, issueToken } = await import('../src/mocks/d
 const { getSchool, updateSchool, updatePayoutAccount, verifyHubtel, provisionMySchool, joinSchoolByCode } = await import('../src/services/school.js');
 const { bulkImport, createStudent, listStudents } = await import('../src/services/students.js');
 const { listCohorts, getCohort, listAlumni } = await import('../src/services/students.js');
+const { recordManualPayment } = await import('../src/services/payments.js');
+const { getPayView } = await import('../src/services/publicPay.js');
 const { sendBulk } = await import('../src/services/sms.js');
 const { getMe } = await import('../src/services/user.js');
 const { login, signup, verifyEmail, resendVerificationEmail } = await import('../src/services/auth.js');
@@ -560,6 +562,106 @@ await check('GET /alumni returns only real graduates', async () => {
     'an alumnus had no certificate number'
   );
   return `${rows.length} honors alumni, e.g. ${rows[0].certificateNumber}`;
+});
+
+await check('status=all means "no filter", on the mock as on the real API', async () => {
+  resetDb('established');
+  await signIn('head.bursary@example.org');
+  const active = await listStudents({ status: 'active', perPage: 5 });
+  const all = await listStudents({ status: 'all', perPage: 5 });
+  // The regression: the mock compared `s.status === 'all'`, so "All Records"
+  // returned nothing here while the real service returned everything.
+  expect(all.rows.length > 0, `status=all returned ${all.rows.length} rows`);
+  expect(
+    all.meta.total > active.meta.total,
+    `status=all (${all.meta.total}) is not larger than status=active (${active.meta.total})`
+  );
+  return `active ${active.meta.total} of ${all.meta.total} total`;
+});
+
+await check('GET /pay/:token returns a deliberately narrow student view', async () => {
+  resetDb('established');
+  const bursar = await signIn('head.bursary@example.org');
+  const { rows } = await listStudents({ schoolId: bursar.schoolId, perPage: 20, status: 'all' });
+  const target = rows[0];
+  const token = String(target.payLink).split('/').pop();
+
+  const view = await getPayView(token);
+  const student = view?.student;
+
+  expect(Boolean(student?.studentName), 'no student name in the pay view');
+  // The real response is a deliberate projection: no guardian phone numbers, no
+  // pay-link token, no school admin details. A mock returning the whole record
+  // would leak exactly what the projection exists to withhold.
+  ['parents', 'uniquePayLinkToken', 'schoolId', 'createdBy', 'emergencyContacts'].forEach(
+    (field) => {
+      if (student[field] !== undefined) throw new Error(`the pay view leaked "${field}"`);
+    }
+  );
+  expect(Boolean(student.school?.name), 'the school name is missing');
+  expect(Number.isInteger(student.balance), 'the balance is not a pesewa integer');
+  return `${student.studentName}, balance ${student.balance}`;
+});
+
+await check('an unknown pay token is refused, not rendered empty', async () => {
+  let message = null;
+  try {
+    await getPayView('STU-DEADBEEF');
+  } catch (error) {
+    message = error.message;
+  }
+  expect(Boolean(message), 'an unknown token resolved instead of erroring');
+  expect(/expired|invalid/i.test(message), `unhelpful message: ${message}`);
+  return message;
+});
+
+await check('a manual payment settles the student in the mock too', async () => {
+  resetDb('established');
+  const bursar = await signIn('head.bursary@example.org');
+  const { rows } = await listStudents({ schoolId: bursar.schoolId, perPage: 20, status: 'all' });
+  const owing = rows.find((s) => s.balance > 0);
+  expect(owing, 'no student with a balance to pay against');
+
+  const before = owing.balance;
+  const result = await recordManualPayment({
+    studentRef: owing.studentId,
+    amount: 10000,
+    method: 'cash',
+  });
+
+  expect(result?.payment?.status === 'completed', 'the payment was not completed');
+  expect(result?.payment?.provider === 'manual', 'provider is not manual');
+  expect(
+    result?.student?.balance === before - 10000,
+    `balance went ${before} -> ${result?.student?.balance}, expected ${before - 10000}`
+  );
+  return `${owing.studentId}: ${before} -> ${result.student.balance}`;
+});
+
+await check('a manual payment above the balance is refused', async () => {
+  const bursar = await signIn('head.bursary@example.org');
+  const { rows } = await listStudents({ schoolId: bursar.schoolId, perPage: 20, status: 'all' });
+  const owing = rows.find((s) => s.balance > 0);
+
+  // Through the service, because that is where the rejection becomes a
+  // catchable error: the refusal is the behaviour under test, not a thrown
+  // exception to be reported as a failure.
+  let message = null;
+  let code = null;
+  try {
+    await recordManualPayment({
+      studentRef: owing.studentId,
+      amount: owing.balance + 100000,
+      method: 'cash',
+    });
+  } catch (error) {
+    message = error.message;
+    code = error.code;
+  }
+
+  expect(Boolean(message), 'an overpayment was accepted without being forced');
+  expect(code === 'AMOUNT_EXCEEDS_BALANCE' || /more than/i.test(message), `unclear refusal: ${code} ${message}`);
+  return `${code}: ${String(message).slice(0, 60)}`;
 });
 
 await check('offline: listStudents degrades to [] rather than throwing', async () => {

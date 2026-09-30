@@ -123,7 +123,7 @@ const DashboardSidebar = ({ user, school, variant = 'fixed', className = '', onC
               {school?.name || 'Your school'}
             </span>
             <span className="block truncate text-[11px] font-semibold leading-tight text-white/70">
-              {school?.campus || 'School settings'}
+              {school?.city || 'School settings'}
             </span>
           </Link>
           <Link

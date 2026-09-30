@@ -126,7 +126,7 @@ const DashboardTopbar = ({ user, onOpenNav, navOpen = false, school, term, smsCr
                       {school?.name || 'Your school'}
                     </span>
                     <span className="block truncate text-[11px] font-semibold text-slate-500">
-                      {school?.campus || 'Current school'}
+                      {school?.city || 'Current school'}
                     </span>
                   </span>
                 </div>
@@ -140,10 +140,10 @@ const DashboardTopbar = ({ user, onOpenNav, navOpen = false, school, term, smsCr
                 <GraduationCap className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
                 <span className="min-w-0">
                   <span className="block truncate text-[13px] font-extrabold leading-tight text-ink">
-                    {school?.shortName || school?.name || 'Your school'}
+                    {school?.name || 'Your school'}
                   </span>
                   <span className="block truncate text-[11px] font-semibold leading-tight text-slate-500">
-                    {school?.campus || 'Switch school'}
+                    {school?.city || 'Switch school'}
                   </span>
                 </span>
                 <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />

@@ -26,6 +26,33 @@ export const updateSchool = async (schoolId, payload) => {
 };
 
 /**
+ * Save the school's class list.
+ *
+ * **The key must be the flattened dotted string, not a nested object.**
+ * `updateSchoolSchema` declares `"academic.classes"` as a Joi path, and Joi
+ * matches that path against a *literal* dotted key in the body. Sending
+ * `{ academic: { classes } }` does not reach it: `stripUnknown` drops `academic`
+ * wholesale, the schema is left with zero keys, and `.min(1)` turns the request
+ * into a 422 `value must have at least 1 key`. The flat form round-trips intact.
+ *
+ * The flattened form is also the only safe one. `updateSchool` routes dotted
+ * keys through `NESTED_PATHS` and assigns `school.academic.classes = value`,
+ * so a nested object — had it survived validation — would have replaced the
+ * whole `academic` subdocument and silently dropped `currentTerm`,
+ * `currentYear`, `termsPerYear`, `gradingSystem` and `finalYearClasses`.
+ */
+export const updateSchoolClasses = async (schoolId, classes) => {
+  try {
+    const { data } = await api.put(`/schools/${schoolId}`, {
+      'academic.classes': classes,
+    });
+    return data.data?.school || data.school || data.data || data;
+  } catch (error) {
+    throw toApiError(error, 'Failed to save your class list.');
+  }
+};
+
+/**
  * Settlement account.
  *
  * NOTE: the School model has `payment.bankAccount` but no route currently
@@ -133,6 +160,7 @@ export const joinSchoolByCode = async ({ schoolCode, applicantName, applicantPos
 export default {
   getSchool,
   updateSchool,
+  updateSchoolClasses,
   provisionMySchool,
   joinSchoolByCode,
   updatePayoutAccount,

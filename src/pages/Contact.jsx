@@ -51,13 +51,18 @@ const Contact = () => (
               <Calendar size={18} />
               <span>Book a Free Demo</span>
             </a>
-            <a
-              href={COMPANY_ADDRESS.whatsappHref}
-              className="flex items-center gap-2 rounded-xl border border-brand-600 bg-brand-800 px-8 py-4 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-brand-700"
-            >
-              <MessageSquare size={18} className="text-brand-300" />
-              <span>Talk to us on WhatsApp ({COMPANY_ADDRESS.whatsappDisplay})</span>
-            </a>
+            {/* Hidden while the WhatsApp line is unconfigured. It used to render
+                "+233 24 000 0000" — all eleven digits zeroed — as "Talk to us
+                on WhatsApp", on the page whose entire job is to be contactable. */}
+            {COMPANY_ADDRESS.whatsappHref && (
+              <a
+                href={COMPANY_ADDRESS.whatsappHref}
+                className="flex items-center gap-2 rounded-xl border border-brand-600 bg-brand-800 px-8 py-4 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-brand-700"
+              >
+                <MessageSquare size={18} className="text-brand-300" />
+                <span>Talk to us on WhatsApp ({COMPANY_ADDRESS.whatsappDisplay})</span>
+              </a>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-6 text-xs font-medium text-brand-200 sm:text-sm">
@@ -94,7 +99,10 @@ const Contact = () => (
       <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
         {[
           { icon: MapPin, label: 'Visit', value: COMPANY_ADDRESS.office, sub: COMPANY_ADDRESS.street },
-          {
+          // Dropped entirely when the number is unconfigured, rather than
+          // rendering an empty card or a `tel:` link to a line that does not
+          // exist. See `COMPANY_ADDRESS` in utils/constants.
+          HELPDESK_PHONE && {
             icon: Phone,
             label: 'Call',
             value: HELPDESK_PHONE,
@@ -106,7 +114,9 @@ const Contact = () => (
             value: COMPANY_ADDRESS.email,
             href: `mailto:${COMPANY_ADDRESS.email}`,
           },
-        ].map(({ icon: Icon, label, value, sub, href }) => {
+        ]
+          .filter(Boolean)
+          .map(({ icon: Icon, label, value, sub, href }) => {
           const body = (
             <>
               <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">

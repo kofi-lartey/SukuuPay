@@ -111,5 +111,44 @@ await check('login renders', () => {
   return 'login form renders';
 });
 
+await check('the public pages assert no invented track record', () => {
+  // Every one of these was a fabricated number or attribution shown to an
+  // unauthenticated visitor, and they did not agree with each other: the asides
+  // claimed "140+ Schools" and "GH₵ 42M+ Disbursed" while the how-it-works strip
+  // claimed "180+ Partner Schools" and the pricing page claimed "GH₵ 34.2M Fees
+  // collected in 2024". The 99.8% appeared as both a "MoMo SLA uptime guarantee"
+  // and a "MoMo success rate". There is no aggregate over the schools or payments
+  // collections that produces any of them, and the database has one school on it.
+  //
+  // A five-star testimonial from "Mrs. Cynthia Osei-Tutu, Head Bursar, Morning
+  // Star Preparatory" went the same way — a named person, a named school and a
+  // reconciliation-time claim, none of which existed.
+  const routes = ['/', '/login', '/signup', '/pricing', '/how-it-works', '/for-schools', '/contact'];
+  const forbidden = [
+    'GH₵ 42M',
+    'GH₵ 34.2M',
+    '99.8%',
+    '98.4%',
+    '140+ Partner',
+    '140+ Schools',
+    '180+',
+    'Cynthia Osei-Tutu',
+    'Morning Star Preparatory,',
+    '1,200+ student payments',
+    '12,480',
+    '233 24 000 0000',
+    '+233 24 456 7890',
+  ];
+  for (const route of routes) {
+    const html = renderToString(at(route));
+    for (const needle of forbidden) {
+      if (has(html, needle)) {
+        throw new Error(`[${route}] renders the invented claim "${needle}"`);
+      }
+    }
+  }
+  return `${routes.length} public routes, no fabricated metric or attribution`;
+});
+
 console.log(`\n${pass} passed, ${fail} failed.`);
 process.exit(fail === 0 ? 0 : 1);

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Download, UserPlus } from 'lucide-react';
+import { CircleAlert, Download, UserPlus } from 'lucide-react';
 import PageHeader from '../../components/dashboard/PageHeader';
 import ModuleTabs from '../../components/dashboard/ModuleTabs';
 import RosterKpiRow from '../../components/students/RosterKpiRow';
@@ -9,8 +9,10 @@ import StudentTable from '../../components/students/StudentTable';
 import BulkActionBar from '../../components/students/BulkActionBar';
 import StudentProfileDrawer from '../../components/students/StudentProfileDrawer';
 import StudentForm from '../../components/students/StudentForm';
+import ClassListEditor from '../../components/students/ClassListEditor';
 import ImportTab from '../../components/students/ImportTab';
 import AlumniTab from '../../components/students/AlumniTab';
+import CohortsTab from '../../components/students/CohortsTab';
 import useToast from '../../hooks/useToast';
 import { useStudents, useStudentStats, useRosterSelection } from '../../hooks/useStudents';
 import { useAuth } from '../../context/AuthContext';
@@ -49,11 +51,28 @@ const Students = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get('tab') || 'roster';
 
+  // The class list, and *why* it is missing when it is.
+  //
+  // `studentClass` is validated against the school's own class list, so without
+  // it the class dropdown is empty and Add Student cannot be used at all. The
+  // previous version swallowed the failure and left the button disabled with a
+  // tooltip blaming the school ("Add a class to your school first") — so a network
+  // error or an unconfigured school read as a configuration problem, and the one
+  // button the module exists for was dead with no explanation on screen.
+  //
+  // The list is now editable from here (`ClassListEditor`), because a school
+  // provisioned through onboarding always starts with none and no other screen
+  // in the app could ever create one.
   const [school, setSchool] = useState(null);
+  const [schoolError, setSchoolError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [profileId, setProfileId] = useState(null);
   const [editing, setEditing] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [editingClasses, setEditingClasses] = useState(false);
+  // Set when the class list was reached *via* Add New Student, so saving classes
+  // continues straight into the form the user was actually trying to open.
+  const [addAfterClasses, setAddAfterClasses] = useState(false);
 
   const { rows, meta, loading, error, filters, setFilter, clearFilters, hasFilters } =
     useStudents(reloadKey);
@@ -65,12 +84,17 @@ const Students = () => {
     let active = true;
     getSchool(user.schoolId)
       .then((result) => {
-        if (active) setSchool(result);
+        if (!active) return;
+        setSchool(result);
+        setSchoolError(null);
       })
-      .catch(() => {
-        // The class list comes from the school record. Without it the class
-        // filter is empty, which is visible rather than fatal.
-        if (active) setSchool(null);
+      .catch((error) => {
+        if (!active) return;
+        // Said out loud rather than swallowed: the class list is what Add Student
+        // is built on, so failing to load it is a blocked action, not a
+        // cosmetic gap in the filter row.
+        setSchool(null);
+        setSchoolError(error.message || 'Your school could not be loaded.');
       });
     return () => {
       active = false;
@@ -84,6 +108,40 @@ const Students = () => {
 
   /** The single invalidation point every mutation funnels through. */
   const refresh = useCallback(() => setReloadKey((key) => key + 1), []);
+
+  /**
+   * A class save has to land in local state immediately rather than waiting for
+   * a refetch: the whole point of the dialog is that Add Student works the
+   * moment it closes, not one round trip later.
+   */
+  const onClassesSaved = useCallback(
+    (next) => {
+      setSchool((current) =>
+        current ? { ...current, academic: { ...current.academic, classes: next } } : current
+      );
+      success(`${formatCount(next.length)} ${next.length === 1 ? 'class' : 'classes'} saved`);
+      if (addAfterClasses) {
+        setAddAfterClasses(false);
+        setCreating(true);
+      }
+    },
+    [success, addAfterClasses]
+  );
+
+  /**
+   * A student cannot be created without a class, so when the school has none the
+   * button opens the class list instead of a form whose class dropdown would be
+   * empty. One action, no dead end — the previous version disabled the button
+   * and left the user with a hover-only explanation.
+   */
+  const onAddStudent = () => {
+    if (classes.length) {
+      setCreating(true);
+      return;
+    }
+    setAddAfterClasses(true);
+    setEditingClasses(true);
+  };
 
   const setTab = (next) => {
     const params = new URLSearchParams(searchParams);
@@ -131,7 +189,20 @@ const Students = () => {
   };
 
   const onSaved = (saved, wasEdit) => {
-    success(wasEdit ? `${saved?.studentName || 'Student'} updated` : `${saved?.studentName || 'Student'} added`);
+    if (wasEdit) {
+      success(`${saved?.studentName || 'Student'} updated`);
+    } else if (hasFilters) {
+      // Clear the filters, because a freshly created student is active, owes the
+      // full amount and has no plan — so "Overdue", "Fully Cleared", "On Track" or
+      // a specific class will all exclude them. The record would be created
+      // correctly and then be invisible, which reads as a failure to create it.
+      setFilter({ class: '', feeStatus: '', planStatus: '', gender: '', status: 'active', page: 1 });
+      success(
+        `${saved?.studentName || 'Student'} added. Your filters were cleared so you can see them.`
+      );
+    } else {
+      success(`${saved?.studentName || 'Student'} added`);
+    }
     setEditing(null);
     setCreating(false);
     refresh();
@@ -257,10 +328,8 @@ const Students = () => {
             </button>
             <button
               type="button"
-              onClick={() => setCreating(true)}
-              disabled={!classes.length}
-              title={classes.length ? undefined : 'Add a class to your school first'}
-              className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-[13px] font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+              onClick={onAddStudent}
+              className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-[13px] font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800"
             >
               <UserPlus className="h-4 w-4" aria-hidden="true" />
               Add New Student
@@ -272,6 +341,38 @@ const Students = () => {
       <ModuleTabs items={TABS} value={tab} onChange={setTab} ariaLabel="Students sections" />
 
       <RosterKpiRow stats={stats} loading={statsLoading} />
+
+      {/* Said on the page, not only in a tooltip: with no class list, Add Student
+          is unavailable, and a disabled button with a hover-only explanation is
+          a dead end for anyone on a touch device. Both banners now offer the fix
+          inline instead of pointing at a Settings page that does not exist. */}
+      {schoolError && (
+        <div className="mb-4 flex flex-wrap items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
+          <p className="flex-1 text-[13px] font-semibold text-amber-900">
+            <span className="font-extrabold">Your class list could not be loaded.</span> {schoolError}{' '}
+            Adding a student needs it, because a student must be in a class your school
+            defines.
+          </p>
+        </div>
+      )}
+
+      {school && !schoolError && !classes.length && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+          <CircleAlert className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+          <p className="flex-1 text-[13px] font-semibold text-slate-600">
+            This school has no classes yet, so students cannot be added or promoted. Add
+            your class list to get started.
+          </p>
+          <button
+            type="button"
+            onClick={() => setEditingClasses(true)}
+            className="rounded-lg border border-brand-700 px-3 py-1.5 text-[12px] font-extrabold text-brand-700 transition-colors hover:bg-brand-50"
+          >
+            Set up classes
+          </button>
+        </div>
+      )}
 
       <RosterFilterBar
         filters={filters}
@@ -305,6 +406,14 @@ const Students = () => {
         open={Boolean(profileId)}
         studentId={profileId}
         onClose={() => setProfileId(null)}
+      />
+
+      <ClassListEditor
+        open={editingClasses}
+        schoolId={user?.schoolId}
+        classes={classes}
+        onClose={() => setEditingClasses(false)}
+        onSaved={onClassesSaved}
       />
 
       <StudentForm

@@ -1,50 +1,233 @@
-import { useMemo } from 'react';
-import { DEMO_OVERVIEW } from '../data/dashboardDemo';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { EMPTY_OVERVIEW } from '../data/dashboardEmpty';
+import { getStudentStats, listStudents } from '../services/students';
+import { getOutstanding, getPaymentMethods, listRecentPayments } from '../services/dashboard';
+import { getSchool } from '../services/school';
 
 /**
  * The Overview's single data seam.
  *
- * Everything the page renders comes from here, so moving the Overview from
- * fixtures to live data is a change to this file alone — not an edit threaded
- * through six cards and three chart components.
+ * **Every region comes from the API, and the ones with no endpoint render empty.**
  *
- * `isDemo` is the load-bearing part of the contract. The design this page
- * follows carries a "LIVE SYNC ACTIVE" marker, and that marker must never be
- * able to appear over fixture data: a bursar reconciling GH₵ 318,000 against a
- * real bank statement cannot be told the screen is live when it is not. The page
- * reads this flag rather than hardcoding the marker, and disables the two header
- * actions that would otherwise export or record fiction.
+ * This hook used to seed itself from `data/dashboardDemo.js` and overwrite three
+ * regions as answers arrived, which read as a safe fallback and was not one. The
+ * school name, the term, the academic year, the weekly collections curve, the
+ * payment-channel split, the upcoming tranches and the SMS-broadcast template
+ * were never overwritten by any request, so they rendered for every signed-in
+ * bursar on a live deployment — the persistent dashboard header showed a
+ * fictional school next to a green "Live sync active" badge. The cards' "demo
+ * data" captions did not catch it: they were gated on one page-level `isDemo`
+ * flag that turned false as soon as the first request succeeded, so a single live
+ * KPI suppressed the disclaimer on all seven fabricated regions.
  *
- * State is *initialised* from the data rather than fetched into it. The fixture
- * is a static import, so a `loading` round trip would be theatre — it would
- * paint a skeleton for one frame over data that is already in memory, and it
- * would make the page unrenderable on the server, where effects never run. When
- * the real service lands this becomes a genuine async hook again: initialise
- * `{ data: null, loading: true }`, fetch in an effect, and leave the rest of the
- * page untouched.
+ * The fix is not a better fallback. It is that `data/dashboardDemo.js` is gone
+ * and there is nothing to fall back to.
+ *
+ * What each region is bound to:
+ *
+ *   school, term   GET  /schools/:id           (name, city, academic.currentTerm/Year)
+ *   kpis           GET  /students/stats
+ *   active         GET  /students
+ *   transactions   GET  /payments
+ *   channels       GET  /reports/payment-methods/:schoolId
+ *   smsBroadcast   GET  /reports/outstanding/:schoolId
+ *   weeklyInflow   — none; see getWeeklyCollections
+ *   upcoming       — none; see getUpcomingInstallments
+ *
+ * The last two are absent from the response, not defaulted, so the cards can tell
+ * "not available yet" from "nothing to report".
  */
-export const useDashboardOverview = () => {
-  const data = DEMO_OVERVIEW;
-  const isDemo = true;
+export const useDashboardOverview = (schoolId) => {
+  const [state, setState] = useState({
+    data: EMPTY_OVERVIEW,
+    loading: true,
+    // Means "the API did not answer", not "a fixture is showing". It still gates
+    // the header actions: a bursar must not be offered "Record Manual Payment"
+    // against numbers that were never stored.
+    isFallback: false,
+    error: null,
+    liveRegions: [],
+  });
+
+  useEffect(() => {
+    if (!schoolId) {
+      setState({ data: EMPTY_OVERVIEW, loading: false, isFallback: true, error: null, liveRegions: [] });
+      return undefined;
+    }
+
+    let active = true;
+    const live = [];
+
+    // `Promise.allSettled`, not `all`: one endpoint failing must not take the rest
+    // of the dashboard down with it.
+    Promise.allSettled([
+      getSchool(schoolId),
+      getStudentStats({ status: 'all' }),
+      listStudents({ status: 'all', perPage: 6, sortBy: 'createdAt', sortOrder: 'desc' }),
+      listRecentPayments({ page: 1, perPage: 6, sortBy: 'createdAt', sortOrder: 'desc' }),
+      getPaymentMethods(schoolId),
+      getOutstanding(schoolId),
+    ]).then(([school, stats, students, payments, methods, outstanding]) => {
+      if (!active) return;
+
+      const next = { ...EMPTY_OVERVIEW };
+      let anyLive = false;
+
+      if (school.status === 'fulfilled' && school.value) {
+        const s = school.value;
+        const term = s.academic?.currentTerm || '';
+        const academicYear = s.academic?.currentYear || '';
+        next.school = {
+          name: s.name || '',
+          city: s.city || '',
+          schoolCode: s.schoolCode || '',
+        };
+        next.term = {
+          term,
+          academicYear,
+          label: term ? `${term} · ${academicYear}`.trim() : '',
+        };
+        live.push('school');
+        anyLive = true;
+      }
+
+      if (stats.status === 'fulfilled' && stats.value) {
+        const s = stats.value;
+        const owed = s.totalOwed ?? 0;
+        const paid = s.totalPaid ?? 0;
+        next.kpis = {
+          totalStudents: { value: s.totalRoster ?? s.totalStudents ?? 0 },
+          expectedOwed: { amount: owed },
+          collected: {
+            amount: paid,
+            ratePercent: owed ? Math.round((paid / owed) * 1000) / 10 : 0,
+            rateLabel: 'Collection Rate',
+          },
+          overdue: {
+            students: s.overdueStudents ?? 0,
+            amount: s.overdueAmount ?? 0,
+          },
+        };
+        live.push('kpis');
+        anyLive = true;
+      }
+
+      if (students.status === 'fulfilled' && students.value?.rows?.length) {
+        next.active = students.value.rows;
+        live.push('students');
+        anyLive = true;
+      }
+
+      if (payments.status === 'fulfilled' && payments.value?.rows?.length) {
+        // The transactions table wants a few derived fields the payment list does
+        // not return: a network label and a display name. Mapped here rather than
+        // in the card, so the card stays a function of its props.
+        next.transactions = payments.value.rows.map((p) => ({
+          ...p,
+          studentName: p.studentName || p.studentId || 'Payment',
+          studentId: p.studentId,
+          network: String(p.momoNetwork || 'UNKNOWN').toLowerCase().slice(0, 8),
+          networkLabel: p.momoNetwork || p.paymentMethod?.toUpperCase() || 'Manual',
+          reference: p.reference || p.mtnReferenceId || p.paymentId,
+          dateLabel: new Date(p.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+          timeLabel: new Date(p.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+        }));
+        next.transactionCount = payments.value.meta?.total ?? next.transactions.length;
+        live.push('transactions');
+        anyLive = true;
+      }
+
+      if (methods.status === 'fulfilled' && methods.value?.rows?.length) {
+        // The endpoint groups by payment method (`momo`, `card`, `bank_transfer`,
+        // `manual`) and reports a count of transactions. The fixture claimed a
+        // per-network split with an authorisation rate and an "accounts" count,
+        // which is why the card is now built on this shape instead.
+        next.channels = methods.value.rows.map((row) => ({
+          key: row.label,
+          label: row.label,
+          amount: row.amount ?? 0,
+          transactionCount: row.count ?? 0,
+          sharePercent: row.percentage ?? 0,
+        }));
+        live.push('channels');
+        anyLive = true;
+      }
+
+      if (outstanding.status === 'fulfilled' && outstanding.value?.summary) {
+        const s = outstanding.value.summary;
+        next.smsBroadcast = {
+          recipientCount: s.studentCount ?? 0,
+          fullyUnpaidCount: s.fullyUnpaidCount ?? 0,
+          partiallyPaidCount: s.partiallyPaidCount ?? 0,
+          totalOutstanding: s.totalOutstanding ?? 0,
+        };
+        live.push('smsBroadcast');
+        anyLive = true;
+      }
+
+      setState({
+        data: next,
+        loading: false,
+        isFallback: !anyLive,
+        error: null,
+        liveRegions: live,
+      });
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [schoolId]);
 
   /**
    * The weekly series, narrowed to one network.
    *
-   * `all` sums nothing: each row carries an explicit `total` so the chart's last
-   * point and the KPI headline are the same stored figure rather than one
-   * computed and one remembered. See the reconciliation note in
-   * `data/dashboardDemo.js`.
+   * Empty by construction: `getWeeklyCollections` throws, because teaching weeks
+   * have to be bucketed against the school calendar rather than `date % 7`. The
+   * signature is kept so the card and the chart are unchanged when the route
+   * lands — it becomes a fourth fetcher and the empty state disappears on its own.
    */
   const seriesFor = useMemo(
     () => (channel) =>
-      (data?.weeklyInflow || []).map((row) => ({
+      (EMPTY_OVERVIEW.weeklyInflow || []).map((row) => ({
         label: row.week,
         value: channel === 'all' ? row.total : row[channel],
       })),
-    [data]
+    []
   );
 
-  return { data, loading: false, isDemo, error: null, seriesFor };
+  /**
+   * Force a re-read.
+   *
+   * Called after a mutation. Deliberately not a filter change, so recording a
+   * payment refreshes the collection figures without the page re-deriving
+   * anything about itself.
+   */
+  const [nonce, setNonce] = useState(0);
+  const refresh = useCallback(() => setNonce((n) => n + 1), []);
+
+  useEffect(() => {
+    if (nonce === 0 || !schoolId) return;
+    getStudentStats({ status: 'all' })
+      .then((s) => {
+        setState((current) => ({
+          ...current,
+          data: {
+            ...current.data,
+            kpis: {
+              ...current.data.kpis,
+              collected: {
+                ...current.data.kpis.collected,
+                amount: s?.totalPaid ?? current.data.kpis.collected.amount,
+              },
+            },
+          },
+        }));
+      })
+      .catch(() => {});
+  }, [nonce, schoolId]);
+
+  return { ...state, seriesFor, refresh };
 };
 
 export default useDashboardOverview;

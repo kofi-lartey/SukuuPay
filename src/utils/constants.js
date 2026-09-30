@@ -214,13 +214,26 @@ export const activeDashboardItem = (pathname, role) => {
   return null;
 };
 
+/**
+ * Company contact details.
+ *
+ * `whatsappDisplay` and `whatsappHref` were `+233 24 000 0000` /
+ * `https://wa.me/233240000000` — a number with all eleven digits zeroed, which is
+ * the clearest possible statement that nobody was ever going to answer it. It was
+ * rendered as "Talk to us on WhatsApp" on the contact page and in the footer, so
+ * the site was inviting people to message a line that does not exist.
+ *
+ * They are empty now and every consumer hides the link rather than rendering a
+ * blank or a broken `wa.me` link. **Set these to the real line before launch** —
+ * an absent contact route is honest, an unassigned number is not.
+ */
 export const COMPANY_ADDRESS = {
 
   office: 'Prampram Technology Center',
   street: 'Opposite District Assembly, Greater Accra Region, Ghana',
   email: 'hello@sukuupay.com',
-  whatsappDisplay: '+233 24 000 0000',
-  whatsappHref: 'https://wa.me/233240000000',
+  whatsappDisplay: '',
+  whatsappHref: '',
 };
 
 /** Mirrors the `region` enum on the School model. */
@@ -250,7 +263,17 @@ export const SCHOOL_CLASSIFICATIONS = [
   { value: 'university', label: 'University / College' },
 ];
 
-export const HELPDESK_PHONE = '+233 24 456 7890';
+/**
+ * The support line, empty until it is a real one.
+ *
+ * It was `+233 24 456 7890`, which reads as the example value it is — 024 123 4567
+ * is this codebase's own canonical fake number. It was published in the site
+ * footer as a `tel:` link and in the contact page's details, next to a promise to
+ * help a bursar who cannot get into their account. Empty is honest; see
+ * `COMPANY_ADDRESS` for the same reasoning on the WhatsApp line. Consumers hide
+ * the link when this is blank.
+ */
+export const HELPDESK_PHONE = '';
 
 // ── Account roles ───────────────────────────────────────────────────────────
 

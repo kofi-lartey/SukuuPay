@@ -14,9 +14,10 @@ import { formatCount } from '../../utils/format';
  * is worth stating here because it shapes the UI: a cohort has no editable
  * name, no dates and no teacher, only a year and the students who left in it.
  *
- * "Final year" is read as the last three classes on the school's list, which is
- * the most the system can know — see the module spec §5.3. The class cards show
- * real student counts now rather than the hardcoded `0` they used to return.
+ * The class counts come from the server's own final-year list, which honours
+ * `School.academic.finalYearClasses` when a school has named its own. So a
+ * basic-and-JHS school shows "JHS 3: 46" rather than the last three classes on
+ * its list, which would have been JHS 1–3.
  */
 const CohortsTab = ({ schoolId }) => {
   const [state, setState] = useState({ rows: [], meta: null, loading: true, error: null });

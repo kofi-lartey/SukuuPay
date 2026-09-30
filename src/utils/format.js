@@ -9,7 +9,7 @@
  * impossible.
  *
  * `formatCedi` takes pesewas. Passing cedis to it renders 100× too large, which
- * is why every demo figure in `data/dashboardDemo.js` is written through the
+ * is why every money figure in the app is written through the
  * `gh()` helper rather than as a bare literal.
  */
 

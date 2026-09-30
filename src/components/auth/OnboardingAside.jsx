@@ -12,14 +12,27 @@ import {
   RefreshCw,
   ShieldCheck,
   Smartphone,
-  Star,
   Zap,
 } from 'lucide-react';
 
+/**
+ * The band shown when no school advert is live.
+ *
+ * This was three fabricated platform metrics — "GH₵ 42M+ Disbursed", "140+
+ * Schools", "99.8% MoMo SLA" — presented as a track record. None had a source:
+ * there is no aggregate over the schools collection that produces any of them,
+ * and the seeded ad band they backfilled rendered on top of it whenever the ad
+ * fetch was empty, which is the normal case on a fresh deployment.
+ *
+ * It is now what is actually true and checkable: which networks are enabled,
+ * where the money settles, and what a term looks like. `school.payment.networksEnabled`
+ * and `gatewayMode` make the first two real configuration rather than marketing,
+ * and the third is just a description of the domain. **No numbers.**
+ */
 const METRICS = [
-  { value: 'GH₵ 42M+', label: 'Disbursed', tone: 'text-amber-300' },
-  { value: '140+', label: 'Schools', tone: 'text-white' },
-  { value: '99.8%', label: 'MoMo SLA', tone: 'text-emerald-300' },
+  { value: 'MTN · Telecel · AT', label: 'Mobile money', tone: 'text-amber-300' },
+  { value: 'GhIPSS', label: 'Settlement', tone: 'text-white' },
+  { value: 'Termly', label: 'Billing cycle', tone: 'text-emerald-300' },
 ];
 
 const DotPattern = () => (
@@ -152,34 +165,16 @@ const Steps = ({ items }) => (
 );
 
 /**
- * Bursar endorsement. Kept compact and outside `SchoolAdSlot`: the ad/metrics
- * band is a fixed 200px box, so this sits above it without shifting the aside
- * height when the ad fetch resolves.
+ * The `Testimonial` component is deliberately gone rather than refilled.
+ *
+ * It rendered a five-star endorsement attributed to "Mrs. Cynthia Osei-Tutu,
+ * Head Bursar, Morning Star Preparatory, Cantonments", claiming a named school's
+ * bursary team cut a 1,200-payment reconciliation from two weeks to fifteen
+ * minutes. Neither the person nor the school nor the result existed, and it sat
+ * on /signup as though they did. A real quote needs a real customer who has
+ * agreed to be named — until there is one, the slot stays empty rather than
+ * carrying an invention.
  */
-const Testimonial = ({ quote, name, role, initials }) => (
-  <figure className="rounded-xl border border-white/10 bg-white/5 p-4">
-    <div className="flex items-center gap-1" aria-label="Rated 5 out of 5">
-      {Array.from({ length: 5 }).map((_, index) => (
-        <Star key={index} className="h-3 w-3 fill-amber-300 text-amber-300" aria-hidden="true" />
-      ))}
-    </div>
-    <blockquote className="mt-2 text-[12px] italic leading-relaxed text-emerald-50">
-      {quote}
-    </blockquote>
-    <figcaption className="mt-2.5 flex items-center gap-2.5">
-      <span
-        aria-hidden="true"
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-amber-300/40 bg-amber-300/15 text-[11px] font-extrabold text-amber-200"
-      >
-        {initials}
-      </span>
-      <span className="min-w-0">
-        <span className="block truncate text-[12px] font-extrabold text-white">{name}</span>
-        <span className="block truncate text-[11px] text-emerald-300">{role}</span>
-      </span>
-    </figcaption>
-  </figure>
-);
 
 /** Marketing panel for school onboarding. */
 export const OnboardingAside = () => (
@@ -192,15 +187,8 @@ export const OnboardingAside = () => (
       { icon: Smartphone, label: 'MTN MoMo, Telecel Cash & AT Money with instant push-to-pay prompts' },
       { icon: Building2, label: 'Onboarding bursar on hand in Prampram, Tema & Accra' },
     ]}
-  >
-    <Testimonial
-      initials="CO"
-      name="Mrs. Cynthia Osei-Tutu"
-      role="Head Bursar, Morning Star Preparatory, Cantonments"
-      quote="Reconciling 1,200 student term payments used to take our bursary team two weeks. With SukuuPay it takes 15 minutes, with same-day settlement."
-    />
-  </AsideFrame>
-);
+  />
+  );
 
 /** Marketing panel for returning bursars signing in. */
 export const LoginAside = () => (
@@ -213,13 +201,8 @@ export const LoginAside = () => (
       { icon: RefreshCw, label: 'Settlements sweep to your GhIPSS account as they clear' },
       { icon: MessageSquare, label: 'SMS and WhatsApp arrears nudges from the same dashboard' },
     ]}
-  >
-    <Callout title="This week across SukuuPay">
-      12,480 MoMo prompts settled · GH₵ 1.9M swept to partner schools · zero failed webhook
-      deliveries.
-    </Callout>
-  </AsideFrame>
-);
+  />
+  );
 
 /** Marketing panel for the recovery request screen. */
 export const RecoveryAside = () => (
@@ -234,8 +217,8 @@ export const RecoveryAside = () => (
     ]}
   >
     <Callout tone="amber" title="Never share your code">
-      SukuuPay staff will never ask for your password, reset link or verification code. End the
-      conversation and call the helpdesk.
+      SukuuPay staff will never ask for your password, reset link or verification code. End
+      the conversation and email hello@sukuupay.com from the address on your account.
     </Callout>
   </AsideFrame>
 );

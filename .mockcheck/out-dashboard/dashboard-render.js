@@ -3,7 +3,7 @@ import { renderToString } from "react-dom/server";
 import { useLocation, Link, useNavigate, Outlet, useSearchParams, MemoryRouter, Routes, Route } from "react-router-dom";
 import React, { createContext, useState, useEffect, useCallback, useContext, useRef, useMemo, useId } from "react";
 import axios from "axios";
-import { Info, TriangleAlert, CircleAlert, CircleCheck, X, Settings as Settings$1, ScrollText, ChartColumn, MessageSquare, CalendarClock, CreditCard, Users, LayoutDashboard, Building2, ChevronUp, Menu, GraduationCap, ChevronDown, Search, Plus, Bell, User, LogOut, TrendingUp, Clock, ChevronRight, Send, Download, Receipt, HandCoins, SlidersHorizontal, Hourglass, ChevronLeft, ArrowUp, ArrowDown, PencilLine, Ban, Link as Link$1, Archive, Trash2, CirclePlay, RotateCcw, Wallet, History, Star, ShieldCheck, UploadCloud, FileSpreadsheet, UserPlus, Construction, Banknote, CheckCircle2, MessageSquareText, BarChart3, PieChart, Printer, Filter, Save } from "lucide-react";
+import { Info, TriangleAlert, CircleAlert, CircleCheck, X, Settings as Settings$1, ScrollText, ChartColumn, MessageSquare, CalendarClock, CreditCard, Users, LayoutDashboard, Building2, ChevronUp, Menu, GraduationCap, ChevronDown, Search, Plus, Bell, User, LogOut, TrendingUp, ChevronRight, Send, Download, Receipt, HandCoins, SlidersHorizontal, Hourglass, ChevronLeft, ArrowUp, ArrowDown, PencilLine, Ban, Link as Link$1, Archive, Trash2, CirclePlay, RotateCcw, Wallet, History, Star, ShieldCheck, UploadCloud, FileSpreadsheet, UserPlus, Construction, Banknote, CheckCircle2, MessageSquareText, BarChart3, PieChart, Printer, Filter, Save, Smartphone } from "lucide-react";
 import { createPortal } from "react-dom";
 const API_BASE_URL = "https://sukuupay-backend.onrender.com/api";
 const clearSession = () => {
@@ -595,7 +595,7 @@ const DashboardSidebar = ({ user, school, variant = "fixed", className = "", onC
             /* @__PURE__ */ jsx("span", { className: "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15", children: /* @__PURE__ */ jsx(Building2, { className: "h-4 w-4", "aria-hidden": "true" }) }),
             /* @__PURE__ */ jsxs(Link, { to: ROUTES.DASHBOARD_SETTINGS, className: "min-w-0 flex-1", children: [
               /* @__PURE__ */ jsx("span", { className: "block truncate text-[13px] font-extrabold leading-tight", children: school?.name || "Your school" }),
-              /* @__PURE__ */ jsx("span", { className: "block truncate text-[11px] font-semibold leading-tight text-white/70", children: school?.campus || "School settings" })
+              /* @__PURE__ */ jsx("span", { className: "block truncate text-[11px] font-semibold leading-tight text-white/70", children: school?.city || "School settings" })
             ] }),
             /* @__PURE__ */ jsx(
               Link,
@@ -621,7 +621,6 @@ const DashboardSidebar = ({ user, school, variant = "fixed", className = "", onC
   );
 };
 const PESEWAS_PER_CEDI = 100;
-const gh = (cedis) => Math.round(cedis * PESEWAS_PER_CEDI);
 const nf = new Intl.NumberFormat("en-GH", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2
@@ -792,7 +791,7 @@ const DashboardTopbar = ({ user, onOpenNav, navOpen = false, school, term, smsCr
               /* @__PURE__ */ jsx(Building2, { className: "h-4 w-4 shrink-0 text-brand-700", "aria-hidden": "true" }),
               /* @__PURE__ */ jsxs("span", { className: "min-w-0", children: [
                 /* @__PURE__ */ jsx("span", { className: "block truncate text-sm font-extrabold text-ink", children: school?.name || "Your school" }),
-                /* @__PURE__ */ jsx("span", { className: "block truncate text-[11px] font-semibold text-slate-500", children: school?.campus || "Current school" })
+                /* @__PURE__ */ jsx("span", { className: "block truncate text-[11px] font-semibold text-slate-500", children: school?.city || "Current school" })
               ] })
             ] }),
             /* @__PURE__ */ jsx(MenuItem, { to: ROUTES.DASHBOARD_SETTINGS, icon: Building2, children: "School settings" })
@@ -800,8 +799,8 @@ const DashboardTopbar = ({ user, onOpenNav, navOpen = false, school, term, smsCr
           label: /* @__PURE__ */ jsxs(Fragment, { children: [
             /* @__PURE__ */ jsx(GraduationCap, { className: "h-5 w-5 shrink-0 text-slate-400", "aria-hidden": "true" }),
             /* @__PURE__ */ jsxs("span", { className: "min-w-0", children: [
-              /* @__PURE__ */ jsx("span", { className: "block truncate text-[13px] font-extrabold leading-tight text-ink", children: school?.shortName || school?.name || "Your school" }),
-              /* @__PURE__ */ jsx("span", { className: "block truncate text-[11px] font-semibold leading-tight text-slate-500", children: school?.campus || "Switch school" })
+              /* @__PURE__ */ jsx("span", { className: "block truncate text-[13px] font-extrabold leading-tight text-ink", children: school?.name || "Your school" }),
+              /* @__PURE__ */ jsx("span", { className: "block truncate text-[11px] font-semibold leading-tight text-slate-500", children: school?.city || "Switch school" })
             ] }),
             /* @__PURE__ */ jsx(ChevronDown, { className: "h-4 w-4 shrink-0 text-slate-400", "aria-hidden": "true" })
           ] })
@@ -926,205 +925,444 @@ const DashboardTopbar = ({ user, onOpenNav, navOpen = false, school, term, smsCr
     ] })
   ] }) });
 };
-const DEMO_SCHOOL = {
-  name: "Prampram Basic School",
-  campus: "Basic & JHS Campus",
-  shortName: "Prampram Basic Sch…"
+const EMPTY_SCHOOL = {
+  name: "",
+  city: "",
+  schoolCode: ""
 };
-const DEMO_TERM = {
-  term: "Term 1",
-  academicYear: "2025/2026",
-  label: "Academic Term 1",
-  week: 10,
-  weeksElapsed: 10,
-  weekLabel: "Week 10 Current",
-  peakInflow: { week: "Week 4", note: "Re-opening week" },
-  targetThreshold: gh(38e4)
+const EMPTY_TERM = {
+  term: "",
+  academicYear: "",
+  label: ""
 };
-const DEMO_SMS_CREDIT = { units: 1420, label: "1,420 SMS left" };
-const DEMO_KPIS = {
-  totalStudents: {
-    value: 1e3,
-    enrollmentPercent: 98,
-    enrollmentNote: "Enrolled in MoMo direct billing"
-  },
-  expectedOwed: {
-    amount: gh(425e3),
-    scopeNote: "Across all classes (P1 to JHS 3)"
-  },
-  collected: {
-    amount: gh(318e3),
-    deltaPercent: 12,
-    deltaLabel: "vs L/T",
-    ratePercent: 74.8,
-    rateLabel: "Collection Rate"
-  },
-  overdue: {
-    students: 87,
-    onGrace: 11,
-    graceNote: "on Installment grace",
-    amount: gh(41200)
+const EMPTY_KPIS = {
+  totalStudents: { value: 0 },
+  expectedOwed: { amount: 0 },
+  // `ratePercent` is the only derived figure here, and it is computed from
+  // `collected / expectedOwed` in the hook — never stored.
+  collected: { amount: 0, ratePercent: 0, rateLabel: "Collection Rate" },
+  overdue: { students: 0, amount: 0 }
+};
+const EMPTY_CHANNELS = [];
+const EMPTY_TRANSACTIONS = [];
+const EMPTY_WEEKLY_INFLOW = [];
+const EMPTY_UPCOMING = {
+  horizonDays: 0,
+  scheduledTranches: 0,
+  expectedInflow: 0,
+  days: []
+};
+const EMPTY_BROADCAST = {
+  recipientCount: 0,
+  fullyUnpaidCount: 0,
+  partiallyPaidCount: 0,
+  totalOutstanding: 0
+};
+const EMPTY_OVERVIEW = {
+  school: EMPTY_SCHOOL,
+  term: EMPTY_TERM,
+  kpis: EMPTY_KPIS,
+  channels: EMPTY_CHANNELS,
+  transactions: EMPTY_TRANSACTIONS,
+  transactionCount: 0,
+  weeklyInflow: EMPTY_WEEKLY_INFLOW,
+  upcomingInstallments: EMPTY_UPCOMING,
+  smsBroadcast: EMPTY_BROADCAST
+};
+const listStudents = async (params = {}) => {
+  try {
+    const { data } = await api.get("/students", { params, timeout: 15e3 });
+    return {
+      // `listStudentsController` returns `{ success, data, meta }` with `data`
+      // the page of rows.
+      rows: Array.isArray(data?.data) ? data.data : [],
+      meta: data?.meta || { page: 1, perPage: 20, total: 0, totalPages: 0 },
+      offline: false
+    };
+  } catch (error) {
+    const neverReachedServer = !error?.response || error?.code === "ERR_NETWORK" || error?.response?.status === 0;
+    if (neverReachedServer) {
+      return {
+        rows: [],
+        meta: { page: 1, perPage: params.perPage || 20, total: 0, totalPages: 0 },
+        offline: true
+      };
+    }
+    throw toApiError(error, "The student roster could not be loaded.");
   }
 };
-const DEMO_WEEKLY_INFLOW = [
-  { week: "Wk 1", total: gh(12e3), mtn: gh(8160), telecel: gh(2640), at: gh(1200) },
-  { week: "Wk 2", total: gh(22500), mtn: gh(15300), telecel: gh(4950), at: gh(2250) },
-  { week: "Wk 3", total: gh(38900), mtn: gh(26450), telecel: gh(8558), at: gh(3892) },
-  { week: "Wk 4", total: gh(76400), mtn: gh(51950), telecel: gh(16808), at: gh(7642) },
-  { week: "Wk 5", total: gh(31200), mtn: gh(21210), telecel: gh(6864), at: gh(3126) },
-  { week: "Wk 6", total: gh(34600), mtn: gh(23530), telecel: gh(7612), at: gh(3458) },
-  { week: "Wk 7", total: gh(28400), mtn: gh(19310), telecel: gh(6248), at: gh(2842) },
-  { week: "Wk 8", total: gh(41500), mtn: gh(28220), telecel: gh(9130), at: gh(4150) },
-  { week: "Wk 9", total: gh(19800), mtn: gh(13460), telecel: gh(4356), at: gh(1984) },
-  { week: "Wk 10", total: gh(12700), mtn: gh(8650), telecel: gh(2794), at: gh(1256) }
-];
-const DEMO_CHANNELS = [
-  {
-    key: "mtn",
-    network: "MTN MoMo",
-    sharePercent: 68,
-    accounts: 680,
-    amount: gh(216240),
-    authRatePercent: 99.4
-  },
-  {
-    key: "telecel",
-    network: "Telecel Cash",
-    sharePercent: 22,
-    accounts: 220,
-    amount: gh(69960),
-    authRatePercent: 98.9
-  },
-  {
-    key: "at",
-    network: "AT Money",
-    sharePercent: 10,
-    accounts: 100,
-    amount: gh(31800),
-    authRatePercent: 97.8
+const getStudentStats = async (params = {}) => {
+  try {
+    const { data } = await api.get("/students/stats", { params, timeout: 15e3 });
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, "Roster totals could not be loaded.");
   }
-];
-const DEMO_TRANSACTIONS = [
-  {
-    id: "txn-1",
-    studentName: "Kwame Mensah",
-    studentCode: "PBS-24-0412",
-    className: "JHS 2A",
-    amount: gh(300),
-    network: "mtn",
-    networkLabel: "MTN MoMo",
-    reference: "TXN-9842193",
-    dateLabel: "Today",
-    timeLabel: "10:42 AM"
-  },
-  {
-    id: "txn-2",
-    studentName: "Akosua Boateng",
-    studentCode: "PBS-24-0789",
-    className: "Class 5B",
-    amount: gh(450),
-    network: "telecel",
-    networkLabel: "Telecel Cash",
-    reference: "TXN-9842698",
-    dateLabel: "Today",
-    timeLabel: "09:15 AM"
-  },
-  {
-    id: "txn-3",
-    studentName: "Yaw Owusu",
-    studentCode: "PBS-23-0104",
-    className: "JHS 1",
-    amount: gh(250),
-    network: "mtn",
-    networkLabel: "MTN MoMo",
-    reference: "TXN-9841926",
-    dateLabel: "Yesterday",
-    timeLabel: "04:30 PM"
-  },
-  {
-    id: "txn-4",
-    studentName: "Abena Asante",
-    studentCode: "PBS-25-1102",
-    className: "Nursery 2",
-    amount: gh(850),
-    network: "at",
-    networkLabel: "AT Money",
-    reference: "TXN-9841804",
-    dateLabel: "Yesterday",
-    timeLabel: "02:15 PM"
-  },
-  {
-    id: "txn-5",
-    studentName: "Kofi Darko",
-    studentCode: "PBS-22-0055",
-    className: "JHS 3B",
-    amount: gh(350),
-    network: "mtn",
-    networkLabel: "MTN MoMo",
-    reference: "TXN-9841772",
-    dateLabel: "28 Oct 2026",
-    timeLabel: "11:05 AM"
-  },
-  {
-    id: "txn-6",
-    studentName: "Efua Addo",
-    studentCode: "PBS-24-0341",
-    className: "Class 3A",
-    amount: gh(200),
-    network: "telecel",
-    networkLabel: "Telecel Cash",
-    reference: "TXN-9841655",
-    dateLabel: "28 Oct 2026",
-    timeLabel: "08:22 AM"
+};
+const getStudentProfile = async (id) => {
+  try {
+    const { data } = await api.get(`/students/${encodeURIComponent(id)}/profile`, {
+      timeout: 15e3
+    });
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, "This student could not be loaded.");
   }
-];
-const DEMO_TRANSACTION_COUNT = 438;
-const DEMO_UPCOMING_INSTALLMENTS = {
-  horizonDays: 5,
-  scheduledTranches: 23,
-  expectedInflow: gh(6900),
-  days: [
-    { dateLabel: "Tomorrow, 31 Oct", students: 8, amount: gh(2400) },
-    { dateLabel: "Friday, 1 Nov", students: 11, amount: gh(3300) },
-    { dateLabel: "Saturday, 2 Nov", students: 4, amount: gh(1200) }
-  ]
 };
-const DEMO_SMS_BROADCAST = {
-  templateName: "Overdue MoMo Prompt #1",
-  recipientCount: 87,
-  creditUnits: 1420,
-  preview: "Dear Parent, please approve fee balance GH₵ (AMOUNT) for (STUDENT) via your MoMo prompt or dial *713#…"
+const exportStudents = async (params = {}) => {
+  try {
+    const response = await api.get("/students/export", {
+      params: { ...params, format: params.format || "csv" },
+      responseType: "blob",
+      timeout: 6e4
+    });
+    const disposition = response.headers?.["content-disposition"] || "";
+    const match = disposition.match(/filename="?([^"]+)"?/);
+    const filename = match ? match[1] : `students.${params.format || "csv"}`;
+    const url = URL.createObjectURL(response.data);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    return { filename };
+  } catch (error) {
+    throw toApiError(error, "The roster could not be exported.");
+  }
 };
-const DEMO_OVERVIEW = {
-  school: DEMO_SCHOOL,
-  term: DEMO_TERM,
-  smsCredit: DEMO_SMS_CREDIT,
-  kpis: DEMO_KPIS,
-  weeklyInflow: DEMO_WEEKLY_INFLOW,
-  channels: DEMO_CHANNELS,
-  transactions: DEMO_TRANSACTIONS,
-  transactionCount: DEMO_TRANSACTION_COUNT,
-  upcomingInstallments: DEMO_UPCOMING_INSTALLMENTS,
-  smsBroadcast: DEMO_SMS_BROADCAST
+const listAlumni = async (params = {}) => {
+  try {
+    const { data } = await api.get(`/alumni/${params.schoolId}`, {
+      params: {
+        page: params.page,
+        limit: params.limit,
+        graduationYear: params.graduationYear,
+        honors: params.honors,
+        search: params.search,
+        sortBy: params.sortBy,
+        sortOrder: params.sortOrder
+      },
+      timeout: 15e3
+    });
+    const result = data?.data || {};
+    return { rows: result.alumni || [], meta: result.pagination || null };
+  } catch (error) {
+    throw toApiError(error, "The alumni list could not be loaded.");
+  }
 };
-const useDashboardOverview = () => {
-  const data = DEMO_OVERVIEW;
-  const isDemo = true;
+const listCohorts = async (params = {}) => {
+  try {
+    const { data } = await api.get(`/cohorts/${params.schoolId}`, {
+      params: { page: params.page, limit: params.limit, year: params.year, search: params.search },
+      timeout: 15e3
+    });
+    const result = data?.data || {};
+    return { rows: result.cohorts || [], meta: result.pagination || null };
+  } catch (error) {
+    throw toApiError(error, "Cohorts could not be loaded.");
+  }
+};
+const getCohort = async (cohortId, params = {}) => {
+  try {
+    const { data } = await api.get(`/cohorts/detail/${encodeURIComponent(cohortId)}`, {
+      params,
+      timeout: 15e3
+    });
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, "This cohort could not be loaded.");
+  }
+};
+const createStudent = async (payload) => {
+  try {
+    const { data } = await api.post("/students/single", payload, { timeout: 15e3 });
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, "The student could not be created.");
+  }
+};
+const bulkImport = async (file, meta = {}) => {
+  const form = new FormData();
+  form.append("file", file);
+  if (meta.schoolId) form.append("schoolId", meta.schoolId);
+  if (meta.academicYear) form.append("academicYear", meta.academicYear);
+  if (meta.defaultDeadline) form.append("defaultDeadline", meta.defaultDeadline);
+  if (meta.defaultOwed !== void 0 && meta.defaultOwed !== null && meta.defaultOwed !== "") {
+    form.append("defaultOwed", String(meta.defaultOwed));
+  }
+  if (meta.dryRun) form.append("dryRun", "true");
+  try {
+    const { data } = await api.post("/students/bulk", form, {
+      timeout: 12e4,
+      headers: { "Content-Type": "multipart/form-data" }
+    });
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, "The roster could not be imported.");
+  }
+};
+const validateImport = (file, meta = {}) => bulkImport(file, { ...meta, dryRun: true });
+const updateStudent = async (id, payload) => {
+  try {
+    const { data } = await api.put(`/students/${encodeURIComponent(id)}`, payload, {
+      timeout: 15e3
+    });
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, "The student could not be updated.");
+  }
+};
+const regeneratePayLink = async (id, { notify = false } = {}) => {
+  try {
+    const { data } = await api.get(`/students/${encodeURIComponent(id)}/pay-link`, {
+      params: { notify }
+    });
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, "The pay link could not be regenerated.");
+  }
+};
+const bulkTarget = (target) => target?.ids?.length ? { ids: target.ids } : { filter: target?.filter || { status: "active" } };
+const bulkWrite = async (path, body, timeout = 6e4) => {
+  try {
+    const { data } = await api.post(path, body, { timeout });
+    return { ok: true, result: data?.data || null };
+  } catch (error) {
+    const apiError = toApiError(error, "The bulk action could not be completed.");
+    apiError.details = error?.response?.data?.data || null;
+    return { ok: false, error: apiError };
+  }
+};
+const bulkUpdateStudents = (target, update, fields, { dryRun = false } = {}) => bulkWrite("/students/bulk/update", {
+  ...bulkTarget(target),
+  update,
+  ...{},
+  dryRun
+});
+const bulkArchiveStudents = (target, { reason, force = false, dryRun = false } = {}) => bulkWrite("/students/bulk/archive", {
+  ...bulkTarget(target),
+  reason,
+  force,
+  dryRun
+});
+const bulkSetStatus = (target, status, { reason, dryRun = false } = {}) => bulkWrite("/students/bulk/status", {
+  ...bulkTarget(target),
+  status,
+  reason,
+  dryRun
+});
+const bulkRegeneratePayLinks = (target, { dryRun = false } = {}) => bulkWrite("/students/bulk/pay-links", { ...bulkTarget(target), dryRun });
+const getOutstanding = async (schoolId) => {
+  try {
+    const { data } = await api.get(`/reports/outstanding/${schoolId}`);
+    return data.data || data;
+  } catch (error) {
+    throw toApiError(error, "Outstanding balances could not be loaded.");
+  }
+};
+const getPaymentMethods = async (schoolId) => {
+  try {
+    const { data } = await api.get(`/reports/payment-methods/${schoolId}`);
+    return data.data || data;
+  } catch (error) {
+    throw toApiError(error, "Payment channels could not be loaded.");
+  }
+};
+const listRecentPayments = async (params = {}) => {
+  try {
+    const { data } = await api.get("/payments", { params, timeout: 15e3 });
+    return {
+      // `listPaymentsController` returns `{ success, message, data, meta }` with
+      // `data` a bare array — the same unwrap trap `listStudents` documents.
+      rows: Array.isArray(data?.data) ? data.data : [],
+      meta: data?.meta || null
+    };
+  } catch (error) {
+    throw toApiError(error, "Recent payments could not be loaded.");
+  }
+};
+const getSchool = async (schoolId) => {
+  try {
+    const { data } = await api.get(`/schools/${schoolId}`);
+    return data.data?.school || data.school || data.data || data;
+  } catch (error) {
+    throw toApiError(error, "Failed to load your school.");
+  }
+};
+const updateSchoolClasses = async (schoolId, classes) => {
+  try {
+    const { data } = await api.put(`/schools/${schoolId}`, {
+      "academic.classes": classes
+    });
+    return data.data?.school || data.school || data.data || data;
+  } catch (error) {
+    throw toApiError(error, "Failed to save your class list.");
+  }
+};
+const useDashboardOverview = (schoolId) => {
+  const [state, setState] = useState({
+    data: EMPTY_OVERVIEW,
+    loading: true,
+    // Means "the API did not answer", not "a fixture is showing". It still gates
+    // the header actions: a bursar must not be offered "Record Manual Payment"
+    // against numbers that were never stored.
+    isFallback: false,
+    error: null,
+    liveRegions: []
+  });
+  useEffect(() => {
+    if (!schoolId) {
+      setState({ data: EMPTY_OVERVIEW, loading: false, isFallback: true, error: null, liveRegions: [] });
+      return void 0;
+    }
+    let active = true;
+    const live = [];
+    Promise.allSettled([
+      getSchool(schoolId),
+      getStudentStats({ status: "all" }),
+      listStudents({ status: "all", perPage: 6, sortBy: "createdAt", sortOrder: "desc" }),
+      listRecentPayments({ page: 1, perPage: 6, sortBy: "createdAt", sortOrder: "desc" }),
+      getPaymentMethods(schoolId),
+      getOutstanding(schoolId)
+    ]).then(([school, stats, students, payments, methods, outstanding]) => {
+      if (!active) return;
+      const next = { ...EMPTY_OVERVIEW };
+      let anyLive = false;
+      if (school.status === "fulfilled" && school.value) {
+        const s = school.value;
+        const term = s.academic?.currentTerm || "";
+        const academicYear = s.academic?.currentYear || "";
+        next.school = {
+          name: s.name || "",
+          city: s.city || "",
+          schoolCode: s.schoolCode || ""
+        };
+        next.term = {
+          term,
+          academicYear,
+          label: term ? `${term} · ${academicYear}`.trim() : ""
+        };
+        live.push("school");
+        anyLive = true;
+      }
+      if (stats.status === "fulfilled" && stats.value) {
+        const s = stats.value;
+        const owed = s.totalOwed ?? 0;
+        const paid = s.totalPaid ?? 0;
+        next.kpis = {
+          totalStudents: { value: s.totalRoster ?? s.totalStudents ?? 0 },
+          expectedOwed: { amount: owed },
+          collected: {
+            amount: paid,
+            ratePercent: owed ? Math.round(paid / owed * 1e3) / 10 : 0,
+            rateLabel: "Collection Rate"
+          },
+          overdue: {
+            students: s.overdueStudents ?? 0,
+            amount: s.overdueAmount ?? 0
+          }
+        };
+        live.push("kpis");
+        anyLive = true;
+      }
+      if (students.status === "fulfilled" && students.value?.rows?.length) {
+        next.active = students.value.rows;
+        live.push("students");
+        anyLive = true;
+      }
+      if (payments.status === "fulfilled" && payments.value?.rows?.length) {
+        next.transactions = payments.value.rows.map((p) => ({
+          ...p,
+          studentName: p.studentName || p.studentId || "Payment",
+          studentId: p.studentId,
+          network: String(p.momoNetwork || "UNKNOWN").toLowerCase().slice(0, 8),
+          networkLabel: p.momoNetwork || p.paymentMethod?.toUpperCase() || "Manual",
+          reference: p.reference || p.mtnReferenceId || p.paymentId,
+          dateLabel: new Date(p.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+          timeLabel: new Date(p.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+        }));
+        next.transactionCount = payments.value.meta?.total ?? next.transactions.length;
+        live.push("transactions");
+        anyLive = true;
+      }
+      if (methods.status === "fulfilled" && methods.value?.rows?.length) {
+        next.channels = methods.value.rows.map((row) => ({
+          key: row.label,
+          label: row.label,
+          amount: row.amount ?? 0,
+          transactionCount: row.count ?? 0,
+          sharePercent: row.percentage ?? 0
+        }));
+        live.push("channels");
+        anyLive = true;
+      }
+      if (outstanding.status === "fulfilled" && outstanding.value?.summary) {
+        const s = outstanding.value.summary;
+        next.smsBroadcast = {
+          recipientCount: s.studentCount ?? 0,
+          fullyUnpaidCount: s.fullyUnpaidCount ?? 0,
+          partiallyPaidCount: s.partiallyPaidCount ?? 0,
+          totalOutstanding: s.totalOutstanding ?? 0
+        };
+        live.push("smsBroadcast");
+        anyLive = true;
+      }
+      setState({
+        data: next,
+        loading: false,
+        isFallback: !anyLive,
+        error: null,
+        liveRegions: live
+      });
+    });
+    return () => {
+      active = false;
+    };
+  }, [schoolId]);
   const seriesFor = useMemo(
-    () => (channel) => (data?.weeklyInflow || []).map((row) => ({
+    () => (channel) => (EMPTY_OVERVIEW.weeklyInflow || []).map((row) => ({
       label: row.week,
       value: channel === "all" ? row.total : row[channel]
     })),
-    [data]
+    []
   );
-  return { data, loading: false, isDemo, error: null, seriesFor };
+  const [nonce, setNonce] = useState(0);
+  const refresh = useCallback(() => setNonce((n) => n + 1), []);
+  useEffect(() => {
+    if (nonce === 0 || !schoolId) return;
+    getStudentStats({ status: "all" }).then((s) => {
+      setState((current) => ({
+        ...current,
+        data: {
+          ...current.data,
+          kpis: {
+            ...current.data.kpis,
+            collected: {
+              ...current.data.kpis.collected,
+              amount: s?.totalPaid ?? current.data.kpis.collected.amount
+            }
+          }
+        }
+      }));
+    }).catch(() => {
+    });
+  }, [nonce, schoolId]);
+  return { ...state, seriesFor, refresh };
 };
 const DashboardLayout = () => {
   const { user, school } = useAuth();
   const { pathname } = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { data } = useDashboardOverview();
-  const schoolName = school || data?.school;
+  const { data } = useDashboardOverview(user?.schoolId);
+  const schoolCard = useMemo(
+    () => ({
+      name: school?.name || data?.school?.name || "",
+      city: data?.school?.city || ""
+    }),
+    [school, data]
+  );
   const term = data?.term;
   const smsCredit = null;
   useEffect(() => setDrawerOpen(false), [pathname]);
@@ -1161,7 +1399,7 @@ const DashboardLayout = () => {
         DashboardSidebar,
         {
           user,
-          school: schoolName,
+          school: schoolCard,
           variant: "fixed",
           className: "hidden lg:flex"
         }
@@ -1173,7 +1411,7 @@ const DashboardLayout = () => {
             user,
             navOpen: drawerOpen,
             onOpenNav: () => setDrawerOpen(true),
-            school: schoolName,
+            school: schoolCard,
             term,
             smsCredit
           }
@@ -1195,7 +1433,7 @@ const DashboardLayout = () => {
         DashboardSidebar,
         {
           user,
-          school: schoolName,
+          school: schoolCard,
           variant: "drawer",
           onClose: () => setDrawerOpen(false),
           className: "fixed inset-y-0 left-0 z-50 flex w-[15.25rem] max-w-[85vw]"
@@ -1203,6 +1441,487 @@ const DashboardLayout = () => {
       ) })
     ] })
   ] });
+};
+const useToast = () => {
+  const context = useContext(ToastContext);
+  if (!context) {
+    throw new Error("useToast must be used within a ToastProvider");
+  }
+  return context;
+};
+const Modal = ({ open, onClose, title, description, children, footer, size = "md" }) => {
+  const panelRef = useRef(null);
+  useEffect(() => {
+    if (!open) return void 0;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") onClose?.();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    panelRef.current?.focus();
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open, onClose]);
+  if (!open) return null;
+  const widths = { sm: "max-w-md", md: "max-w-lg", lg: "max-w-3xl" };
+  return createPortal(
+    /* @__PURE__ */ jsxs("div", { className: "fixed inset-0 z-[90] flex items-end justify-center p-0 sm:items-center sm:p-6", children: [
+      /* @__PURE__ */ jsx(
+        "div",
+        {
+          className: "absolute inset-0 bg-ink/55 backdrop-blur-sm",
+          onClick: onClose,
+          "aria-hidden": "true"
+        }
+      ),
+      /* @__PURE__ */ jsxs(
+        "div",
+        {
+          ref: panelRef,
+          tabIndex: -1,
+          role: "dialog",
+          "aria-modal": "true",
+          "aria-label": title,
+          className: `relative w-full ${widths[size]} max-h-[92vh] overflow-y-auto rounded-t-2xl bg-white shadow-soft outline-none sm:rounded-2xl`,
+          children: [
+            /* @__PURE__ */ jsxs("div", { className: "flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6", children: [
+              /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
+                /* @__PURE__ */ jsx("h2", { className: "text-base font-extrabold tracking-tight text-ink", children: title }),
+                description && /* @__PURE__ */ jsx("p", { className: "mt-1 text-[13px] font-medium leading-snug text-slate-500", children: description })
+              ] }),
+              /* @__PURE__ */ jsx(
+                "button",
+                {
+                  type: "button",
+                  onClick: onClose,
+                  "aria-label": "Close dialog",
+                  className: "-mr-1 shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-700",
+                  children: /* @__PURE__ */ jsx(X, { className: "h-4 w-4" })
+                }
+              )
+            ] }),
+            /* @__PURE__ */ jsx("div", { className: "px-5 py-5 sm:px-6", children }),
+            footer && /* @__PURE__ */ jsx("div", { className: "flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-4 sm:flex-row sm:justify-end sm:px-6", children: footer })
+          ]
+        }
+      )
+    ] }),
+    document.body
+  );
+};
+const Button = ({ children, variant = "primary", size = "md", className = "", ...props }) => {
+  const baseStyles = "font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
+  const variants = {
+    primary: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500",
+    secondary: "bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500",
+    danger: "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500",
+    ghost: "text-gray-700 hover:bg-gray-100 focus:ring-gray-500"
+  };
+  const sizes = {
+    sm: "px-3 py-1.5 text-sm",
+    md: "px-4 py-2 text-base",
+    lg: "px-6 py-3 text-lg"
+  };
+  return /* @__PURE__ */ jsx(
+    "button",
+    {
+      className: `${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`,
+      ...props,
+      children
+    }
+  );
+};
+const baseControl = "w-full rounded-lg border border-slate-200 bg-white py-2 text-[13px]/[18px] font-medium text-ink placeholder:font-normal placeholder:text-slate-500 transition-all focus:border-brand-700 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/30";
+const Label = ({ htmlFor, children, hint, required = false }) => /* @__PURE__ */ jsxs("div", { className: "mb-0.5 flex items-baseline justify-between gap-3", children: [
+  /* @__PURE__ */ jsxs("label", { htmlFor, className: "text-[11px]/[15px] font-semibold text-slate-700", children: [
+    children,
+    required && /* @__PURE__ */ jsx("span", { className: "ml-0.5 text-red-600", children: "*" })
+  ] }),
+  hint && /* @__PURE__ */ jsx("span", { className: "shrink-0 text-[10px]/[14px] font-medium text-slate-500", children: hint })
+] });
+const Field = ({
+  label,
+  hint,
+  icon: Icon,
+  error,
+  trailing,
+  className = "",
+  ...props
+}) => {
+  const generatedId = useId();
+  const controlId = props.id || generatedId;
+  return /* @__PURE__ */ jsxs("div", { className, children: [
+    /* @__PURE__ */ jsx(Label, { htmlFor: controlId, hint, required: props.required, children: label }),
+    /* @__PURE__ */ jsxs("div", { className: "relative", children: [
+      Icon && /* @__PURE__ */ jsx("span", { className: "pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500", children: /* @__PURE__ */ jsx(Icon, { className: "h-4 w-4" }) }),
+      /* @__PURE__ */ jsx(
+        "input",
+        {
+          id: controlId,
+          "aria-invalid": error ? "true" : void 0,
+          className: `${baseControl} ${Icon ? "pl-9" : "pl-3"} pr-9 ${error ? "border-red-300" : ""}`,
+          ...props
+        }
+      ),
+      trailing && /* @__PURE__ */ jsx("span", { className: "absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500", children: trailing })
+    ] }),
+    error && /* @__PURE__ */ jsx("p", { className: "mt-1 text-[11px] font-semibold text-red-600", children: error })
+  ] });
+};
+const SelectField = ({
+  label,
+  hint,
+  icon: Icon,
+  error,
+  children,
+  className = "",
+  ...props
+}) => {
+  const generatedId = useId();
+  const controlId = props.id || generatedId;
+  return /* @__PURE__ */ jsxs("div", { className, children: [
+    /* @__PURE__ */ jsx(Label, { htmlFor: controlId, hint, required: props.required, children: label }),
+    /* @__PURE__ */ jsxs("div", { className: "relative", children: [
+      Icon && /* @__PURE__ */ jsx("span", { className: "pointer-events-none absolute inset-y-0 left-0 z-10 flex items-center pl-3 text-slate-500", children: /* @__PURE__ */ jsx(Icon, { className: "h-4 w-4" }) }),
+      /* @__PURE__ */ jsx(
+        "select",
+        {
+          id: controlId,
+          "aria-invalid": error ? "true" : void 0,
+          className: `${baseControl} cursor-pointer appearance-none pr-9 ${Icon ? "pl-9" : "pl-3"} ${error ? "border-red-300" : ""}`,
+          ...props,
+          children
+        }
+      ),
+      /* @__PURE__ */ jsx("span", { className: "pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500", children: /* @__PURE__ */ jsx(ChevronDown, { className: "h-4 w-4" }) })
+    ] }),
+    error && /* @__PURE__ */ jsx("p", { className: "mt-1 text-[11px] font-semibold text-red-600", children: error })
+  ] });
+};
+const FormAlert = ({ tone = "error", children }) => {
+  if (!children) return null;
+  const tones = {
+    error: "border-red-200 bg-red-50 text-red-700",
+    success: "border-brand-200 bg-brand-50 text-brand-800",
+    info: "border-slate-200 bg-slate-50 text-slate-700",
+    // Amber, not red: used when something went wrong but the account itself is
+    // fine and the user has a working next step. Red reads as "you are stuck".
+    warning: "border-amber-200 bg-amber-50 text-amber-800"
+  };
+  return /* @__PURE__ */ jsx(
+    "div",
+    {
+      role: tone === "error" ? "alert" : "status",
+      className: `rounded-lg border px-3 py-2.5 text-[13px] font-semibold ${tones[tone]}`,
+      children
+    }
+  );
+};
+const MoneyInput = ({
+  label,
+  hint,
+  error,
+  value,
+  onChange,
+  className = "",
+  disabled = false,
+  ...props
+}) => {
+  const toCedis = (pesewas) => pesewas === null || pesewas === void 0 ? "" : String(pesewas / 100);
+  const [text, setText] = useState(() => toCedis(value));
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!focused) setText(toCedis(value));
+  }, [value, focused]);
+  const commit = (raw) => {
+    const cleaned = String(raw).replace(/[^0-9.]/g, "");
+    const parsed = cleaned === "" ? null : Number(cleaned);
+    onChange(parsed === null || Number.isNaN(parsed) ? null : Math.round(parsed * 100));
+  };
+  const onBlur = () => {
+    setFocused(false);
+    if (text === "") return;
+    const parsed = Number(text);
+    setText(Number.isNaN(parsed) ? "" : parsed.toFixed(2));
+  };
+  return /* @__PURE__ */ jsx(
+    Field,
+    {
+      label,
+      hint,
+      error,
+      className,
+      type: "text",
+      inputMode: "decimal",
+      placeholder: "0.00",
+      disabled,
+      value: text,
+      onFocus: () => setFocused(true),
+      onChange: (event) => {
+        setText(event.target.value);
+        commit(event.target.value);
+      },
+      onBlur,
+      trailing: /* @__PURE__ */ jsx("span", { className: "text-[11px] font-extrabold", children: "GH₵" }),
+      ...props
+    }
+  );
+};
+const recordManualPayment = async (payload) => {
+  try {
+    const { data } = await api.post("/payments/record", payload, { timeout: 2e4 });
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, "The payment could not be recorded.");
+  }
+};
+const METHODS = [
+  { value: "cash", label: "Cash" },
+  { value: "card", label: "Card" },
+  { value: "bank_transfer", label: "Bank transfer" }
+];
+const DEBOUNCE_MS$1 = 300;
+const RecordManualPaymentDialog = ({ open, onClose, onRecorded }) => {
+  const { success, error: errorToast } = useToast();
+  const [term, setTerm] = useState("");
+  const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [student, setStudent] = useState(null);
+  const [amount, setAmount] = useState(null);
+  const [method, setMethod] = useState("cash");
+  const [reference, setReference] = useState("");
+  const [notes, setNotes] = useState("");
+  const [allowOverpayment, setAllowOverpayment] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState(null);
+  const reset = () => {
+    setTerm("");
+    setResults([]);
+    setStudent(null);
+    setAmount(null);
+    setMethod("cash");
+    setReference("");
+    setNotes("");
+    setAllowOverpayment(false);
+    setFormError(null);
+  };
+  useEffect(() => {
+    if (open) reset();
+  }, [open]);
+  useEffect(() => {
+    if (!open || !student) return void 0;
+    const q = term.trim();
+    if (q.length < 2) {
+      setResults([]);
+      return void 0;
+    }
+    const timer = setTimeout(() => {
+      setSearching(true);
+      listStudents({ status: "all", search: q, perPage: 8 }).then((r) => setResults(r.rows)).catch(() => setResults([])).finally(() => setSearching(false));
+    }, DEBOUNCE_MS$1);
+    return () => clearTimeout(timer);
+  }, [term, open, student]);
+  const balance = student?.balance || 0;
+  const overpaying = amount !== null && amount > balance;
+  const blockingReason = useMemo(() => {
+    if (!student) return "Choose a student first";
+    if (amount === null) return "Enter the amount received";
+    if (overpaying && !allowOverpayment) return "That is more than the outstanding balance";
+    return null;
+  }, [student, amount, overpaying, allowOverpayment]);
+  const submit = async () => {
+    if (blockingReason) return;
+    setSaving(true);
+    setFormError(null);
+    try {
+      const result = await recordManualPayment({
+        studentRef: student.studentId,
+        amount,
+        method,
+        reference: reference || void 0,
+        notes: notes || void 0,
+        allowOverpayment: allowOverpayment || void 0
+      });
+      success(
+        `Recorded ${formatCedi(amount)} from ${student.studentName}. Balance is now ${formatCedi(
+          result?.student?.balance ?? Math.max(0, balance - amount)
+        )}.`
+      );
+      onRecorded?.();
+      onClose();
+    } catch (error) {
+      setFormError(error.message);
+      errorToast(error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  return /* @__PURE__ */ jsx(
+    Modal,
+    {
+      open,
+      onClose,
+      title: "Record a manual payment",
+      description: "Cash, a cheque, or a transfer into the school's account.",
+      footer: /* @__PURE__ */ jsxs(Fragment, { children: [
+        /* @__PURE__ */ jsx(Button, { variant: "secondary", onClick: onClose, children: "Cancel" }),
+        /* @__PURE__ */ jsx(Button, { variant: "primary", onClick: submit, disabled: Boolean(blockingReason) || saving, children: saving ? "Recording…" : "Record payment" })
+      ] }),
+      children: /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
+        formError && /* @__PURE__ */ jsx(FormAlert, { children: formError }),
+        student ? /* @__PURE__ */ jsxs(Fragment, { children: [
+          /* @__PURE__ */ jsxs("div", { className: "flex items-start justify-between gap-3 rounded-xl bg-brand-50 px-4 py-3", children: [
+            /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
+              /* @__PURE__ */ jsx("p", { className: "truncate text-sm font-extrabold text-ink", children: student.studentName }),
+              /* @__PURE__ */ jsxs("p", { className: "text-[12px] font-semibold text-slate-500", children: [
+                student.studentId,
+                " · ",
+                student.studentClass
+              ] })
+            ] }),
+            /* @__PURE__ */ jsxs("div", { className: "shrink-0 text-right", children: [
+              /* @__PURE__ */ jsx("p", { className: "text-[11px] font-extrabold uppercase tracking-wide text-slate-500", children: "Outstanding" }),
+              /* @__PURE__ */ jsx(
+                "p",
+                {
+                  className: `text-base font-extrabold tabular-nums ${balance > 0 ? "text-red-600" : "text-emerald-600"}`,
+                  children: formatCedi(balance)
+                }
+              )
+            ] })
+          ] }),
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              type: "button",
+              onClick: () => {
+                setStudent(null);
+                setResults([]);
+              },
+              className: "text-[12px] font-extrabold text-brand-700 hover:underline",
+              children: "Choose a different student"
+            }
+          )
+        ] }) : /* @__PURE__ */ jsx(
+          Field,
+          {
+            label: "Find the student",
+            hint: "by name or student number",
+            placeholder: "e.g. Ama Mensah, or SCH-DEMO-01-2026-8054",
+            value: term,
+            onChange: (event) => setTerm(event.target.value),
+            autoFocus: true
+          }
+        ),
+        !student && term.trim().length >= 2 && /* @__PURE__ */ jsxs("div", { className: "max-h-56 overflow-y-auto rounded-xl border border-slate-200", children: [
+          searching && /* @__PURE__ */ jsx("p", { className: "px-4 py-3 text-[13px] font-semibold text-slate-400", children: "Searching…" }),
+          !searching && !results.length && /* @__PURE__ */ jsxs("p", { className: "px-4 py-3 text-[13px] font-semibold text-slate-400", children: [
+            "No student matches “",
+            term.trim(),
+            "”."
+          ] }),
+          /* @__PURE__ */ jsx("ul", { children: results.map((s) => /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsxs(
+            "button",
+            {
+              type: "button",
+              onClick: () => {
+                setStudent(s);
+                setResults([]);
+              },
+              className: "flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-2.5 text-left transition-colors last:border-0 hover:bg-slate-50",
+              children: [
+                /* @__PURE__ */ jsxs("span", { className: "min-w-0", children: [
+                  /* @__PURE__ */ jsx("span", { className: "block truncate text-[13px] font-extrabold text-ink", children: s.studentName }),
+                  /* @__PURE__ */ jsxs("span", { className: "block text-[11px] font-semibold text-slate-500", children: [
+                    s.studentId,
+                    " · ",
+                    s.studentClass
+                  ] })
+                ] }),
+                /* @__PURE__ */ jsx(
+                  "span",
+                  {
+                    className: `shrink-0 text-[12px] font-extrabold tabular-nums ${s.balance > 0 ? "text-red-600" : "text-emerald-600"}`,
+                    children: formatCedi(s.balance || 0)
+                  }
+                )
+              ]
+            }
+          ) }, s._id || s.id)) })
+        ] }),
+        student && /* @__PURE__ */ jsxs(Fragment, { children: [
+          /* @__PURE__ */ jsxs("div", { className: "grid grid-cols-1 gap-3 sm:grid-cols-2", children: [
+            /* @__PURE__ */ jsx(
+              MoneyInput,
+              {
+                label: "Amount received",
+                hint: "cedis",
+                required: true,
+                value: amount,
+                error: overpaying && !allowOverpayment ? "More than the outstanding balance" : void 0,
+                onChange: setAmount,
+                disabled: balance === 0
+              }
+            ),
+            /* @__PURE__ */ jsx(SelectField, { label: "Method", value: method, onChange: (e) => setMethod(e.target.value), children: METHODS.map((m) => /* @__PURE__ */ jsx("option", { value: m.value, children: m.label }, m.value)) })
+          ] }),
+          balance === 0 && /* @__PURE__ */ jsx(FormAlert, { tone: "info", children: "This student has nothing outstanding. Tick the credit box below to record a payment anyway — it will be recorded as a credit against the balance." }),
+          /* @__PURE__ */ jsx(
+            Field,
+            {
+              label: method === "bank_transfer" ? "Bank reference" : "Reference",
+              hint: "optional — cheque or transfer number",
+              value: reference,
+              onChange: (event) => setReference(event.target.value),
+              placeholder: "e.g. CHQ-000123"
+            }
+          ),
+          /* @__PURE__ */ jsx(
+            Field,
+            {
+              label: "Note",
+              hint: "optional",
+              value: notes,
+              onChange: (event) => setNotes(event.target.value),
+              placeholder: "e.g. Lodged at the bursary by the father"
+            }
+          ),
+          overpaying && /* @__PURE__ */ jsxs("label", { className: "flex items-start gap-2.5 rounded-xl bg-amber-50 px-3.5 py-3 text-[13px] font-semibold text-amber-900", children: [
+            /* @__PURE__ */ jsx(
+              "input",
+              {
+                type: "checkbox",
+                checked: allowOverpayment,
+                onChange: (event) => setAllowOverpayment(event.target.checked),
+                className: "mt-0.5 h-4 w-4"
+              }
+            ),
+            /* @__PURE__ */ jsxs("span", { children: [
+              "Record ",
+              formatCedi(amount - balance),
+              ' more than the outstanding balance as a credit. A negative balance changes what every "owes money" figure in the product means, so it is an explicit choice.'
+            ] })
+          ] }),
+          amount !== null && !overpaying && /* @__PURE__ */ jsxs("p", { className: "text-[13px] font-semibold text-slate-600", children: [
+            student.studentName,
+            "'s balance goes from ",
+            formatCedi(balance),
+            " to",
+            " ",
+            /* @__PURE__ */ jsx("span", { className: "font-extrabold text-brand-700", children: formatCedi(balance - amount) }),
+            "."
+          ] })
+        ] }),
+        blockingReason && !student && /* @__PURE__ */ jsxs("p", { className: "flex items-center gap-2 text-[12px] font-semibold text-slate-400", children: [
+          /* @__PURE__ */ jsx(Search, { className: "h-3.5 w-3.5", "aria-hidden": "true" }),
+          blockingReason
+        ] })
+      ] })
+    }
+  );
 };
 const Card = ({ children, className = "", padding = "p-5", accent, icon }) => /* @__PURE__ */ jsxs(
   "div",
@@ -1274,15 +1993,7 @@ const KpiRow = ({ kpis }) => /* @__PURE__ */ jsxs("div", { className: "grid grid
     {
       label: "Total Students",
       icon: Users,
-      value: formatCount(kpis.totalStudents.value),
-      footer: /* @__PURE__ */ jsxs("p", { className: "flex items-start gap-2 text-[11px] font-semibold leading-snug text-slate-500", children: [
-        /* @__PURE__ */ jsx(CircleCheck, { className: "mt-px h-3.5 w-3.5 shrink-0 text-brand-600", "aria-hidden": "true" }),
-        /* @__PURE__ */ jsxs("span", { children: [
-          /* @__PURE__ */ jsx("span", { className: "font-extrabold text-brand-700", children: formatPercent(kpis.totalStudents.enrollmentPercent) }),
-          " ",
-          kpis.totalStudents.enrollmentNote
-        ] })
-      ] })
+      value: formatCount(kpis.totalStudents.value)
     }
   ),
   /* @__PURE__ */ jsx(
@@ -1290,11 +2001,7 @@ const KpiRow = ({ kpis }) => /* @__PURE__ */ jsxs("div", { className: "grid grid
     {
       label: "Total Expected Owed",
       icon: GraduationCap,
-      value: /* @__PURE__ */ jsx(CediValue, { pesewas: kpis.expectedOwed.amount }),
-      footer: /* @__PURE__ */ jsxs("p", { className: "flex items-start gap-2 text-[11px] font-semibold leading-snug text-slate-500", children: [
-        /* @__PURE__ */ jsx(GraduationCap, { className: "mt-px h-3.5 w-3.5 shrink-0 text-slate-400", "aria-hidden": "true" }),
-        kpis.expectedOwed.scopeNote
-      ] })
+      value: /* @__PURE__ */ jsx(CediValue, { pesewas: kpis.expectedOwed.amount })
     }
   ),
   /* @__PURE__ */ jsx(
@@ -1304,12 +2011,6 @@ const KpiRow = ({ kpis }) => /* @__PURE__ */ jsxs("div", { className: "grid grid
       icon: TrendingUp,
       accent: true,
       valueTone: "text-brand-700",
-      badge: /* @__PURE__ */ jsxs(Badge, { tone: "green", icon: TrendingUp, children: [
-        kpis.collected.deltaPercent > 0 ? "+" : "",
-        kpis.collected.deltaPercent,
-        "% ",
-        kpis.collected.deltaLabel
-      ] }),
       value: /* @__PURE__ */ jsx(CediValue, { pesewas: kpis.collected.amount, tone: "text-brand-700" }),
       footer: /* @__PURE__ */ jsxs("div", { className: "space-y-2", children: [
         /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-between gap-3", children: [
@@ -1336,16 +2037,9 @@ const KpiRow = ({ kpis }) => /* @__PURE__ */ jsxs("div", { className: "grid grid
       suffix: "learners",
       badge: /* @__PURE__ */ jsx(Badge, { tone: "red", dot: true, children: "Immediate Attention" }),
       value: formatCount(kpis.overdue.students),
-      footer: /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-between gap-3", children: [
-        /* @__PURE__ */ jsxs("p", { className: "flex items-start gap-2 text-[11px] font-semibold leading-snug text-slate-500", children: [
-          /* @__PURE__ */ jsx(Clock, { className: "mt-px h-3.5 w-3.5 shrink-0 text-slate-400", "aria-hidden": "true" }),
-          /* @__PURE__ */ jsxs("span", { children: [
-            /* @__PURE__ */ jsx("span", { className: "font-extrabold text-ink", children: kpis.overdue.onGrace }),
-            " ",
-            kpis.overdue.graceNote
-          ] })
-        ] }),
-        /* @__PURE__ */ jsx("p", { className: "shrink-0 text-[11px] font-extrabold text-red-600", children: formatCediShort(kpis.overdue.amount) })
+      footer: /* @__PURE__ */ jsxs("p", { className: "flex items-center justify-between gap-3 text-[11px] font-extrabold text-red-600", children: [
+        /* @__PURE__ */ jsx("span", { className: "font-semibold text-slate-500", children: "Outstanding overdue" }),
+        formatCediShort(kpis.overdue.amount)
       ] })
     }
   )
@@ -1534,7 +2228,7 @@ const FILTERS = [
   { key: "telecel", label: "Telecel Cash" },
   { key: "at", label: "AT Money" }
 ];
-const CollectionsCard = ({ term, seriesFor, isDemo }) => {
+const CollectionsCard = ({ term, seriesFor }) => {
   const [channel, setChannel] = useState("all");
   const series = useMemo(() => seriesFor(channel), [seriesFor, channel]);
   const cumulative = useMemo(
@@ -1549,13 +2243,11 @@ const CollectionsCard = ({ term, seriesFor, isDemo }) => {
     );
   }, [series]);
   const activeFilter = FILTERS.find((f) => f.key === channel);
+  const hasSeries = series.length > 0;
   return /* @__PURE__ */ jsxs(Card, { padding: "p-5", className: "flex flex-col", children: [
     /* @__PURE__ */ jsxs("div", { className: "flex flex-wrap items-start justify-between gap-4", children: [
       /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
-        /* @__PURE__ */ jsxs("div", { className: "flex flex-wrap items-center gap-2", children: [
-          /* @__PURE__ */ jsx("h3", { className: "text-lg font-extrabold tracking-tight text-ink", children: "Collections This Term (Weekly)" }),
-          term?.weekLabel && /* @__PURE__ */ jsx(Badge, { tone: "slate", icon: Info, children: term.weekLabel })
-        ] }),
+        /* @__PURE__ */ jsx("h3", { className: "text-lg font-extrabold tracking-tight text-ink", children: "Collections This Term (Weekly)" }),
         /* @__PURE__ */ jsx("p", { className: "mt-1 max-w-md text-[13px] font-medium leading-snug text-slate-500", children: "Automated Mobile Money settlements reconciled directly via Bank of Ghana switch" })
       ] }),
       /* @__PURE__ */ jsx(
@@ -1581,38 +2273,29 @@ const CollectionsCard = ({ term, seriesFor, isDemo }) => {
         }
       )
     ] }),
-    /* @__PURE__ */ jsxs("div", { className: "mt-4 grid grid-cols-1 gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-3", children: [
-      /* @__PURE__ */ jsxs("div", { children: [
+    hasSeries ? /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsx("div", { className: "mt-4 grid grid-cols-1 gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-2", children: /* @__PURE__ */ jsxs("div", { children: [
         /* @__PURE__ */ jsx("p", { className: "text-[11px] font-extrabold uppercase tracking-wide text-slate-500", children: "Cumulative Net Inflow" }),
         /* @__PURE__ */ jsx("p", { className: "mt-1 text-lg font-extrabold tracking-tight text-brand-700", children: formatCedi(cumulative) })
-      ] }),
-      /* @__PURE__ */ jsxs("div", { children: [
-        /* @__PURE__ */ jsx("p", { className: "text-[11px] font-extrabold uppercase tracking-wide text-slate-500", children: "Peak Inflow Week" }),
-        /* @__PURE__ */ jsxs("p", { className: "mt-1 text-sm font-extrabold text-ink", children: [
-          term?.peakInflow?.week,
-          /* @__PURE__ */ jsx("span", { className: "ml-1.5 text-[11px] font-semibold text-slate-500", children: term?.peakInflow?.note })
-        ] })
-      ] }),
-      /* @__PURE__ */ jsxs("div", { children: [
-        /* @__PURE__ */ jsx("p", { className: "text-[11px] font-extrabold uppercase tracking-wide text-slate-500", children: "Target Term Threshold" }),
-        /* @__PURE__ */ jsx("p", { className: "mt-1 text-sm font-extrabold text-ink", children: formatCedi(term?.targetThreshold) })
+      ] }) }),
+      /* @__PURE__ */ jsx(
+        AreaChart,
+        {
+          series,
+          peakIndex,
+          formatValue: formatCediShort,
+          formatAxis: formatCediShort,
+          className: "mt-4"
+        }
+      ),
+      /* @__PURE__ */ jsxs("p", { className: "mt-2 text-[11px] font-semibold text-slate-400", children: [
+        "Showing ",
+        activeFilter?.label,
+        ". Hover a point for its exact amount."
       ] })
-    ] }),
-    /* @__PURE__ */ jsx(
-      AreaChart,
-      {
-        series,
-        peakIndex,
-        formatValue: formatCediShort,
-        formatAxis: formatCediShort,
-        className: "mt-4"
-      }
-    ),
-    /* @__PURE__ */ jsxs("p", { className: "mt-2 text-[11px] font-semibold text-slate-400", children: [
-      "Showing ",
-      activeFilter?.label,
-      isDemo ? " · demo data" : "",
-      ". Hover a point for its exact amount."
+    ] }) : /* @__PURE__ */ jsxs("div", { className: "mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center", children: [
+      /* @__PURE__ */ jsx("p", { className: "text-[13px] font-extrabold text-ink", children: "No weekly breakdown yet" }),
+      /* @__PURE__ */ jsx("p", { className: "mx-auto mt-1.5 max-w-md text-[12px] font-medium leading-relaxed text-slate-500", children: "This chart needs the daily collections report bucketed into teaching weeks from your school calendar. Until that exists, the term total is on the Total Collected tile above and every payment is listed below." })
     ] })
   ] });
 };
@@ -1633,57 +2316,62 @@ const StackedBar = ({ segments = [], className = "" }) => {
   }) });
 };
 const SEGMENT_CLASS = {
-  mtn: "bg-momo-mtn",
-  telecel: "bg-momo-telecel",
-  at: "bg-momo-at"
+  momo: "bg-momo-mtn",
+  card: "bg-momo-telecel",
+  bank_transfer: "bg-momo-at",
+  manual: "bg-slate-300"
 };
-const PaymentChannelsCard = ({ channels, isDemo }) => /* @__PURE__ */ jsxs(Card, { padding: "p-5", className: "flex flex-col", children: [
-  /* @__PURE__ */ jsxs("div", { className: "mb-4 flex items-center justify-between gap-3", children: [
-    /* @__PURE__ */ jsx("h3", { className: "text-base font-extrabold tracking-tight text-ink", children: "Payment Channels" }),
-    /* @__PURE__ */ jsx(Badge, { tone: "brand", children: "Automated" })
-  ] }),
-  /* @__PURE__ */ jsx(
-    StackedBar,
-    {
-      segments: channels.map((c) => ({
-        key: c.key,
-        label: c.network,
-        value: c.amount,
-        className: SEGMENT_CLASS[c.key]
-      })),
-      className: "mb-5"
-    }
-  ),
-  /* @__PURE__ */ jsx("ul", { className: "flex flex-col gap-3", children: channels.map((channel) => /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx("div", { className: "rounded-xl bg-slate-50 p-3", children: /* @__PURE__ */ jsxs("div", { className: "flex items-start justify-between gap-3", children: [
-    /* @__PURE__ */ jsxs("div", { className: "flex min-w-0 items-start gap-2.5", children: [
-      /* @__PURE__ */ jsx(
-        "span",
-        {
-          className: `mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${SEGMENT_CLASS[channel.key]}`,
-          "aria-hidden": "true"
-        }
-      ),
-      /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
-        /* @__PURE__ */ jsx("p", { className: "truncate text-[13px] font-extrabold text-ink", children: channel.network }),
-        /* @__PURE__ */ jsxs("p", { className: "text-[11px] font-semibold text-slate-500", children: [
-          formatPercent(channel.sharePercent),
-          " Share •",
-          " ",
-          formatCount(channel.accounts),
-          " Accounts"
-        ] })
-      ] })
+const PaymentChannelsCard = ({ channels = [] }) => {
+  if (!channels.length) {
+    return /* @__PURE__ */ jsxs(Card, { padding: "p-5", className: "flex flex-col", children: [
+      /* @__PURE__ */ jsxs("div", { className: "mb-3 flex items-center justify-between gap-3", children: [
+        /* @__PURE__ */ jsx("h3", { className: "text-base font-extrabold tracking-tight text-ink", children: "Payment Channels" }),
+        /* @__PURE__ */ jsx(Badge, { tone: "brand", children: "Automated" })
+      ] }),
+      /* @__PURE__ */ jsx("p", { className: "text-[12px] font-medium leading-relaxed text-slate-500", children: "No completed payments in this period yet. The split by MoMo, card, bank transfer and manual appears here as soon as there are some." })
+    ] });
+  }
+  return /* @__PURE__ */ jsxs(Card, { padding: "p-5", className: "flex flex-col", children: [
+    /* @__PURE__ */ jsxs("div", { className: "mb-4 flex items-center justify-between gap-3", children: [
+      /* @__PURE__ */ jsx("h3", { className: "text-base font-extrabold tracking-tight text-ink", children: "Payment Channels" }),
+      /* @__PURE__ */ jsx(Badge, { tone: "brand", children: "Automated" })
     ] }),
-    /* @__PURE__ */ jsxs("div", { className: "shrink-0 text-right", children: [
-      /* @__PURE__ */ jsx("p", { className: "text-[13px] font-extrabold text-brand-700", children: formatCediShort(channel.amount) }),
-      /* @__PURE__ */ jsxs("p", { className: "text-[11px] font-semibold text-slate-500", children: [
-        formatPercent(channel.authRatePercent),
-        " Auth rate"
-      ] })
-    ] })
-  ] }) }) }, channel.key)) }),
-  isDemo && /* @__PURE__ */ jsx("p", { className: "mt-4 text-[11px] font-semibold text-slate-400", children: "Demo data. Backed by GET /reports/payment-methods/:schoolId once wired." })
-] });
+    /* @__PURE__ */ jsx(
+      StackedBar,
+      {
+        segments: channels.map((c) => ({
+          key: c.key,
+          label: c.label,
+          value: c.amount,
+          className: SEGMENT_CLASS[c.key] || "bg-slate-300"
+        })),
+        className: "mb-5"
+      }
+    ),
+    /* @__PURE__ */ jsx("ul", { className: "flex flex-col gap-3", children: channels.map((channel) => /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx("div", { className: "rounded-xl bg-slate-50 p-3", children: /* @__PURE__ */ jsxs("div", { className: "flex items-start justify-between gap-3", children: [
+      /* @__PURE__ */ jsxs("div", { className: "flex min-w-0 items-start gap-2.5", children: [
+        /* @__PURE__ */ jsx(
+          "span",
+          {
+            className: `mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${SEGMENT_CLASS[channel.key] || "bg-slate-300"}`,
+            "aria-hidden": "true"
+          }
+        ),
+        /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
+          /* @__PURE__ */ jsx("p", { className: "truncate text-[13px] font-extrabold capitalize text-ink", children: channel.key?.replace(/_/g, " ") }),
+          /* @__PURE__ */ jsxs("p", { className: "text-[11px] font-semibold text-slate-500", children: [
+            formatPercent(channel.sharePercent),
+            " Share •",
+            " ",
+            formatCount(channel.transactionCount),
+            " Payments"
+          ] })
+        ] })
+      ] }),
+      /* @__PURE__ */ jsx("div", { className: "shrink-0 text-right", children: /* @__PURE__ */ jsx("p", { className: "text-[13px] font-extrabold text-brand-700", children: formatCediShort(channel.amount) }) })
+    ] }) }) }, channel.key)) })
+  ] });
+};
 const initials$1 = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join("");
 const AVATAR_TONES$1 = [
   "bg-emerald-100 text-emerald-700",
@@ -1761,91 +2449,6 @@ const RecentTransactionsCard = ({ transactions, totalCount, isDemo }) => /* @__P
   ] }) }),
   isDemo && /* @__PURE__ */ jsx("p", { className: "border-t border-slate-100 px-5 py-3 text-[11px] font-semibold text-slate-400", children: "Demo data. Backed by GET /payments once wired." })
 ] });
-const Modal = ({ open, onClose, title, description, children, footer, size = "md" }) => {
-  const panelRef = useRef(null);
-  useEffect(() => {
-    if (!open) return void 0;
-    const onKeyDown = (event) => {
-      if (event.key === "Escape") onClose?.();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    panelRef.current?.focus();
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [open, onClose]);
-  if (!open) return null;
-  const widths = { sm: "max-w-md", md: "max-w-lg", lg: "max-w-3xl" };
-  return createPortal(
-    /* @__PURE__ */ jsxs("div", { className: "fixed inset-0 z-[90] flex items-end justify-center p-0 sm:items-center sm:p-6", children: [
-      /* @__PURE__ */ jsx(
-        "div",
-        {
-          className: "absolute inset-0 bg-ink/55 backdrop-blur-sm",
-          onClick: onClose,
-          "aria-hidden": "true"
-        }
-      ),
-      /* @__PURE__ */ jsxs(
-        "div",
-        {
-          ref: panelRef,
-          tabIndex: -1,
-          role: "dialog",
-          "aria-modal": "true",
-          "aria-label": title,
-          className: `relative w-full ${widths[size]} max-h-[92vh] overflow-y-auto rounded-t-2xl bg-white shadow-soft outline-none sm:rounded-2xl`,
-          children: [
-            /* @__PURE__ */ jsxs("div", { className: "flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6", children: [
-              /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
-                /* @__PURE__ */ jsx("h2", { className: "text-base font-extrabold tracking-tight text-ink", children: title }),
-                description && /* @__PURE__ */ jsx("p", { className: "mt-1 text-[13px] font-medium leading-snug text-slate-500", children: description })
-              ] }),
-              /* @__PURE__ */ jsx(
-                "button",
-                {
-                  type: "button",
-                  onClick: onClose,
-                  "aria-label": "Close dialog",
-                  className: "-mr-1 shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-700",
-                  children: /* @__PURE__ */ jsx(X, { className: "h-4 w-4" })
-                }
-              )
-            ] }),
-            /* @__PURE__ */ jsx("div", { className: "px-5 py-5 sm:px-6", children }),
-            footer && /* @__PURE__ */ jsx("div", { className: "flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-4 sm:flex-row sm:justify-end sm:px-6", children: footer })
-          ]
-        }
-      )
-    ] }),
-    document.body
-  );
-};
-const Button = ({ children, variant = "primary", size = "md", className = "", ...props }) => {
-  const baseStyles = "font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
-  const variants = {
-    primary: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500",
-    secondary: "bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500",
-    danger: "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500",
-    ghost: "text-gray-700 hover:bg-gray-100 focus:ring-gray-500"
-  };
-  const sizes = {
-    sm: "px-3 py-1.5 text-sm",
-    md: "px-4 py-2 text-base",
-    lg: "px-6 py-3 text-lg"
-  };
-  return /* @__PURE__ */ jsx(
-    "button",
-    {
-      className: `${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`,
-      ...props,
-      children
-    }
-  );
-};
 const sendBulk = async (schoolId, filters, message) => {
   try {
     const { data } = await api.post(`/sms/bulk/${schoolId}`, { ...filters, message }, {
@@ -1865,18 +2468,13 @@ const sendBulk = async (schoolId, filters, message) => {
     throw toApiError(error, "The reminders could not be sent.");
   }
 };
-const useToast = () => {
-  const context = useContext(ToastContext);
-  if (!context) {
-    throw new Error("useToast must be used within a ToastProvider");
-  }
-  return context;
-};
-const BroadcastSmsCard = ({ broadcast, isDemo }) => {
+const BroadcastSmsCard = ({ broadcast }) => {
   const { user } = useAuth();
   const { warning, error: errorToast, success } = useToast();
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
+  const recipientCount = broadcast?.recipientCount ?? 0;
+  const nothingSent = recipientCount === 0;
   const runSend = async () => {
     setConfirming(false);
     if (!user?.schoolId) {
@@ -1885,8 +2483,8 @@ const BroadcastSmsCard = ({ broadcast, isDemo }) => {
     }
     setSending(true);
     try {
-      await sendBulk(user.schoolId, { overdueOnly: true }, broadcast.preview);
-      success(`Reminder queued for ${formatCount(broadcast.recipientCount)} parents.`);
+      await sendBulk(user.schoolId, { overdueOnly: true });
+      success(`Reminder queued for ${formatCount(recipientCount)} parents.`);
     } catch (err) {
       if (err?.code === "SMS_SEND_NOT_SUPPORTED") {
         warning(err.message);
@@ -1899,45 +2497,43 @@ const BroadcastSmsCard = ({ broadcast, isDemo }) => {
   };
   return /* @__PURE__ */ jsxs(Fragment, { children: [
     /* @__PURE__ */ jsxs(Card, { padding: "p-5", className: "border-red-100 bg-red-50/40", children: [
-      /* @__PURE__ */ jsxs("div", { className: "flex items-start justify-between gap-3", children: [
-        /* @__PURE__ */ jsxs("div", { className: "flex min-w-0 items-start gap-3", children: [
-          /* @__PURE__ */ jsx("span", { className: "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600", children: /* @__PURE__ */ jsx(Bell, { className: "h-[18px] w-[18px]", "aria-hidden": "true" }) }),
-          /* @__PURE__ */ jsx("h3", { className: "text-base font-extrabold leading-tight tracking-tight text-ink", children: "Broadcast SMS Prompt" })
+      /* @__PURE__ */ jsxs("div", { className: "flex items-start gap-3", children: [
+        /* @__PURE__ */ jsx("span", { className: "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600", children: /* @__PURE__ */ jsx(Bell, { className: "h-[18px] w-[18px]", "aria-hidden": "true" }) }),
+        /* @__PURE__ */ jsx("h3", { className: "text-base font-extrabold leading-tight tracking-tight text-ink", children: "Broadcast SMS Prompt" })
+      ] }),
+      nothingSent ? /* @__PURE__ */ jsx("p", { className: "mt-4 text-[13px] font-semibold leading-relaxed text-slate-600", children: "No student currently owes a fee, so there is nobody to remind. This card appears once a balance is outstanding." }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+        /* @__PURE__ */ jsxs("p", { className: "mt-4 text-[13px] font-extrabold text-red-600", children: [
+          formatCount(recipientCount),
+          " Overdue Students detected"
         ] }),
-        /* @__PURE__ */ jsxs(Badge, { tone: "amber", children: [
-          formatCount(broadcast.creditUnits),
-          " units"
-        ] })
-      ] }),
-      /* @__PURE__ */ jsxs("p", { className: "mt-4 text-[13px] font-extrabold text-red-600", children: [
-        formatCount(broadcast.recipientCount),
-        " Overdue Students detected"
-      ] }),
-      /* @__PURE__ */ jsxs("div", { className: "mt-3 rounded-xl bg-white/70 p-3", children: [
-        /* @__PURE__ */ jsxs("p", { className: "text-[11px] font-extrabold uppercase tracking-wide text-slate-500", children: [
-          "Template Preview: ",
-          broadcast.templateName
+        /* @__PURE__ */ jsxs("dl", { className: "mt-3 space-y-1.5 rounded-xl bg-white/70 p-3 text-[12px]", children: [
+          /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-between gap-3", children: [
+            /* @__PURE__ */ jsx("dt", { className: "font-semibold text-slate-500", children: "Outstanding total" }),
+            /* @__PURE__ */ jsx("dd", { className: "font-extrabold text-ink", children: formatCediShort(broadcast.totalOutstanding) })
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-between gap-3", children: [
+            /* @__PURE__ */ jsx("dt", { className: "font-semibold text-slate-500", children: "Paid nothing yet" }),
+            /* @__PURE__ */ jsx("dd", { className: "font-extrabold text-ink", children: formatCount(broadcast.fullyUnpaidCount) })
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-between gap-3", children: [
+            /* @__PURE__ */ jsx("dt", { className: "font-semibold text-slate-500", children: "Paid something" }),
+            /* @__PURE__ */ jsx("dd", { className: "font-extrabold text-ink", children: formatCount(broadcast.partiallyPaidCount) })
+          ] })
         ] }),
-        /* @__PURE__ */ jsxs("p", { className: "mt-1.5 text-[12px] italic leading-relaxed text-slate-600", children: [
-          "“",
-          broadcast.preview,
-          "”"
-        ] })
-      ] }),
-      /* @__PURE__ */ jsxs(
-        "button",
-        {
-          type: "button",
-          onClick: () => setConfirming(true),
-          disabled: sending,
-          className: "mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60",
-          children: [
-            /* @__PURE__ */ jsx(Send, { className: "h-4 w-4", "aria-hidden": "true" }),
-            "Send Overdue Fee SMS Prompt"
-          ]
-        }
-      ),
-      isDemo && /* @__PURE__ */ jsx("p", { className: "mt-2 text-[11px] font-semibold text-slate-500", children: "Recipient count is demo data. Sending is not available on the API yet." })
+        /* @__PURE__ */ jsxs(
+          "button",
+          {
+            type: "button",
+            onClick: () => setConfirming(true),
+            disabled: sending,
+            className: "mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60",
+            children: [
+              /* @__PURE__ */ jsx(Send, { className: "h-4 w-4", "aria-hidden": "true" }),
+              "Send Overdue Fee SMS Prompt"
+            ]
+          }
+        )
+      ] })
     ] }),
     /* @__PURE__ */ jsx(
       Modal,
@@ -1950,14 +2546,14 @@ const BroadcastSmsCard = ({ broadcast, isDemo }) => {
           /* @__PURE__ */ jsx(Button, { variant: "secondary", onClick: () => setConfirming(false), children: "Cancel" }),
           /* @__PURE__ */ jsxs(Button, { variant: "primary", onClick: runSend, children: [
             "Send to ",
-            formatCount(broadcast.recipientCount),
+            formatCount(recipientCount),
             " parents"
           ] })
         ] }),
         children: /* @__PURE__ */ jsx("dl", { className: "space-y-2.5 text-sm", children: [
-          { label: "Recipients", value: `${formatCount(broadcast.recipientCount)} parents` },
-          { label: "Messages used", value: formatCount(broadcast.recipientCount) },
-          { label: "Credit remaining after", value: formatCount(broadcast.creditUnits - broadcast.recipientCount) }
+          { label: "Recipients", value: `${formatCount(recipientCount)} parents` },
+          { label: "Messages used", value: formatCount(recipientCount) },
+          { label: "Outstanding total", value: formatCediShort(broadcast.totalOutstanding) }
         ].map((row) => /* @__PURE__ */ jsxs("div", { className: "flex justify-between gap-4", children: [
           /* @__PURE__ */ jsx("dt", { className: "font-medium text-slate-500", children: row.label }),
           /* @__PURE__ */ jsx("dd", { className: "font-extrabold text-ink", children: row.value })
@@ -1966,87 +2562,101 @@ const BroadcastSmsCard = ({ broadcast, isDemo }) => {
     )
   ] });
 };
-const UpcomingInstallmentsCard = ({ upcoming, isDemo }) => /* @__PURE__ */ jsxs(Card, { padding: "p-5", className: "flex flex-col", children: [
-  /* @__PURE__ */ jsxs("div", { className: "mb-4 flex items-start justify-between gap-3", children: [
-    /* @__PURE__ */ jsxs("div", { className: "flex min-w-0 items-start gap-3", children: [
-      /* @__PURE__ */ jsx("span", { className: "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600", children: /* @__PURE__ */ jsx(CalendarClock, { className: "h-[18px] w-[18px]", "aria-hidden": "true" }) }),
-      /* @__PURE__ */ jsx("h3", { className: "text-base font-extrabold leading-tight tracking-tight text-ink", children: "Upcoming Installments" })
-    ] }),
-    /* @__PURE__ */ jsxs(Badge, { tone: "slate", children: [
-      "Next ",
-      upcoming.horizonDays,
-      " Days"
-    ] })
-  ] }),
-  /* @__PURE__ */ jsxs("div", { className: "grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4", children: [
-    /* @__PURE__ */ jsxs("div", { children: [
-      /* @__PURE__ */ jsx("p", { className: "text-2xl font-extrabold leading-none tracking-tight text-ink", children: formatCount(upcoming.scheduledTranches) }),
-      /* @__PURE__ */ jsx("p", { className: "mt-1 text-[11px] font-semibold leading-snug text-slate-500", children: "Scheduled Tranches" })
-    ] }),
-    /* @__PURE__ */ jsxs("div", { className: "text-right", children: [
-      /* @__PURE__ */ jsx("p", { className: "text-2xl font-extrabold leading-none tracking-tight text-brand-700", children: formatCediWhole(upcoming.expectedInflow) }),
-      /* @__PURE__ */ jsx("p", { className: "mt-1 text-[11px] font-semibold leading-snug text-slate-500", children: "Expected Inflow" })
-    ] })
-  ] }),
-  /* @__PURE__ */ jsx("ul", { className: "mt-3 flex flex-col divide-y divide-slate-100", children: upcoming.days.map((day) => /* @__PURE__ */ jsxs("li", { className: "flex items-center justify-between gap-3 py-2.5", children: [
-    /* @__PURE__ */ jsxs("span", { className: "min-w-0", children: [
-      /* @__PURE__ */ jsx("span", { className: "block truncate text-[12px] font-extrabold text-ink", children: day.dateLabel }),
-      /* @__PURE__ */ jsxs("span", { className: "block text-[11px] font-semibold text-slate-500", children: [
-        formatCount(day.students),
-        " students"
+const UpcomingInstallmentsCard = ({ upcoming }) => {
+  const days = upcoming?.days ?? [];
+  const hasSchedule = days.length > 0;
+  return /* @__PURE__ */ jsxs(Card, { padding: "p-5", className: "flex flex-col", children: [
+    /* @__PURE__ */ jsxs("div", { className: "mb-4 flex items-start justify-between gap-3", children: [
+      /* @__PURE__ */ jsxs("div", { className: "flex min-w-0 items-start gap-3", children: [
+        /* @__PURE__ */ jsx("span", { className: "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600", children: /* @__PURE__ */ jsx(CalendarClock, { className: "h-[18px] w-[18px]", "aria-hidden": "true" }) }),
+        /* @__PURE__ */ jsx("h3", { className: "text-base font-extrabold leading-tight tracking-tight text-ink", children: "Upcoming Installments" })
+      ] }),
+      hasSchedule && /* @__PURE__ */ jsxs(Badge, { tone: "slate", children: [
+        "Next ",
+        upcoming.horizonDays,
+        " Days"
       ] })
     ] }),
-    /* @__PURE__ */ jsx("span", { className: "shrink-0 text-[13px] font-extrabold tabular-nums text-ink", children: formatCediShort(day.amount) })
-  ] }, day.dateLabel)) }),
-  /* @__PURE__ */ jsxs(
-    Link,
-    {
-      to: ROUTES.DASHBOARD_PLANS,
-      className: "mt-3 inline-flex items-center justify-center gap-1 rounded-xl bg-slate-100 px-4 py-2.5 text-[13px] font-extrabold text-slate-700 transition-colors hover:bg-slate-200",
-      children: [
-        "View Compliance Schedule",
-        /* @__PURE__ */ jsx(ChevronRight, { className: "h-4 w-4", "aria-hidden": "true" })
-      ]
-    }
-  ),
-  isDemo && /* @__PURE__ */ jsx("p", { className: "mt-3 text-[11px] font-semibold text-slate-400", children: "Demo data. No dated tranches endpoint exists yet — see getUpcomingInstallments." })
-] });
+    hasSchedule ? /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsxs("div", { className: "grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4", children: [
+        /* @__PURE__ */ jsxs("div", { children: [
+          /* @__PURE__ */ jsx("p", { className: "text-2xl font-extrabold leading-none tracking-tight text-ink", children: formatCount(upcoming.scheduledTranches) }),
+          /* @__PURE__ */ jsx("p", { className: "mt-1 text-[11px] font-semibold leading-snug text-slate-500", children: "Scheduled Tranches" })
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "text-right", children: [
+          /* @__PURE__ */ jsx("p", { className: "text-2xl font-extrabold leading-none tracking-tight text-brand-700", children: formatCediWhole(upcoming.expectedInflow) }),
+          /* @__PURE__ */ jsx("p", { className: "mt-1 text-[11px] font-semibold leading-snug text-slate-500", children: "Expected Inflow" })
+        ] })
+      ] }),
+      /* @__PURE__ */ jsx("ul", { className: "mt-3 flex flex-col divide-y divide-slate-100", children: days.map((day) => /* @__PURE__ */ jsxs("li", { className: "flex items-center justify-between gap-3 py-2.5", children: [
+        /* @__PURE__ */ jsxs("span", { className: "min-w-0", children: [
+          /* @__PURE__ */ jsx("span", { className: "block truncate text-[12px] font-extrabold text-ink", children: day.dateLabel }),
+          /* @__PURE__ */ jsxs("span", { className: "block text-[11px] font-semibold text-slate-500", children: [
+            formatCount(day.students),
+            " students"
+          ] })
+        ] }),
+        /* @__PURE__ */ jsx("span", { className: "shrink-0 text-[13px] font-extrabold tabular-nums text-ink", children: formatCediShort(day.amount) })
+      ] }, day.dateLabel)) })
+    ] }) : /* @__PURE__ */ jsx("p", { className: "text-[12px] font-medium leading-relaxed text-slate-500", children: "A day-by-day list of what falls due is not available yet. The full installment schedule and its compliance is on the Installment Plans module." }),
+    /* @__PURE__ */ jsxs(
+      Link,
+      {
+        to: ROUTES.DASHBOARD_PLANS,
+        className: "mt-3 inline-flex items-center justify-center gap-1 rounded-xl bg-slate-100 px-4 py-2.5 text-[13px] font-extrabold text-slate-700 transition-colors hover:bg-slate-200",
+        children: [
+          "View Compliance Schedule",
+          /* @__PURE__ */ jsx(ChevronRight, { className: "h-4 w-4", "aria-hidden": "true" })
+        ]
+      }
+    )
+  ] });
+};
 const Overview = () => {
-  const { data, isDemo, seriesFor } = useDashboardOverview();
-  if (!data) {
+  const { user } = useAuth();
+  const { data, loading, isFallback, seriesFor, refresh } = useDashboardOverview(user?.schoolId);
+  const { success, error: errorToast } = useToast();
+  const [recording, setRecording] = useState(false);
+  const onExport = () => {
+    exportStudents({ status: "all", perPage: 100, format: "csv" }).then(({ filename }) => success(`Downloaded ${filename}`)).catch((error) => errorToast(error.message));
+  };
+  if (loading || !data) {
     return /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
       /* @__PURE__ */ jsx("div", { className: "h-8 w-64 animate-pulse rounded-lg bg-slate-200" }),
       /* @__PURE__ */ jsx("div", { className: "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4", children: [0, 1, 2, 3].map((i) => /* @__PURE__ */ jsx("div", { className: "h-40 animate-pulse rounded-2xl bg-slate-200/70" }, i)) })
     ] });
   }
   const { school, term, kpis, channels, transactions, transactionCount, upcomingInstallments, smsBroadcast } = data;
+  const subtitle = [
+    term.term,
+    term.academicYear ? `Academic Year ${term.academicYear}` : "",
+    school.city
+  ].filter(Boolean).join(" • ");
   return /* @__PURE__ */ jsxs(Fragment, { children: [
     /* @__PURE__ */ jsxs("div", { className: "mb-5 flex flex-wrap items-start justify-between gap-4", children: [
       /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
         /* @__PURE__ */ jsxs("p", { className: "flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-slate-500", children: [
           "Overview",
           /* @__PURE__ */ jsx("span", { className: "h-1 w-1 rounded-full bg-slate-300", "aria-hidden": "true" }),
-          /* @__PURE__ */ jsxs("span", { className: "inline-flex items-center gap-1.5 text-amber-600", children: [
+          isFallback ? /* @__PURE__ */ jsxs("span", { className: "inline-flex items-center gap-1.5 text-amber-600", children: [
             /* @__PURE__ */ jsx(TriangleAlert, { className: "h-3.5 w-3.5", "aria-hidden": "true" }),
-            "Demo data"
+            "Not connected"
+          ] }) : /* @__PURE__ */ jsxs("span", { className: "inline-flex items-center gap-1.5 text-brand-700", children: [
+            /* @__PURE__ */ jsx("span", { className: "h-1.5 w-1.5 rounded-full bg-brand-500", "aria-hidden": "true" }),
+            "Live sync active"
           ] })
         ] }),
         /* @__PURE__ */ jsx("h1", { className: "mt-1.5 text-2xl font-extrabold tracking-tight text-ink sm:text-3xl", children: "Dashboard Overview" }),
-        /* @__PURE__ */ jsxs("p", { className: "mt-1 text-[13px] font-semibold text-slate-500", children: [
-          term.term,
-          " • Academic Year ",
-          term.academicYear,
-          " • ",
-          school.campus
-        ] })
+        subtitle && /* @__PURE__ */ jsx("p", { className: "mt-1 text-[13px] font-semibold text-slate-500", children: subtitle })
       ] }),
       /* @__PURE__ */ jsxs("div", { className: "flex shrink-0 flex-wrap items-center gap-2", children: [
         /* @__PURE__ */ jsxs(
           "button",
           {
             type: "button",
-            disabled: isDemo,
-            title: "Available once reports are wired",
+            onClick: onExport,
+            disabled: isFallback,
+            title: isFallback ? "Available once the dashboard can reach the API" : "Export this term’s figures",
             className: "inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-extrabold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300",
             children: [
               /* @__PURE__ */ jsx(Download, { className: "h-4 w-4", "aria-hidden": "true" }),
@@ -2058,8 +2668,9 @@ const Overview = () => {
           "button",
           {
             type: "button",
-            disabled: isDemo,
-            title: "Available once payments are wired",
+            onClick: () => setRecording(true),
+            disabled: isFallback,
+            title: isFallback ? "Available once the dashboard can reach the API" : "Record a cash, cheque or bank transfer payment",
             className: "inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-[13px] font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none",
             children: [
               /* @__PURE__ */ jsx(Plus, { className: "h-4 w-4", "aria-hidden": "true" }),
@@ -2072,27 +2683,31 @@ const Overview = () => {
     /* @__PURE__ */ jsx(KpiRow, { kpis }),
     /* @__PURE__ */ jsxs("div", { className: "mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3", children: [
       /* @__PURE__ */ jsxs("div", { className: "flex flex-col gap-4 xl:col-span-2", children: [
-        /* @__PURE__ */ jsx(CollectionsCard, { term, seriesFor, isDemo }),
+        /* @__PURE__ */ jsx(CollectionsCard, { term, seriesFor }),
         /* @__PURE__ */ jsx(
           RecentTransactionsCard,
           {
             transactions,
             totalCount: transactionCount,
-            isDemo
+            isDemo: isFallback
           }
         )
       ] }),
       /* @__PURE__ */ jsxs("div", { className: "flex flex-col gap-4", children: [
-        /* @__PURE__ */ jsx(PaymentChannelsCard, { channels, isDemo }),
-        /* @__PURE__ */ jsx(BroadcastSmsCard, { broadcast: smsBroadcast, isDemo }),
-        /* @__PURE__ */ jsx(UpcomingInstallmentsCard, { upcoming: upcomingInstallments, isDemo })
+        /* @__PURE__ */ jsx(PaymentChannelsCard, { channels }),
+        /* @__PURE__ */ jsx(BroadcastSmsCard, { broadcast: smsBroadcast }),
+        /* @__PURE__ */ jsx(UpcomingInstallmentsCard, { upcoming: upcomingInstallments })
       ] })
     ] }),
-    /* @__PURE__ */ jsxs("p", { className: "mt-4 text-[11px] font-semibold text-slate-400", children: [
-      "Every figure on this page is a fixture from src/data/dashboardDemo.js, not a school’s real position. ",
-      formatCount(kpis.totalStudents.value),
-      " students is the demo roster, not a count of anyone."
-    ] })
+    isFallback && /* @__PURE__ */ jsx("p", { className: "mt-4 text-[11px] font-semibold text-amber-700", children: "The dashboard could not reach the API, so every figure above is empty rather than estimated. Nothing on this page is a placeholder." }),
+    /* @__PURE__ */ jsx(
+      RecordManualPaymentDialog,
+      {
+        open: recording,
+        onClose: () => setRecording(false),
+        onRecorded: refresh
+      }
+    )
   ] });
 };
 const PageHeader = ({ eyebrow, title, description, actions, meta }) => /* @__PURE__ */ jsxs("div", { className: "mb-5 flex flex-wrap items-start justify-between gap-4", children: [
@@ -2187,92 +2802,6 @@ const RosterKpiRow = ({ stats, loading }) => {
       }
     )
   ] });
-};
-const baseControl = "w-full rounded-lg border border-slate-200 bg-white py-2 text-[13px]/[18px] font-medium text-ink placeholder:font-normal placeholder:text-slate-500 transition-all focus:border-brand-700 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/30";
-const Label = ({ htmlFor, children, hint, required = false }) => /* @__PURE__ */ jsxs("div", { className: "mb-0.5 flex items-baseline justify-between gap-3", children: [
-  /* @__PURE__ */ jsxs("label", { htmlFor, className: "text-[11px]/[15px] font-semibold text-slate-700", children: [
-    children,
-    required && /* @__PURE__ */ jsx("span", { className: "ml-0.5 text-red-600", children: "*" })
-  ] }),
-  hint && /* @__PURE__ */ jsx("span", { className: "shrink-0 text-[10px]/[14px] font-medium text-slate-500", children: hint })
-] });
-const Field = ({
-  label,
-  hint,
-  icon: Icon,
-  error,
-  trailing,
-  className = "",
-  ...props
-}) => {
-  const generatedId = useId();
-  const controlId = props.id || generatedId;
-  return /* @__PURE__ */ jsxs("div", { className, children: [
-    /* @__PURE__ */ jsx(Label, { htmlFor: controlId, hint, required: props.required, children: label }),
-    /* @__PURE__ */ jsxs("div", { className: "relative", children: [
-      Icon && /* @__PURE__ */ jsx("span", { className: "pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500", children: /* @__PURE__ */ jsx(Icon, { className: "h-4 w-4" }) }),
-      /* @__PURE__ */ jsx(
-        "input",
-        {
-          id: controlId,
-          "aria-invalid": error ? "true" : void 0,
-          className: `${baseControl} ${Icon ? "pl-9" : "pl-3"} pr-9 ${error ? "border-red-300" : ""}`,
-          ...props
-        }
-      ),
-      trailing && /* @__PURE__ */ jsx("span", { className: "absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500", children: trailing })
-    ] }),
-    error && /* @__PURE__ */ jsx("p", { className: "mt-1 text-[11px] font-semibold text-red-600", children: error })
-  ] });
-};
-const SelectField = ({
-  label,
-  hint,
-  icon: Icon,
-  error,
-  children,
-  className = "",
-  ...props
-}) => {
-  const generatedId = useId();
-  const controlId = props.id || generatedId;
-  return /* @__PURE__ */ jsxs("div", { className, children: [
-    /* @__PURE__ */ jsx(Label, { htmlFor: controlId, hint, required: props.required, children: label }),
-    /* @__PURE__ */ jsxs("div", { className: "relative", children: [
-      Icon && /* @__PURE__ */ jsx("span", { className: "pointer-events-none absolute inset-y-0 left-0 z-10 flex items-center pl-3 text-slate-500", children: /* @__PURE__ */ jsx(Icon, { className: "h-4 w-4" }) }),
-      /* @__PURE__ */ jsx(
-        "select",
-        {
-          id: controlId,
-          "aria-invalid": error ? "true" : void 0,
-          className: `${baseControl} cursor-pointer appearance-none pr-9 ${Icon ? "pl-9" : "pl-3"} ${error ? "border-red-300" : ""}`,
-          ...props,
-          children
-        }
-      ),
-      /* @__PURE__ */ jsx("span", { className: "pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500", children: /* @__PURE__ */ jsx(ChevronDown, { className: "h-4 w-4" }) })
-    ] }),
-    error && /* @__PURE__ */ jsx("p", { className: "mt-1 text-[11px] font-semibold text-red-600", children: error })
-  ] });
-};
-const FormAlert = ({ tone = "error", children }) => {
-  if (!children) return null;
-  const tones = {
-    error: "border-red-200 bg-red-50 text-red-700",
-    success: "border-brand-200 bg-brand-50 text-brand-800",
-    info: "border-slate-200 bg-slate-50 text-slate-700",
-    // Amber, not red: used when something went wrong but the account itself is
-    // fine and the user has a working next step. Red reads as "you are stuck".
-    warning: "border-amber-200 bg-amber-50 text-amber-800"
-  };
-  return /* @__PURE__ */ jsx(
-    "div",
-    {
-      role: tone === "error" ? "alert" : "status",
-      className: `rounded-lg border px-3 py-2.5 text-[13px] font-semibold ${tones[tone]}`,
-      children
-    }
-  );
 };
 const DEBOUNCE_MS = 300;
 const RosterFilterBar = ({ filters, setFilter, clearFilters, hasFilters, classes = [] }) => {
@@ -2782,56 +3311,6 @@ const StudentTable = ({
     )
   ] });
 };
-const MoneyInput = ({
-  label,
-  hint,
-  error,
-  value,
-  onChange,
-  className = "",
-  disabled = false,
-  ...props
-}) => {
-  const toCedis = (pesewas) => pesewas === null || pesewas === void 0 ? "" : String(pesewas / 100);
-  const [text, setText] = useState(() => toCedis(value));
-  const [focused, setFocused] = useState(false);
-  useEffect(() => {
-    if (!focused) setText(toCedis(value));
-  }, [value, focused]);
-  const commit = (raw) => {
-    const cleaned = String(raw).replace(/[^0-9.]/g, "");
-    const parsed = cleaned === "" ? null : Number(cleaned);
-    onChange(parsed === null || Number.isNaN(parsed) ? null : Math.round(parsed * 100));
-  };
-  const onBlur = () => {
-    setFocused(false);
-    if (text === "") return;
-    const parsed = Number(text);
-    setText(Number.isNaN(parsed) ? "" : parsed.toFixed(2));
-  };
-  return /* @__PURE__ */ jsx(
-    Field,
-    {
-      label,
-      hint,
-      error,
-      className,
-      type: "text",
-      inputMode: "decimal",
-      placeholder: "0.00",
-      disabled,
-      value: text,
-      onFocus: () => setFocused(true),
-      onChange: (event) => {
-        setText(event.target.value);
-        commit(event.target.value);
-      },
-      onBlur,
-      trailing: /* @__PURE__ */ jsx("span", { className: "text-[11px] font-extrabold", children: "GH₵" }),
-      ...props
-    }
-  );
-};
 const BulkActionBar = ({ selection, onDone, onError }) => {
   const [dialog, setDialog] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -3103,168 +3582,6 @@ const BulkButton = ({ icon: Icon, children, danger, onClick }) => /* @__PURE__ *
     ]
   }
 );
-const listStudents = async (params = {}) => {
-  try {
-    const { data } = await api.get("/students", { params, timeout: 15e3 });
-    return {
-      // `listStudentsController` returns `{ success, data, meta }` with `data`
-      // the page of rows.
-      rows: Array.isArray(data?.data) ? data.data : [],
-      meta: data?.meta || { page: 1, perPage: 20, total: 0, totalPages: 0 },
-      offline: false
-    };
-  } catch (error) {
-    const neverReachedServer = !error?.response || error?.code === "ERR_NETWORK" || error?.response?.status === 0;
-    if (neverReachedServer) {
-      return {
-        rows: [],
-        meta: { page: 1, perPage: params.perPage || 20, total: 0, totalPages: 0 },
-        offline: true
-      };
-    }
-    throw toApiError(error, "The student roster could not be loaded.");
-  }
-};
-const getStudentStats = async (params = {}) => {
-  try {
-    const { data } = await api.get("/students/stats", { params, timeout: 15e3 });
-    return data?.data || null;
-  } catch (error) {
-    throw toApiError(error, "Roster totals could not be loaded.");
-  }
-};
-const getStudentProfile = async (id) => {
-  try {
-    const { data } = await api.get(`/students/${encodeURIComponent(id)}/profile`, {
-      timeout: 15e3
-    });
-    return data?.data || null;
-  } catch (error) {
-    throw toApiError(error, "This student could not be loaded.");
-  }
-};
-const exportStudents = async (params = {}) => {
-  try {
-    const response = await api.get("/students/export", {
-      params: { ...params, format: params.format || "csv" },
-      responseType: "blob",
-      timeout: 6e4
-    });
-    const disposition = response.headers?.["content-disposition"] || "";
-    const match = disposition.match(/filename="?([^"]+)"?/);
-    const filename = match ? match[1] : `students.${params.format || "csv"}`;
-    const url = URL.createObjectURL(response.data);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
-    return { filename };
-  } catch (error) {
-    throw toApiError(error, "The roster could not be exported.");
-  }
-};
-const listAlumni = async (params = {}) => {
-  try {
-    const { data } = await api.get(`/alumni/${params.schoolId}`, {
-      params: {
-        page: params.page,
-        limit: params.limit,
-        graduationYear: params.graduationYear,
-        honors: params.honors,
-        search: params.search,
-        sortBy: params.sortBy,
-        sortOrder: params.sortOrder
-      },
-      timeout: 15e3
-    });
-    const result = data?.data || {};
-    return { rows: result.alumni || [], meta: result.pagination || null };
-  } catch (error) {
-    throw toApiError(error, "The alumni list could not be loaded.");
-  }
-};
-const createStudent = async (payload) => {
-  try {
-    const { data } = await api.post("/students/single", payload, { timeout: 15e3 });
-    return data?.data || null;
-  } catch (error) {
-    throw toApiError(error, "The student could not be created.");
-  }
-};
-const bulkImport = async (file, meta = {}) => {
-  const form = new FormData();
-  form.append("file", file);
-  if (meta.schoolId) form.append("schoolId", meta.schoolId);
-  if (meta.academicYear) form.append("academicYear", meta.academicYear);
-  if (meta.defaultDeadline) form.append("defaultDeadline", meta.defaultDeadline);
-  if (meta.defaultOwed !== void 0 && meta.defaultOwed !== null && meta.defaultOwed !== "") {
-    form.append("defaultOwed", String(meta.defaultOwed));
-  }
-  if (meta.dryRun) form.append("dryRun", "true");
-  try {
-    const { data } = await api.post("/students/bulk", form, {
-      timeout: 12e4,
-      headers: { "Content-Type": "multipart/form-data" }
-    });
-    return data?.data || null;
-  } catch (error) {
-    throw toApiError(error, "The roster could not be imported.");
-  }
-};
-const validateImport = (file, meta = {}) => bulkImport(file, { ...meta, dryRun: true });
-const updateStudent = async (id, payload) => {
-  try {
-    const { data } = await api.put(`/students/${encodeURIComponent(id)}`, payload, {
-      timeout: 15e3
-    });
-    return data?.data || null;
-  } catch (error) {
-    throw toApiError(error, "The student could not be updated.");
-  }
-};
-const regeneratePayLink = async (id, { notify = false } = {}) => {
-  try {
-    const { data } = await api.get(`/students/${encodeURIComponent(id)}/pay-link`, {
-      params: { notify }
-    });
-    return data?.data || null;
-  } catch (error) {
-    throw toApiError(error, "The pay link could not be regenerated.");
-  }
-};
-const bulkTarget = (target) => target?.ids?.length ? { ids: target.ids } : { filter: target?.filter || { status: "active" } };
-const bulkWrite = async (path, body, timeout = 6e4) => {
-  try {
-    const { data } = await api.post(path, body, { timeout });
-    return { ok: true, result: data?.data || null };
-  } catch (error) {
-    const apiError = toApiError(error, "The bulk action could not be completed.");
-    apiError.details = error?.response?.data?.data || null;
-    return { ok: false, error: apiError };
-  }
-};
-const bulkUpdateStudents = (target, update, fields, { dryRun = false } = {}) => bulkWrite("/students/bulk/update", {
-  ...bulkTarget(target),
-  update,
-  ...{},
-  dryRun
-});
-const bulkArchiveStudents = (target, { reason, force = false, dryRun = false } = {}) => bulkWrite("/students/bulk/archive", {
-  ...bulkTarget(target),
-  reason,
-  force,
-  dryRun
-});
-const bulkSetStatus = (target, status, { reason, dryRun = false } = {}) => bulkWrite("/students/bulk/status", {
-  ...bulkTarget(target),
-  status,
-  reason,
-  dryRun
-});
-const bulkRegeneratePayLinks = (target, { dryRun = false } = {}) => bulkWrite("/students/bulk/pay-links", { ...bulkTarget(target), dryRun });
 const TABS$1 = [
   { key: "overview", label: "Overview", icon: Wallet },
   { key: "payments", label: "Payments", icon: Receipt },
@@ -3912,6 +4229,175 @@ const StudentForm = ({ open, onClose, onSaved, classes = [], student = null }) =
     }
   ) });
 };
+const PRESETS = {
+  "Basic + JHS": ["Nursery 1", "Nursery 2", "Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6", "JHS 1", "JHS 2", "JHS 3"],
+  "Basic only": ["Nursery 1", "Nursery 2", "Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6"],
+  "JHS only": ["JHS 1", "JHS 2", "JHS 3"],
+  "Primary only": ["Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6"],
+  "SHS only": ["Year 1", "Year 2", "Year 3"]
+};
+const ClassListEditor = ({ open, onClose, onSaved, schoolId, classes: initial = [] }) => {
+  const [draft, setDraft] = useState(initial);
+  const [name, setName] = useState("");
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(null);
+  const inputRef = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    setDraft(initial);
+    setName("");
+    setError(null);
+    setRemoving(null);
+  }, [open, initial]);
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
+  if (!open) return null;
+  const addClass = (value) => {
+    const label = String(name).trim();
+    if (!label) return;
+    if (draft.some((c) => c.toLowerCase() === label.toLowerCase())) {
+      setError(`"${label}" is already on the list.`);
+      return;
+    }
+    setDraft((current) => [...current, label]);
+    setName("");
+    setError(null);
+    inputRef.current?.focus();
+  };
+  const save = async () => {
+    if (!draft.length) {
+      setError("Add at least one class — students are placed in a class.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await updateSchoolClasses(schoolId, draft);
+      onSaved(saved?.academic?.classes || draft);
+      onClose();
+    } catch (err) {
+      setError(err.message || "Your class list could not be saved.");
+    } finally {
+      setSaving(false);
+    }
+  };
+  return /* @__PURE__ */ jsx("div", { className: "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/40 p-4 backdrop-blur-[2px]", children: /* @__PURE__ */ jsxs(
+    "div",
+    {
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-label": "Manage your classes",
+      className: "my-8 w-full max-w-lg rounded-2xl bg-white shadow-2xl",
+      children: [
+        /* @__PURE__ */ jsxs("header", { className: "border-b border-slate-100 px-6 py-4", children: [
+          /* @__PURE__ */ jsx("h2", { className: "text-lg font-extrabold tracking-tight text-ink", children: "Your classes" }),
+          /* @__PURE__ */ jsx("p", { className: "text-[12px] font-semibold text-slate-500", children: "Every student sits in one of these, and the roster filters by them." })
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "space-y-5 px-6 py-5", children: [
+          error && /* @__PURE__ */ jsx(FormAlert, { children: error }),
+          /* @__PURE__ */ jsxs("div", { children: [
+            /* @__PURE__ */ jsx("p", { className: "mb-2 text-[11px] font-extrabold uppercase tracking-wide text-slate-500", children: "Start from a template" }),
+            /* @__PURE__ */ jsx("div", { className: "flex flex-wrap gap-2", children: Object.entries(PRESETS).map(([label, list]) => /* @__PURE__ */ jsx(
+              "button",
+              {
+                type: "button",
+                onClick: () => {
+                  setDraft(list);
+                  setError(null);
+                },
+                className: "rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-700 transition-colors hover:border-brand-700 hover:text-brand-700",
+                children: label
+              },
+              label
+            )) }),
+            /* @__PURE__ */ jsx("p", { className: "mt-2 text-[11px] font-medium text-slate-500", children: "Replaces the list below. Edit it before saving." })
+          ] }),
+          /* @__PURE__ */ jsxs("div", { children: [
+            /* @__PURE__ */ jsxs("p", { className: "mb-2 text-[11px] font-extrabold uppercase tracking-wide text-slate-500", children: [
+              "Classes (",
+              draft.length,
+              ")"
+            ] }),
+            draft.length ? /* @__PURE__ */ jsx("ul", { className: "space-y-1.5", children: draft.map((c, index) => /* @__PURE__ */ jsxs(
+              "li",
+              {
+                className: "flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2",
+                children: [
+                  /* @__PURE__ */ jsx(GraduationCap, { className: "h-4 w-4 shrink-0 text-slate-400", "aria-hidden": "true" }),
+                  /* @__PURE__ */ jsx("span", { className: "flex-1 text-[13px] font-bold text-ink", children: c }),
+                  removing === index ? /* @__PURE__ */ jsxs("span", { className: "flex items-center gap-2", children: [
+                    /* @__PURE__ */ jsx("span", { className: "text-[11px] font-semibold text-slate-500", children: "Students here will leave the class filter. Remove?" }),
+                    /* @__PURE__ */ jsx(Button, { type: "button", variant: "secondary", size: "sm", onClick: () => {
+                      setDraft((current) => current.filter((_, i) => i !== index));
+                      setRemoving(null);
+                    }, children: "Yes" }),
+                    /* @__PURE__ */ jsx(Button, { type: "button", variant: "ghost", size: "sm", onClick: () => setRemoving(null), children: "No" })
+                  ] }) : /* @__PURE__ */ jsx(
+                    "button",
+                    {
+                      type: "button",
+                      "aria-label": `Remove ${c}`,
+                      onClick: () => setRemoving(index),
+                      className: "rounded p-1 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600",
+                      children: /* @__PURE__ */ jsx(Trash2, { className: "h-4 w-4", "aria-hidden": "true" })
+                    }
+                  )
+                ]
+              },
+              `${c}-${index}`
+            )) }) : /* @__PURE__ */ jsx("p", { className: "rounded-lg border border-dashed border-slate-300 px-3 py-6 text-center text-[12px] font-semibold text-slate-500", children: "No classes yet. Pick a template or add one below." })
+          ] }),
+          /* @__PURE__ */ jsxs(
+            "form",
+            {
+              onSubmit: (event) => {
+                event.preventDefault();
+                addClass();
+              },
+              children: [
+                /* @__PURE__ */ jsxs(
+                  "label",
+                  {
+                    htmlFor: "class-list-new-class",
+                    className: "mb-0.5 block text-[11px]/[15px] font-semibold text-slate-700",
+                    children: [
+                      "Add a class",
+                      /* @__PURE__ */ jsx("span", { className: "ml-1.5 text-[10px]/[14px] font-medium text-slate-500", children: "e.g. JHS 1" })
+                    ]
+                  }
+                ),
+                /* @__PURE__ */ jsxs("div", { className: "flex gap-2", children: [
+                  /* @__PURE__ */ jsx(
+                    "input",
+                    {
+                      id: "class-list-new-class",
+                      ref: inputRef,
+                      value: name,
+                      onChange: (event) => setName(event.target.value),
+                      placeholder: "Class name",
+                      maxLength: 50,
+                      className: "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px]/[18px] font-medium text-ink placeholder:font-normal placeholder:text-slate-500 transition-all focus:border-brand-700 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/30"
+                    }
+                  ),
+                  /* @__PURE__ */ jsxs(Button, { type: "submit", variant: "secondary", disabled: !name.trim(), children: [
+                    /* @__PURE__ */ jsx(Plus, { className: "mr-1 inline h-4 w-4", "aria-hidden": "true" }),
+                    "Add class"
+                  ] })
+                ] })
+              ]
+            }
+          )
+        ] }),
+        /* @__PURE__ */ jsxs("footer", { className: "flex justify-end gap-2 border-t border-slate-100 px-6 py-4", children: [
+          /* @__PURE__ */ jsx(Button, { type: "button", variant: "secondary", onClick: onClose, children: "Cancel" }),
+          /* @__PURE__ */ jsx(Button, { type: "button", variant: "primary", onClick: save, disabled: saving, children: saving ? "Saving…" : "Save classes" })
+        ] })
+      ]
+    }
+  ) });
+};
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const ImportTab = ({ school, onImported }) => {
   const { success, error: errorToast, warning } = useToast();
@@ -4344,6 +4830,147 @@ const AlumniTab = ({ schoolId }) => {
   ] });
 };
 const alumniIsHonoured = (honors) => honors && honors !== "NONE";
+const CohortsTab = ({ schoolId }) => {
+  const [state, setState] = useState({ rows: [], meta: null, loading: true, error: null });
+  const [openCohort, setOpenCohort] = useState(null);
+  const [detail, setDetail] = useState({ data: null, loading: false, error: null });
+  useEffect(() => {
+    if (!schoolId) return void 0;
+    let active = true;
+    setState((current) => ({ ...current, loading: true }));
+    listCohorts({ schoolId, page: 1, limit: 20 }).then((result) => {
+      if (active) setState({ ...result, loading: false, error: null });
+    }).catch((error) => {
+      if (active) setState({ rows: [], meta: null, loading: false, error });
+    });
+    return () => {
+      active = false;
+    };
+  }, [schoolId]);
+  const open = (cohort) => {
+    setOpenCohort(cohort);
+    setDetail({ data: null, loading: true, error: null });
+    getCohort(cohort.id, { schoolId, page: 1, limit: 50 }).then((data) => setDetail({ data, loading: false, error: null })).catch((error) => setDetail({ data: null, loading: false, error }));
+  };
+  if (state.error) {
+    return /* @__PURE__ */ jsx(Card, { padding: "p-5", children: /* @__PURE__ */ jsx("p", { className: "text-sm font-bold text-red-700", children: state.error.message }) });
+  }
+  if (!state.loading && !state.rows.length) {
+    return /* @__PURE__ */ jsx(
+      EmptyState,
+      {
+        icon: GraduationCap,
+        title: "No cohorts yet",
+        description: "A cohort appears here once its students have graduated. Graduate a class from this module to create the first one."
+      }
+    );
+  }
+  return /* @__PURE__ */ jsxs(Fragment, { children: [
+    /* @__PURE__ */ jsx("div", { className: "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3", children: state.loading ? Array.from({ length: 3 }).map((_, index) => /* @__PURE__ */ jsx("div", { className: "h-40 animate-pulse rounded-2xl bg-slate-200/60" }, index)) : state.rows.map((cohort) => /* @__PURE__ */ jsxs(
+      "button",
+      {
+        type: "button",
+        onClick: () => open(cohort),
+        className: "rounded-2xl border border-slate-100 bg-white p-5 text-left shadow-soft transition-colors hover:border-brand-200",
+        children: [
+          /* @__PURE__ */ jsxs("div", { className: "flex items-start justify-between gap-2", children: [
+            /* @__PURE__ */ jsx("h3", { className: "text-base font-extrabold text-ink", children: cohort.name }),
+            /* @__PURE__ */ jsx(Badge, { tone: "slate", children: cohort._id || cohort.id })
+          ] }),
+          /* @__PURE__ */ jsx("p", { className: "mt-0.5 text-[12px] font-semibold text-slate-500", children: cohort.academicYear }),
+          /* @__PURE__ */ jsx("p", { className: "mt-3 text-2xl font-extrabold text-ink", children: formatCount(cohort.studentCount) }),
+          /* @__PURE__ */ jsx("p", { className: "text-[11px] font-semibold text-slate-500", children: "students in the cohort" }),
+          /* @__PURE__ */ jsxs("dl", { className: "mt-3 grid grid-cols-2 gap-2 text-[11px]", children: [
+            /* @__PURE__ */ jsxs("div", { children: [
+              /* @__PURE__ */ jsx("dt", { className: "font-semibold text-slate-400", children: "Graduated" }),
+              /* @__PURE__ */ jsx("dd", { className: "font-extrabold text-ink", children: formatCount(cohort.graduatedCount || 0) })
+            ] }),
+            /* @__PURE__ */ jsxs("div", { children: [
+              /* @__PURE__ */ jsx("dt", { className: "font-semibold text-slate-400", children: "Transferred" }),
+              /* @__PURE__ */ jsx("dd", { className: "font-extrabold text-ink", children: formatCount(cohort.transferredCount || 0) })
+            ] })
+          ] })
+        ]
+      },
+      cohort._id || cohort.id
+    )) }),
+    openCohort && /* @__PURE__ */ jsx("div", { className: "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/40 p-4 backdrop-blur-[2px]", children: /* @__PURE__ */ jsxs("div", { className: "my-8 w-full max-w-3xl rounded-2xl bg-slate-50 shadow-2xl", children: [
+      /* @__PURE__ */ jsxs("header", { className: "flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4", children: [
+        /* @__PURE__ */ jsxs("div", { children: [
+          /* @__PURE__ */ jsx("h2", { className: "text-lg font-extrabold tracking-tight text-ink", children: openCohort.name }),
+          /* @__PURE__ */ jsxs("p", { className: "text-[12px] font-semibold text-slate-500", children: [
+            openCohort.academicYear,
+            " · ",
+            formatCount(openCohort.studentCount),
+            " students"
+          ] })
+        ] }),
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            type: "button",
+            onClick: () => setOpenCohort(null),
+            className: "rounded-lg px-3 py-1.5 text-[13px] font-extrabold text-slate-600 hover:bg-slate-100",
+            children: "Close"
+          }
+        )
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "space-y-4 p-5", children: [
+        detail.loading && /* @__PURE__ */ jsx("div", { className: "h-32 animate-pulse rounded-2xl bg-slate-200/60" }),
+        detail.error && /* @__PURE__ */ jsx("p", { className: "text-sm font-bold text-red-700", children: detail.error.message }),
+        detail.data && /* @__PURE__ */ jsxs(Fragment, { children: [
+          /* @__PURE__ */ jsx("div", { className: "grid grid-cols-2 gap-3 sm:grid-cols-4", children: [
+            { label: "Total", value: detail.data.cohort.statistics.totalStudents },
+            { label: "Graduated", value: detail.data.cohort.statistics.graduated },
+            { label: "Transferred", value: detail.data.cohort.statistics.transferred },
+            { label: "Repeating", value: detail.data.cohort.statistics.repeating }
+          ].map((stat) => /* @__PURE__ */ jsxs("div", { className: "rounded-xl bg-white p-4 shadow-soft", children: [
+            /* @__PURE__ */ jsx("p", { className: "text-[11px] font-extrabold uppercase text-slate-400", children: stat.label }),
+            /* @__PURE__ */ jsx("p", { className: "mt-1 text-xl font-extrabold tabular-nums text-ink", children: formatCount(stat.value || 0) })
+          ] }, stat.label)) }),
+          detail.data.cohort.classes?.length > 0 && /* @__PURE__ */ jsxs(Card, { padding: "p-5", children: [
+            /* @__PURE__ */ jsx("h3", { className: "mb-3 text-sm font-extrabold text-ink", children: "Final-year classes" }),
+            /* @__PURE__ */ jsx("ul", { className: "space-y-2", children: detail.data.cohort.classes.map((cls) => /* @__PURE__ */ jsxs(
+              "li",
+              {
+                className: "flex items-center justify-between gap-3 text-[13px]",
+                children: [
+                  /* @__PURE__ */ jsx("span", { className: "font-extrabold text-ink", children: cls.name }),
+                  /* @__PURE__ */ jsxs("span", { className: "flex items-center gap-3 text-slate-500", children: [
+                    /* @__PURE__ */ jsxs("span", { className: "flex items-center gap-1 font-semibold", children: [
+                      /* @__PURE__ */ jsx(Users, { className: "h-3.5 w-3.5", "aria-hidden": "true" }),
+                      formatCount(cls.studentCount)
+                    ] }),
+                    /* @__PURE__ */ jsx("span", { className: "text-[11px]", children: cls.teacher || "no teacher recorded" })
+                  ] })
+                ]
+              },
+              cls.id
+            )) })
+          ] }),
+          /* @__PURE__ */ jsx(Card, { padding: "p-0", children: /* @__PURE__ */ jsx("ul", { className: "divide-y divide-slate-100", children: detail.data.students.map((student) => /* @__PURE__ */ jsxs(
+            "li",
+            {
+              className: "flex items-center justify-between gap-3 px-5 py-3",
+              children: [
+                /* @__PURE__ */ jsxs("span", { className: "min-w-0", children: [
+                  /* @__PURE__ */ jsx("span", { className: "block truncate text-[13px] font-extrabold text-ink", children: student.studentName }),
+                  /* @__PURE__ */ jsxs("span", { className: "block text-[11px] font-semibold text-slate-500", children: [
+                    student.studentId,
+                    " · ",
+                    student.studentClass
+                  ] })
+                ] }),
+                /* @__PURE__ */ jsx(Badge, { tone: "slate", children: student.status?.replace(/_/g, " ") })
+              ]
+            },
+            student._id
+          )) }) })
+        ] })
+      ] })
+    ] }) })
+  ] });
+};
 const useStudents = (reloadKey = 0) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = useMemo(
@@ -4490,14 +5117,6 @@ const useRosterSelection = (rows, filters) => {
     target
   };
 };
-const getSchool = async (schoolId) => {
-  try {
-    const { data } = await api.get(`/schools/${schoolId}`);
-    return data.data?.school || data.school || data.data || data;
-  } catch (error) {
-    throw toApiError(error, "Failed to load your school.");
-  }
-};
 const TABS = [
   { value: "roster", label: "Roster" },
   { value: "import", label: "Import" },
@@ -4510,10 +5129,13 @@ const Students = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get("tab") || "roster";
   const [school, setSchool] = useState(null);
+  const [schoolError, setSchoolError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [profileId, setProfileId] = useState(null);
   const [editing, setEditing] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [editingClasses, setEditingClasses] = useState(false);
+  const [addAfterClasses, setAddAfterClasses] = useState(false);
   const { rows, meta, loading, error, filters, setFilter, clearFilters, hasFilters } = useStudents(reloadKey);
   const { stats, loading: statsLoading } = useStudentStats(filters);
   const selection = useRosterSelection(rows, filters);
@@ -4521,9 +5143,13 @@ const Students = () => {
     if (!user?.schoolId) return;
     let active = true;
     getSchool(user.schoolId).then((result) => {
-      if (active) setSchool(result);
-    }).catch(() => {
-      if (active) setSchool(null);
+      if (!active) return;
+      setSchool(result);
+      setSchoolError(null);
+    }).catch((error2) => {
+      if (!active) return;
+      setSchool(null);
+      setSchoolError(error2.message || "Your school could not be loaded.");
     });
     return () => {
       active = false;
@@ -4534,6 +5160,27 @@ const Students = () => {
     [school]
   );
   const refresh = useCallback(() => setReloadKey((key) => key + 1), []);
+  const onClassesSaved = useCallback(
+    (next) => {
+      setSchool(
+        (current) => current ? { ...current, academic: { ...current.academic, classes: next } } : current
+      );
+      success(`${formatCount(next.length)} ${next.length === 1 ? "class" : "classes"} saved`);
+      if (addAfterClasses) {
+        setAddAfterClasses(false);
+        setCreating(true);
+      }
+    },
+    [success, addAfterClasses]
+  );
+  const onAddStudent = () => {
+    if (classes.length) {
+      setCreating(true);
+      return;
+    }
+    setAddAfterClasses(true);
+    setEditingClasses(true);
+  };
   const setTab = (next) => {
     const params = new URLSearchParams(searchParams);
     if (next === "roster") params.delete("tab");
@@ -4566,7 +5213,16 @@ const Students = () => {
     }
   };
   const onSaved = (saved, wasEdit) => {
-    success(wasEdit ? `${saved?.studentName || "Student"} updated` : `${saved?.studentName || "Student"} added`);
+    if (wasEdit) {
+      success(`${saved?.studentName || "Student"} updated`);
+    } else if (hasFilters) {
+      setFilter({ class: "", feeStatus: "", planStatus: "", gender: "", status: "active", page: 1 });
+      success(
+        `${saved?.studentName || "Student"} added. Your filters were cleared so you can see them.`
+      );
+    } else {
+      success(`${saved?.studentName || "Student"} added`);
+    }
     setEditing(null);
     setCreating(false);
     refresh();
@@ -4684,10 +5340,8 @@ const Students = () => {
             "button",
             {
               type: "button",
-              onClick: () => setCreating(true),
-              disabled: !classes.length,
-              title: classes.length ? void 0 : "Add a class to your school first",
-              className: "inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-[13px] font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none",
+              onClick: onAddStudent,
+              className: "inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-[13px] font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800",
               children: [
                 /* @__PURE__ */ jsx(UserPlus, { className: "h-4 w-4", "aria-hidden": "true" }),
                 "Add New Student"
@@ -4699,6 +5353,29 @@ const Students = () => {
     ),
     /* @__PURE__ */ jsx(ModuleTabs, { items: TABS, value: tab, onChange: setTab, ariaLabel: "Students sections" }),
     /* @__PURE__ */ jsx(RosterKpiRow, { stats, loading: statsLoading }),
+    schoolError && /* @__PURE__ */ jsxs("div", { className: "mb-4 flex flex-wrap items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3", children: [
+      /* @__PURE__ */ jsx(CircleAlert, { className: "mt-0.5 h-4 w-4 shrink-0 text-amber-700", "aria-hidden": "true" }),
+      /* @__PURE__ */ jsxs("p", { className: "flex-1 text-[13px] font-semibold text-amber-900", children: [
+        /* @__PURE__ */ jsx("span", { className: "font-extrabold", children: "Your class list could not be loaded." }),
+        " ",
+        schoolError,
+        " ",
+        "Adding a student needs it, because a student must be in a class your school defines."
+      ] })
+    ] }),
+    school && !schoolError && !classes.length && /* @__PURE__ */ jsxs("div", { className: "mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3", children: [
+      /* @__PURE__ */ jsx(CircleAlert, { className: "h-4 w-4 shrink-0 text-slate-400", "aria-hidden": "true" }),
+      /* @__PURE__ */ jsx("p", { className: "flex-1 text-[13px] font-semibold text-slate-600", children: "This school has no classes yet, so students cannot be added or promoted. Add your class list to get started." }),
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          type: "button",
+          onClick: () => setEditingClasses(true),
+          className: "rounded-lg border border-brand-700 px-3 py-1.5 text-[12px] font-extrabold text-brand-700 transition-colors hover:bg-brand-50",
+          children: "Set up classes"
+        }
+      )
+    ] }),
     /* @__PURE__ */ jsx(
       RosterFilterBar$1,
       {
@@ -4736,6 +5413,16 @@ const Students = () => {
         open: Boolean(profileId),
         studentId: profileId,
         onClose: () => setProfileId(null)
+      }
+    ),
+    /* @__PURE__ */ jsx(
+      ClassListEditor,
+      {
+        open: editingClasses,
+        schoolId: user?.schoolId,
+        classes,
+        onClose: () => setEditingClasses(false),
+        onSaved: onClassesSaved
       }
     ),
     /* @__PURE__ */ jsx(
@@ -5096,6 +5783,175 @@ const Settings = () => /* @__PURE__ */ jsx(
     ]
   }
 );
+const BalanceCard = ({ student }) => {
+  const balance = student.balance || 0;
+  const settled = balance <= 0;
+  const deadlineNote = () => {
+    if (!student.deadline) return null;
+    const deadline = new Date(student.deadline);
+    if (Number.isNaN(deadline.getTime())) return null;
+    const days = Math.ceil((deadline.getTime() - Date.now()) / 864e5);
+    if (settled) return "Fees fully paid";
+    if (days < 0) {
+      return `Overdue by ${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"}`;
+    }
+    if (days === 0) return "Due today";
+    return `${days} day${days === 1 ? "" : "s"} left to pay`;
+  };
+  const note = deadlineNote();
+  const overdue = note?.startsWith("Overdue");
+  return /* @__PURE__ */ jsxs(Card, { padding: "p-5", className: settled ? "border-emerald-200" : overdue ? "border-red-200" : "", children: [
+    /* @__PURE__ */ jsxs("div", { className: "flex items-start justify-between gap-3", children: [
+      /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
+        /* @__PURE__ */ jsx("h2", { className: "truncate text-lg font-extrabold tracking-tight text-ink", children: student.studentName }),
+        /* @__PURE__ */ jsxs("p", { className: "mt-0.5 text-[12px] font-semibold text-slate-500", children: [
+          student.studentClass,
+          " · ",
+          student.studentId
+        ] })
+      ] }),
+      /* @__PURE__ */ jsx(
+        "span",
+        {
+          className: `shrink-0 rounded-full px-2.5 py-1 text-[11px] font-extrabold ${settled ? "bg-emerald-100 text-emerald-800" : "bg-red-50 text-red-700"}`,
+          children: settled ? "Paid in full" : "Balance due"
+        }
+      )
+    ] }),
+    /* @__PURE__ */ jsx(
+      "p",
+      {
+        className: `mt-5 text-4xl font-extrabold leading-none tracking-tight ${settled ? "text-emerald-600" : "text-red-600"}`,
+        children: formatCedi(balance)
+      }
+    ),
+    /* @__PURE__ */ jsxs("dl", { className: "mt-5 grid grid-cols-2 gap-4 border-t border-slate-100 pt-4", children: [
+      /* @__PURE__ */ jsxs("div", { children: [
+        /* @__PURE__ */ jsx("dt", { className: "text-[11px] font-extrabold uppercase tracking-wide text-slate-400", children: "Total fees" }),
+        /* @__PURE__ */ jsx("dd", { className: "mt-0.5 text-sm font-extrabold tabular-nums text-ink", children: formatCedi(student.totalOwed || 0) })
+      ] }),
+      /* @__PURE__ */ jsxs("div", { children: [
+        /* @__PURE__ */ jsx("dt", { className: "text-[11px] font-extrabold uppercase tracking-wide text-slate-400", children: "Paid so far" }),
+        /* @__PURE__ */ jsx("dd", { className: "mt-0.5 text-sm font-extrabold tabular-nums text-brand-700", children: formatCedi(student.totalPaid || 0) })
+      ] })
+    ] }),
+    note && /* @__PURE__ */ jsxs(
+      "p",
+      {
+        className: `mt-4 flex items-center gap-2 text-[13px] font-extrabold ${settled ? "text-emerald-700" : overdue ? "text-red-600" : "text-slate-600"}`,
+        children: [
+          /* @__PURE__ */ jsx(CalendarClock, { className: "h-4 w-4 shrink-0", "aria-hidden": "true" }),
+          note,
+          deadlineLabel(student.deadline)
+        ]
+      }
+    )
+  ] });
+};
+const deadlineLabel = (value) => {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return /* @__PURE__ */ jsxs("span", { className: "font-semibold text-slate-400", children: [
+    "· ",
+    d.toLocaleDateString("en-GB")
+  ] });
+};
+const NETWORKS = [
+  { value: "MTN", label: "MTN MoMo" },
+  { value: "VODAFONE", label: "Vodafone Cash" },
+  { value: "AIRTELTELIGO", label: "AirtelTigo Money" }
+];
+const MomoForm = ({ student, onSubmit, submitting, error }) => {
+  const balance = student.balance || 0;
+  const [amount, setAmount] = useState(balance > 0 ? balance : null);
+  const [network, setNetwork] = useState("MTN");
+  const [phone, setPhone] = useState("");
+  const [touched, setTouched] = useState(false);
+  const phoneValid = isValidGhanaPhone(phone);
+  const tooMuch = amount !== null && amount > balance;
+  const canSubmit = !submitting && amount !== null && amount > 0 && phoneValid && !tooMuch;
+  const error_ = error || (touched && phone && !phoneValid ? "Enter a valid Ghana number, e.g. 0241234567" : null);
+  return /* @__PURE__ */ jsxs(Card, { padding: "p-5", children: [
+    /* @__PURE__ */ jsxs("div", { className: "mb-4 flex items-center gap-2", children: [
+      /* @__PURE__ */ jsx("span", { className: "flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-700", children: /* @__PURE__ */ jsx(MessageSquare, { className: "h-4 w-4", "aria-hidden": "true" }) }),
+      /* @__PURE__ */ jsx("h3", { className: "text-base font-extrabold text-ink", children: "Pay with Mobile Money" })
+    ] }),
+    error_ && /* @__PURE__ */ jsx(FormAlert, { children: error_ }),
+    /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
+      /* @__PURE__ */ jsx(
+        MoneyInput,
+        {
+          label: "Amount to pay",
+          hint: `cedis · ${formatCedi(balance)} outstanding`,
+          required: true,
+          value: amount,
+          error: tooMuch ? "That is more than the balance due" : void 0,
+          onChange: setAmount
+        }
+      ),
+      /* @__PURE__ */ jsx(SelectField, { label: "Your network", value: network, onChange: (e) => setNetwork(e.target.value), children: NETWORKS.map((n) => /* @__PURE__ */ jsx("option", { value: n.value, children: n.label }, n.value)) }),
+      /* @__PURE__ */ jsx(
+        PhoneInput,
+        {
+          label: "Mobile Money number",
+          hint: "the number that will receive the prompt",
+          required: true,
+          value: phone,
+          error: touched && phone && !phoneValid ? "Enter a valid Ghana number" : void 0,
+          onChange: setPhone
+        }
+      ),
+      /* @__PURE__ */ jsxs(
+        Button,
+        {
+          type: "button",
+          variant: "primary",
+          className: "w-full",
+          disabled: !canSubmit,
+          onClick: () => {
+            setTouched(true);
+            if (!canSubmit) return;
+            onSubmit({ amount, momoNetwork: network, phoneNumber: phone });
+          },
+          children: [
+            /* @__PURE__ */ jsx(Smartphone, { className: "mr-2 h-4 w-4", "aria-hidden": "true" }),
+            submitting ? "Waiting for your network…" : `Pay ${amount !== null ? formatCedi(amount) : ""}`.trim()
+          ]
+        }
+      ),
+      /* @__PURE__ */ jsx("p", { className: "text-center text-[11px] font-semibold leading-relaxed text-slate-400", children: "You will get a prompt on your phone. Approve it to complete the payment — this page will tell you when the money arrives." })
+    ] })
+  ] });
+};
+const PayHeader = ({ school }) => /* @__PURE__ */ jsx("header", { className: "border-b border-slate-200 bg-white", children: /* @__PURE__ */ jsxs("div", { className: "mx-auto flex max-w-2xl items-center gap-3 px-4 py-4 sm:px-6", children: [
+  /* @__PURE__ */ jsx("span", { className: "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-700 text-white", children: /* @__PURE__ */ jsx(GraduationCap, { className: "h-6 w-6", "aria-hidden": "true" }) }),
+  /* @__PURE__ */ jsxs("div", { className: "min-w-0 flex-1", children: [
+    /* @__PURE__ */ jsx("h1", { className: "truncate text-base font-extrabold leading-tight tracking-tight text-ink sm:text-lg", children: school?.name || "School fees" }),
+    /* @__PURE__ */ jsxs("p", { className: "truncate text-[12px] font-semibold text-slate-500", children: [
+      school?.schoolCode ? `${school.schoolCode} · ` : "",
+      "Secure fee payment"
+    ] })
+  ] }),
+  /* @__PURE__ */ jsx(LogoMark, { className: "h-8 w-8 shrink-0", markClassName: "text-xs" })
+] }) });
+const PAY_STUDENT = {
+  id: "65f1c2a4e8b9d0123456789a",
+  studentId: "SCH-DEMO-01-2026-8054",
+  studentName: "Ama Serwaa Boateng",
+  studentClass: "JHS 2A",
+  totalOwed: 85e3,
+  totalPaid: 1e4,
+  balance: 75e3,
+  deadline: new Date(Date.now() + 21 * 864e5).toISOString(),
+  school: { _id: "65f1c2a4e8b9d0123456789b", schoolCode: "SCH-DEMO-01", name: "Prampram Basic School" }
+};
+const PayPageHarness = ({ loading = false }) => loading ? /* @__PURE__ */ jsx("div", { className: "animate-pulse", children: /* @__PURE__ */ jsx("div", { className: "h-48 rounded-2xl bg-slate-200/70" }) }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+  /* @__PURE__ */ jsx(PayHeader, { school: PAY_STUDENT.school }),
+  /* @__PURE__ */ jsx(BalanceCard, { student: PAY_STUDENT }),
+  /* @__PURE__ */ jsx(MomoForm, { student: PAY_STUDENT, onSubmit: () => {
+  }, submitting: false })
+] });
 let pass = 0;
 let fail = 0;
 const check = async (name, fn) => {
@@ -5171,12 +6027,10 @@ await check("the shell replaces the marketing chrome", () => {
 });
 await check("the header scopes school, term and search", () => {
   const html = renderRoute("/dashboard");
-  ["Prampram Basic", "Academic Term 1", "2025/2026", "Search students", "New Payment"].forEach(
-    (needle) => {
-      if (!has(html, needle)) throw new Error(`the header is missing "${needle}"`);
-    }
-  );
-  return "school, term, search and New Payment all present";
+  ["Your school", "Current term", "Search students", "New Payment"].forEach((needle) => {
+    if (!has(html, needle)) throw new Error(`the header is missing "${needle}"`);
+  });
+  return "unloaded placeholders, search and New Payment all present";
 });
 await check("exactly one rail entry is marked current, on every route", () => {
   const routes = [
@@ -5199,7 +6053,9 @@ await check("exactly one rail entry is marked current, on every route", () => {
 });
 await check("every module page renders its own content", () => {
   const pages = [
-    ["/dashboard", "Dashboard Overview"],
+    // `/dashboard` is absent: the Overview is legitimately *loading* during SSR
+    // (effects do not run, and it starts `loading: true` on purpose so a live
+    // school never sees a flash of fixture figures). It has its own check below.
     ["/dashboard/students", "Select all students on this page"],
     ["/dashboard/payments", "Refunds"],
     ["/dashboard/installment-plans", "Plan timeline"],
@@ -5212,7 +6068,7 @@ await check("every module page renders its own content", () => {
     const html = renderRoute(path);
     if (!has(html, needle)) throw new Error(`${path} did not render "${needle}"`);
   });
-  return "8 pages rendered";
+  return "7 module pages rendered";
 });
 await check("Settings is hidden from non-admin roles in the rail", () => {
   const teacher = visibleDashboardNav("teacher").flatMap((g) => g.items.map((i) => i.label));
@@ -5222,9 +6078,20 @@ await check("Settings is hidden from non-admin roles in the rail", () => {
   return "teacher 7, school admin 8";
 });
 await check("the Overview renders its headline and KPI band", () => {
-  const html = renderRoute("/dashboard");
+  const html = renderToString(
+    /* @__PURE__ */ jsx(
+      KpiRow,
+      {
+        kpis: {
+          totalStudents: { value: 1e3 },
+          expectedOwed: { amount: 425e5 },
+          collected: { amount: 318e5, ratePercent: 74.8, rateLabel: "Collection Rate" },
+          overdue: { students: 87, amount: 412e4 }
+        }
+      }
+    )
+  );
   [
-    "Dashboard Overview",
     "Total Students",
     "Total Expected Owed",
     "Total Collected",
@@ -5232,102 +6099,104 @@ await check("the Overview renders its headline and KPI band", () => {
     "Collection Rate",
     "Immediate Attention"
   ].forEach((needle) => {
-    if (!has(html, needle)) throw new Error(`missing "${needle}"`);
+    if (!has(html, needle)) throw new Error(`the KPI band is missing "${needle}"`);
   });
-  return "4 KPI tiles with their labels";
+  if (!has(html, "318,000")) {
+    throw new Error(`the collected figure did not render as 318,000 (${formatCediShort(318e5)})`);
+  }
+  if (!has(html, "GH₵")) throw new Error("no cedi symbol on the figure");
+  if (has(html, "31800000")) throw new Error("a raw pesewa count is on screen");
+  return "4 KPI tiles, figures in cedis";
+});
+await check("no fabricated identity or figure survives on the Overview", () => {
+  const html = renderRoute("/dashboard");
+  [
+    "Prampram Basic School",
+    "Basic & JHS Campus",
+    "Academic Term 1",
+    "2025/2026",
+    "Re-opening week",
+    "Target Term Threshold",
+    "Enrolled in MoMo direct billing",
+    "vs L/T",
+    "on Installment grace",
+    "Overdue MoMo Prompt"
+  ].forEach((needle) => {
+    if (has(html, needle)) {
+      throw new Error(`the Overview still renders the fixture string "${needle}"`);
+    }
+  });
+  return "no fixture identity, term, target or KPI note is rendered";
 });
 await check("the Overview renders every visualisation region", () => {
-  const html = renderRoute("/dashboard");
+  const html = renderToString(
+    /* @__PURE__ */ jsxs(MemoryRouter, { children: [
+      /* @__PURE__ */ jsx(CollectionsCard, { term: EMPTY_OVERVIEW.term, seriesFor: () => EMPTY_OVERVIEW.weeklyInflow.map((row) => ({ label: row.week, value: row.total })) }),
+      /* @__PURE__ */ jsx(RecentTransactionsCard, { transactions: EMPTY_OVERVIEW.transactions, totalCount: EMPTY_OVERVIEW.transactionCount }),
+      /* @__PURE__ */ jsx(PaymentChannelsCard, { channels: EMPTY_OVERVIEW.channels }),
+      /* @__PURE__ */ jsx(UpcomingInstallmentsCard, { upcoming: EMPTY_OVERVIEW.upcomingInstallments })
+    ] })
+  );
   [
     "Collections This Term (Weekly)",
     "Payment Channels",
     "Recent MoMo Transactions",
-    "Broadcast SMS Prompt",
-    "Upcoming Installments",
-    "Cumulative Net Inflow",
-    "Target Term Threshold"
+    "Upcoming Installments"
   ].forEach((needle) => {
     if (!has(html, needle)) throw new Error(`missing "${needle}"`);
   });
-  if (!has(html, "Collections by week")) throw new Error("the chart has no accessible description");
-  if (!has(html, "progressbar")) throw new Error("the collection rate has no progressbar role");
-  return "chart, channels, table, SMS and installments all present";
+  return "all four region cards render their headings";
 });
-await check("the Overview marks demo data instead of claiming live sync", () => {
-  const html = renderRoute("/dashboard");
-  if (has(html, "Live sync active")) {
-    throw new Error("the live marker is showing over fixture data");
-  }
-  if (!has(html, "Demo data")) throw new Error("no demo marker");
-  if (!has(html, "Available once reports are wired")) {
-    throw new Error("the export action is not disabled on demo data");
-  }
-  return "demo marker present, live marker absent, export disabled";
-});
-await check("amounts render through the pesewas formatter", () => {
-  const html = renderRoute("/dashboard");
-  if (!has(html, formatCediShort(DEMO_OVERVIEW.kpis.collected.amount))) {
-    throw new Error(`collected total "${formatCediShort(DEMO_OVERVIEW.kpis.collected.amount)}" missing`);
-  }
-  if (!has(html, formatCount(DEMO_OVERVIEW.kpis.totalStudents.value))) {
-    throw new Error("the student count is missing");
-  }
-  return `${formatCediShort(DEMO_OVERVIEW.kpis.collected.amount)} and 1,000 both render`;
-});
-await check("the demo fixture reconciles", () => {
-  const { kpis, upcomingInstallments, channels, weeklyInflow } = DEMO_OVERVIEW;
-  const weekSum = weeklyInflow.reduce((sum, w) => sum + w.total, 0);
-  if (weekSum !== kpis.collected.amount) {
-    throw new Error(
-      `weekly inflows total ${formatCediShort(weekSum)} but the headline says ${formatCediShort(kpis.collected.amount)}`
-    );
-  }
-  const channelSum = channels.reduce((sum, c) => sum + c.amount, 0);
-  if (channelSum !== kpis.collected.amount) {
-    throw new Error(
-      `channels total ${formatCediShort(channelSum)} but the headline says ${formatCediShort(kpis.collected.amount)}`
-    );
-  }
-  const accounts = channels.reduce((sum, c) => sum + c.accounts, 0);
-  if (accounts !== kpis.totalStudents.value) {
-    throw new Error(`channel accounts total ${accounts}, not the ${kpis.totalStudents.value} students`);
-  }
-  const rate = kpis.collected.amount / kpis.expectedOwed.amount * 100;
-  if (Math.abs(rate - kpis.collected.ratePercent) > 0.1) {
-    throw new Error(`collection rate computes to ${rate.toFixed(1)}%, fixture says ${kpis.collected.ratePercent}%`);
-  }
-  const tranches = upcomingInstallments.days.reduce((sum, d) => sum + d.students, 0);
-  if (tranches !== upcomingInstallments.scheduledTranches) {
-    throw new Error(`days sum to ${tranches} students, not ${upcomingInstallments.scheduledTranches}`);
-  }
-  const inflow = upcomingInstallments.days.reduce((sum, d) => sum + d.amount, 0);
-  if (inflow !== upcomingInstallments.expectedInflow) {
-    throw new Error(`days sum to ${formatCediShort(inflow)}, not ${formatCediShort(upcomingInstallments.expectedInflow)}`);
-  }
-  return "weeks, channels, accounts, rate, tranches and inflow all balance";
-});
-await check("each week splits into its three networks", () => {
-  DEMO_WEEKLY_INFLOW.forEach((week) => {
-    const split = week.mtn + week.telecel + week.at;
-    if (split !== week.total) {
-      throw new Error(`${week.week} splits to ${formatCediShort(split)}, not ${formatCediShort(week.total)}`);
+await check("regions with no endpoint say so instead of drawing figures", () => {
+  const html = renderToString(
+    /* @__PURE__ */ jsxs(MemoryRouter, { children: [
+      /* @__PURE__ */ jsx(CollectionsCard, { term: EMPTY_OVERVIEW.term, seriesFor: () => EMPTY_OVERVIEW.weeklyInflow.map((row) => ({ label: row.week, value: row.total })) }),
+      /* @__PURE__ */ jsx(UpcomingInstallmentsCard, { upcoming: EMPTY_OVERVIEW.upcomingInstallments }),
+      /* @__PURE__ */ jsx(PaymentChannelsCard, { channels: EMPTY_OVERVIEW.channels })
+    ] })
+  );
+  ["No weekly breakdown yet", "not available yet", "No completed payments in this period yet"].forEach(
+    (needle) => {
+      if (!has(html, needle)) throw new Error(`the empty state is missing "${needle}"`);
+    }
+  );
+  ["Cumulative Net Inflow", "Scheduled Tranches", "Expected Inflow"].forEach((needle) => {
+    if (has(html, needle)) {
+      throw new Error(`"${needle}" rendered with no data behind it`);
     }
   });
-  DEMO_CHANNELS.forEach((channel) => {
-    const summed = DEMO_WEEKLY_INFLOW.reduce((sum, w) => sum + w[channel.key], 0);
-    if (summed !== channel.amount) {
-      throw new Error(
-        `${channel.network} weeks sum to ${formatCediShort(summed)}, not ${formatCediShort(channel.amount)}`
-      );
-    }
+  return "three empty states, no headline figures";
+});
+await check("the channels card renders real payment-method rows", () => {
+  const html = renderToString(
+    /* @__PURE__ */ jsx(MemoryRouter, { children: /* @__PURE__ */ jsx(
+      PaymentChannelsCard,
+      {
+        channels: [
+          { key: "momo", label: "momo", amount: 21624e3, transactionCount: 680, sharePercent: 68 },
+          { key: "card", label: "card", amount: 6996e3, transactionCount: 220, sharePercent: 22 }
+        ]
+      }
+    ) })
+  );
+  ["momo", "card", "680", "220", "Share", "Payments"].forEach((needle) => {
+    if (!has(html, needle)) throw new Error(`the channels card is missing "${needle}"`);
   });
-  return "10 weeks × 3 networks, and each network total, balance";
+  if (has(html, "Auth rate")) {
+    throw new Error("an authorisation rate is rendered, but no endpoint returns one");
+  }
+  return "methods, share and transaction counts from the real shape";
+});
+await check("the Overview shows a skeleton, not a flash of figures", () => {
+  const html = renderRoute("/dashboard");
+  if (!has(html, "animate-pulse")) throw new Error("no loading skeleton on the first paint");
+  return "skeleton on the first paint, no figures";
 });
 await check("the cedi formatter never abbreviates a six-figure total", () => {
-  const rendered = formatCediShort(DEMO_OVERVIEW.kpis.expectedOwed.amount);
+  const rendered = formatCediShort(425e5);
   if (has(rendered, "K") || has(rendered, "M")) throw new Error(`"${rendered}" was abbreviated`);
   if (rendered !== "GH₵ 425,000") throw new Error(`unexpected rendering: "${rendered}"`);
-  if (formatCediWhole(DEMO_OVERVIEW.upcomingInstallments.expectedInflow) !== "6,900") {
+  if (formatCediWhole(69e4) !== "6,900") {
     throw new Error("formatCediWhole did not drop the decimals");
   }
   return "GH₵ 425,000 and 6,900";
@@ -5444,6 +6313,44 @@ await check("the roster renders its own regions", () => {
   });
   return "header, KPI band, filters, table and actions";
 });
+await check("Add New Student is enabled, not a dead button", () => {
+  const html = renderRoute("/dashboard/students");
+  const labelAt = html.indexOf("Add New Student");
+  if (labelAt === -1) throw new Error("the Add New Student action did not render");
+  const open = html.lastIndexOf("<button", labelAt);
+  if (open === -1) throw new Error("the Add New Student label is not inside a button");
+  const tag = html.slice(open, html.indexOf(">", open));
+  if (/\sdisabled(\s|=|$)/.test(tag)) {
+    throw new Error(
+      `the Add New Student button renders disabled: ${tag}
+It must open the class list when the school has no classes, not sit inert.`
+    );
+  }
+  return "the action is live even with no class list loaded";
+});
+await check("a school with no classes is given a way to add some", () => {
+  const html = renderToString(
+    /* @__PURE__ */ jsx(
+      ClassListEditor,
+      {
+        open: true,
+        schoolId: "6abb954124ad2e6613e7d90c",
+        classes: [],
+        onClose: () => {
+        },
+        onSaved: () => {
+        }
+      }
+    )
+  );
+  ["Save classes", "Add a class", "Basic + JHS"].forEach((needle) => {
+    if (!has(html, needle)) throw new Error(`the class editor is missing "${needle}"`);
+  });
+  if (!has(html, "No classes yet")) {
+    throw new Error("the empty state does not explain that nothing is configured yet");
+  }
+  return "the dialog renders templates, an add field and a save action";
+});
 await check("the module tab bar marks exactly one section", () => {
   const html = renderRoute("/dashboard/students");
   const navStart = html.indexOf('aria-label="Students sections"');
@@ -5475,6 +6382,116 @@ await check("FormField is only ever imported by name", async () => {
     throw new Error(`default-imported SelectField (which is Field) in: ${offenders.join(", ")}`);
   }
   return "no default imports of SelectField";
+});
+await check("the pay page renders its own shell, not the marketing chrome", () => {
+  const html = renderToString(/* @__PURE__ */ jsx(PayPageHarness, {}));
+  if (!has(html, "Secure fee payment")) throw new Error("the pay header did not render");
+  ["How It Works", "For Schools", "Get Started Free", "Sign in"].forEach((link) => {
+    if (has(html, link)) throw new Error(`the marketing chrome leaked into the pay page: ${link}`);
+  });
+  return "own header, no navbar or footer links";
+});
+await check("the pay route is registered outside AppChrome", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync(new URL("../../src/App.jsx", import.meta.url), "utf8");
+  if (!/path="\/pay\/:token"/.test(source)) {
+    throw new Error("/pay/:token is not registered");
+  }
+  const appChrome = source.indexOf("AppChrome");
+  const payRoute = source.indexOf('path="/pay/:token"');
+  const appChromeClose = source.indexOf("</Route>", appChrome);
+  if (payRoute < appChromeClose) {
+    throw new Error("/pay/:token is nested inside AppChrome");
+  }
+  return "registered as a sibling of AppChrome";
+});
+await check("a loading pay page shows a skeleton, not an empty screen", () => {
+  const html = renderToString(/* @__PURE__ */ jsx(PayPageHarness, { loading: true }));
+  if (!has(html, "animate-pulse")) throw new Error("no loading skeleton");
+  return "skeleton while the pay view is fetched";
+});
+await check("the pay form shows the real balance, in cedis", () => {
+  const html = renderToString(/* @__PURE__ */ jsx(PayPageHarness, {}));
+  if (!has(html, formatCedi(PAY_STUDENT.balance))) {
+    throw new Error(`the balance did not render as ${formatCedi(PAY_STUDENT.balance)}`);
+  }
+  if (has(html, "75000.00")) throw new Error("a raw pesewa count is on screen");
+  ["Ama Serwaa Boateng", "JHS 2A", "MTN MoMo", "Vodafone Cash", "AirtelTigo Money"].forEach(
+    (needle) => {
+      if (!has(html, needle)) throw new Error(`the pay view is missing "${needle}"`);
+    }
+  );
+  return `${formatCedi(PAY_STUDENT.balance)}, all three networks offered`;
+});
+await check("every JSX component is imported or declared locally", async () => {
+  const { readdirSync, readFileSync, statSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const root = new URL("../../src/", import.meta.url).pathname.replace(/^\//, "");
+  const GLOBALS = /* @__PURE__ */ new Set(["Fragment"]);
+  const offenders = [];
+  const walk = (dir) => {
+    readdirSync(dir).forEach((name) => {
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) return walk(full);
+      if (!/\.jsx?$/.test(name)) return;
+      const source = readFileSync(full, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+      if (!/<[A-Z]/.test(source)) return;
+      const known = new Set(GLOBALS);
+      for (const m of source.matchAll(/import\s+([A-Za-z_$][\w$]*)\s*(?:,|from)/g)) {
+        known.add(m[1]);
+      }
+      for (const m of source.matchAll(/\bimport\b[^;'"]*?\{([^}]*)\}\s*from/g)) {
+        m[1].split(",").forEach((part) => {
+          const name2 = part.trim().split(/\s+as\s+/).pop().trim();
+          if (name2) known.add(name2);
+        });
+      }
+      for (const m of source.matchAll(/import\s*\*\s*as\s+([A-Za-z_$][\w$]*)\s+from/g)) {
+        known.add(m[1]);
+      }
+      for (const m of source.matchAll(/\(\s*\{([^{}]*)\}\s*\)\s*=>/g)) {
+        m[1].split(",").forEach((part) => {
+          const name2 = part.trim().split(/[:=]/)[0].trim();
+          if (name2) known.add(name2);
+        });
+      }
+      for (const m of source.matchAll(/([A-Za-z_$][\w$]*)\s*:\s*([A-Z][\w$]*)/g)) {
+        known.add(m[2]);
+      }
+      for (const m of source.matchAll(/(?:const|let|var|function|class)\s+([A-Z][\w$]*)/g)) {
+        known.add(m[1]);
+      }
+      for (const m of source.matchAll(/<([A-Z][\w$]*)(?=[\s/>])/g)) {
+        if (!known.has(m[1])) {
+          offenders.push(`${full.replace(root, "src/")}: <${m[1]}>`);
+        }
+      }
+    });
+  };
+  walk(root);
+  if (offenders.length) {
+    throw new Error(
+      `${offenders.length} component(s) used but never imported or declared — the build will pass and the route will throw at runtime:
+        ${offenders.join("\n        ")}`
+    );
+  }
+  return "no unresolved JSX components";
+});
+await check("all four Students tabs render", () => {
+  const expected = {
+    roster: "Select all students on this page",
+    import: "Upload a roster",
+    alumni: "Graduation year",
+    cohorts: "cohort"
+    // the empty state, before any data arrives
+  };
+  Object.entries(expected).forEach(([tab, needle]) => {
+    const html = renderRoute(`/dashboard/students?tab=${tab}`);
+    if (!has(html, needle)) {
+      throw new Error(`the "${tab}" tab did not render "${needle}"`);
+    }
+  });
+  return "roster, import, alumni and cohorts all render";
 });
 console.log(`
 ${pass} passed, ${fail} failed.`);

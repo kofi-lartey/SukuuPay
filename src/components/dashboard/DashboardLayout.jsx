@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import DashboardSidebar from './DashboardSidebar';
 import DashboardTopbar from './DashboardTopbar';
@@ -37,15 +37,30 @@ const DashboardLayout = () => {
 
   // The header's school and term selectors.
   //
-  // `school` falls back to the overview payload's school because
+  // The identity comes from `GET /schools/:id` via the overview hook, because
   // `AuthContext.school` is never actually populated — `refreshUser` only ever
   // calls `setSchool((current) => current ?? null)`, so it stays null and a
-  // topbar bound to it alone would read "Your school" forever. Sourcing the name
-  // from the data the page is showing keeps the header honest about *whose*
-  // figures are on screen. Populating `AuthContext.school` properly is the
-  // better fix, but it is a change to session state rather than to layout.
-  const { data } = useDashboardOverview();
-  const schoolName = school || data?.school;
+  // topbar bound to it alone would read "Your school" forever. Populating
+  // `AuthContext.school` properly is the better fix, but it is a change to
+  // session state rather than to layout.
+  //
+  // It used to fall back to the overview payload, which was `DEMO_SCHOOL` — so
+  // the header of every dashboard page read "Prampram Basic Sch…" for a school
+  // that has nothing to do with it. There is no fallback now: an unloaded school
+  // renders "Your school", which is the truth.
+  //
+  // The rail and the topbar both read `school.name` and `school.campus`, so what
+  // is handed down is an object. `campus` was never a field on the School model —
+  // it existed only on the fixture — so they read `city`, which is real, and the
+  // cards fall back to their own text when a school has not set one.
+  const { data } = useDashboardOverview(user?.schoolId);
+  const schoolCard = useMemo(
+    () => ({
+      name: school?.name || data?.school?.name || '',
+      city: data?.school?.city || '',
+    }),
+    [school, data]
+  );
   const term = data?.term;
   const smsCredit = null;
 
@@ -103,7 +118,7 @@ const DashboardLayout = () => {
         */}
         <DashboardSidebar
           user={user}
-          school={schoolName}
+          school={schoolCard}
           variant="fixed"
           className="hidden lg:flex"
         />
@@ -113,7 +128,7 @@ const DashboardLayout = () => {
             user={user}
             navOpen={drawerOpen}
             onOpenNav={() => setDrawerOpen(true)}
-            school={schoolName}
+            school={schoolCard}
             term={term}
             smsCredit={smsCredit}
           />
@@ -144,7 +159,7 @@ const DashboardLayout = () => {
           <div id="dashboard-nav-drawer">
             <DashboardSidebar
               user={user}
-              school={schoolName}
+              school={schoolCard}
               variant="drawer"
               onClose={() => setDrawerOpen(false)}
               className="fixed inset-y-0 left-0 z-50 flex w-[15.25rem] max-w-[85vw]"

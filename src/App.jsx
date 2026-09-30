@@ -16,6 +16,7 @@ import Signup from './pages/auth/Signup';
 import VerifyEmail from './pages/auth/VerifyEmail';
 import ResetPassword from './pages/auth/ResetPassword';
 import NewPassword from './pages/auth/NewPassword';
+import PayPage from './pages/pay/PayPage';
 import DashboardLayout from './components/dashboard/DashboardLayout';
 import Overview from './pages/dashboard/Overview';
 import Students from './pages/dashboard/Students';
@@ -108,6 +109,17 @@ function App() {
                 <Route path="settings" element={<Settings />} />
               </Route>
             </Route>
+
+            {/*
+              The parent-facing fee page, a sibling of AppChrome like the wizard.
+
+              It has to be: a parent opening an SMS link has no account, so the
+              marketing navbar would offer them "Sign in" and a footer of links to
+              products they are not shopping for, and the pay token in the URL is
+              the only credential involved. The page carries its own minimal header
+              and nothing else.
+            */}
+            <Route path="/pay/:token" element={<PayPage />} />
           </Routes>
         </BrowserRouter>
       </ToastProvider>

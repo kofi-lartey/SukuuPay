@@ -8,12 +8,12 @@ import { toApiError } from './toApiError';
  * written out here, including the three regions that have **no** backing
  * endpoint yet, so whoever wires the Overview for real knows exactly which parts
  * are ready and which need server work first. Those three are called out on the
- * page itself too — a card silently rendering fixtures is the failure mode this
- * module exists to prevent.
+ * page itself too — a card rendering invented figures is the failure mode this
+ * module exists to prevent, and it is the one that just happened.
  *
- * Nothing in this file is used by the Overview yet: `useDashboardOverview`
- * currently serves `data/dashboardDemo.js` and labels every card as demo. This
- * file is the seam it will switch to.
+ * `useDashboardOverview` consumes `getStudentStats`-equivalent data,
+ * `listRecentPayments`, `getPaymentMethods` and `getOutstanding`; the three that
+ * throw are read by the cards as "not available yet" and render an empty state.
  */
 
 /** `GET /reports/term/:schoolId` — the headline collection figures. */

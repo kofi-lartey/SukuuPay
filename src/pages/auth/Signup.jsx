@@ -38,6 +38,10 @@ import {
 } from '../../utils/constants';
 
 // Sliding Carousel Data for the Signup Aside panel
+//
+// Same fabricated track-record figures the login carousel carried, and the same
+// orphaned 1,200-student reconciliation claim: "GH₵ 42M+ Disbursed", "140+ Partner
+// Schools", "5.0 Verified Rating". See the note in Login.jsx.
 const signupSlideContent = [
   {
     badge: "TERM 1 & 2 ADMISSIONS LIVE",
@@ -45,23 +49,23 @@ const signupSlideContent = [
     description: "Eliminate cash leakage, automate MoMo reconciliation, and offer flexible installment plans parents love.",
     icon: TrendingUp,
     highlight: "Zero onboarding & maintenance fees for pilot schools.",
-    stat: "GH₵ 42M+ Disbursed"
+    stat: "MoMo, card & bank transfer"
   },
   {
     badge: "INSTITUTIONAL AUTOMATION",
     title: "Instant Push-USSD to Parent Handsets.",
     description: "Accept payments straight via MTN MoMo, Telecel Cash & AT Money with real-time bursary dashboard updates.",
     icon: Zap,
-    highlight: "99.8% MoMo SLA uptime guarantee across all networks.",
-    stat: "140+ Partner Schools"
+    highlight: "Every payment reconciled against the student's balance automatically.",
+    stat: "MTN · Telecel · AT"
   },
   {
-    badge: "VERIFIED EXCELLENCE",
-    title: "Empowering Top Ghanaian Institutions.",
-    description: "Join leading basic and high schools scaling their bursary operations securely and efficiently.",
+    badge: "BUILT FOR GHANAIAN SCHOOLS",
+    title: "Termly Fees, Ghana-Post Verified.",
+    description: "Set classes and term fees the way a Ghanaian school is actually structured, then let the dashboard do the reconciling.",
     icon: Award,
-    highlight: "Reconcile 1,200+ student payments in just 15 minutes.",
-    stat: "5.0 Verified Rating"
+    highlight: "Bring your existing roster as a spreadsheet and we will load it.",
+    stat: "CSV & Excel import"
   }
 ];
 

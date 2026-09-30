@@ -48,12 +48,18 @@ const SiteFooter = () => (
           <Link to={ROUTES.TERMS} className="transition-colors hover:text-brand-700">
             Terms
           </Link>
-          <a
-            href={`tel:${HELPDESK_PHONE.replace(/\s/g, '')}`}
-            className="transition-colors hover:text-brand-700"
-          >
-            {HELPDESK_PHONE}
-          </a>
+          {/* Hidden while the support line is unconfigured. It used to render
+              `+233 24 456 7890` as a `tel:` link — an example number published
+              as a way to reach support. A blank that collapses is better than a
+              link that rings nothing. */}
+          {HELPDESK_PHONE && (
+            <a
+              href={`tel:${HELPDESK_PHONE.replace(/\s/g, '')}`}
+              className="transition-colors hover:text-brand-700"
+            >
+              {HELPDESK_PHONE}
+            </a>
+          )}
         </div>
       </div>
     </div>

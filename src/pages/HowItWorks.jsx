@@ -227,23 +227,34 @@ const HowItWorks = () => {
 
         </div>
 
-        {/* --- LIVE STATS STRIP --- */}
+        {/*
+          This used to be a four-up "live stats" strip: GH₵ 42M+ processed safely in
+          2024, 180+ partner schools, 98.4% on-time remittance, 0% cash leakage. All
+          four were invented, and they contradicted each other across the site —
+          the auth aside claimed 140+ schools and the pricing page claimed 180+.
+          There is no aggregate over the schools or payments collections that
+          produces any of them, and the database has one school on it.
+
+          Replaced with the flow the page actually demonstrates above: what
+          happens, in order. Those are checkable against the product rather than
+          against nothing.
+        */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 bg-white rounded-2xl p-8 border border-slate-100 shadow-soft text-center">
           <div className="p-4">
-            <p className="text-2xl sm:text-3xl font-extrabold text-ink mb-1 font-display">GH₵ 42M+</p>
-            <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">Processed Safely in 2024</p>
+            <p className="text-2xl sm:text-3xl font-extrabold text-ink mb-1 font-display">1</p>
+            <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">Push to pay</p>
           </div>
           <div className="p-4 border-l border-slate-100">
-            <p className="text-2xl sm:text-3xl font-extrabold text-ink mb-1 font-display">180+</p>
-            <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">Partner Ghanaian Schools</p>
+            <p className="text-2xl sm:text-3xl font-extrabold text-ink mb-1 font-display">2</p>
+            <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">Parent pays by MoMo</p>
           </div>
           <div className="p-4 border-l border-slate-100">
-            <p className="text-2xl sm:text-3xl font-extrabold text-ink mb-1 font-display">98.4%</p>
-            <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">On-Time Parent Remittance</p>
+            <p className="text-2xl sm:text-3xl font-extrabold text-ink mb-1 font-display">3</p>
+            <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">Receipt issued</p>
           </div>
           <div className="p-4 border-l border-slate-100">
-            <p className="text-2xl sm:text-3xl font-extrabold text-ink mb-1 font-display">0%</p>
-            <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">Cash Leakage / Theft Risk</p>
+            <p className="text-2xl sm:text-3xl font-extrabold text-ink mb-1 font-display">4</p>
+            <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">Reconciled on the dashboard</p>
           </div>
         </div>
       </section>

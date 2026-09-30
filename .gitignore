@@ -38,6 +38,10 @@ build/
 # runner and config are source and are meant to be reviewed and committed.
 .mockcheck/out/
 .mockcheck/out-auth/
+# Was missing while check:dashboard existed, so its SSR bundle was
+# commit-eligible — and that bundle inlines the mock fixtures and the
+# harness's own PAY_STUDENT record into a compiled asset.
+.mockcheck/out-dashboard/
 
 # Editor
 .vscode/*
