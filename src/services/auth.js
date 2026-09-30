@@ -22,11 +22,15 @@ export const login = async (email, password) => {
   try {
     const { data } = await api.post('/auth/login', { email, password });
     storeTokens(data.tokens || {});
-    return { user: data.user, message: data.message };
+    // `onboarding` is the server's resolved link state (see `onboardingBlock` in
+    // the auth controller). It travels with the login response so the app can
+    // route straight to the right screen without a follow-up `/auth/me`.
+    return { user: data.user, onboarding: data.onboarding, message: data.message };
   } catch (error) {
     throw toError(error, 'Invalid email or password');
   }
 };
+
 
 /**
  * The API issues no session on signup — the account must verify its email first.
@@ -104,16 +108,25 @@ export const resetPassword = async (token, password) => {
   }
 };
 
+/**
+ * `GET /auth/me` — restores a session from the access token alone.
+ *
+ * Returns the whole envelope, not just the user. `onboarding` carries the
+ * resolved link state, and every consumer that needs to know whether this
+ * account has a school (`OnboardingGuard`, `Step1SchoolProfile`) should read it
+ * from here rather than re-deriving the rule from `schoolId`.
+ */
 export const getCurrentUser = async () => {
   const { data } = await api.get('/auth/me');
-  return data.user;
+  return { user: data.user, onboarding: data.onboarding };
 };
 
 // ── Auth state listener using localStorage ──────────────────────────────
 let authListeners = [];
 
-const notifyListeners = (user) => {
-  authListeners.forEach((listener) => listener(user));
+/** Listeners receive the full `{ user, onboarding }` envelope. */
+const notifyListeners = (user, onboarding) => {
+  authListeners.forEach((listener) => listener({ user, onboarding }));
 };
 
 export const onAuthChange = (callback) => {
@@ -122,13 +135,13 @@ export const onAuthChange = (callback) => {
   const token = localStorage.getItem('auth_token');
   if (token) {
     getCurrentUser()
-      .then((user) => notifyListeners(user))
+      .then((session) => notifyListeners(session.user, session.onboarding))
       .catch(() => {
         clearTokens();
-        notifyListeners(null);
+        notifyListeners(null, null);
       });
   } else {
-    notifyListeners(null);
+    notifyListeners(null, null);
   }
 
   return () => {
@@ -143,9 +156,10 @@ window.addEventListener('storage', (event) => {
   const token = localStorage.getItem('auth_token');
   if (token) {
     getCurrentUser()
-      .then((user) => notifyListeners(user))
-      .catch(() => notifyListeners(null));
+      .then((session) => notifyListeners(session.user, session.onboarding))
+      .catch(() => notifyListeners(null, null));
   } else {
-    notifyListeners(null);
+    notifyListeners(null, null);
   }
 });
+

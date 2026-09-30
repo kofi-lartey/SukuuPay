@@ -13,20 +13,23 @@ const FullPageSpinner = () => (
 /**
  * Gate for the onboarding wizard and the dashboard.
  *
- * Two rules, and they are deliberately symmetric:
+ * Three rules, and they are deliberately symmetric:
  *   - a signed-out visitor goes to /login
  *   - a signed-in admin lands on whichever of /onboarding and /dashboard their
  *     completion flag does *not* match, so neither screen can be reached out
- *     of order and neither becomes a dead end.
+ *     of order and neither becomes a dead end
+ *   - an account with no school can reach the onboarding wizard but *not* the
+ *     dashboard, because there is nothing on the dashboard to act on
  *
- * `onboardingCompleted` is read from AuthContext, which keeps it in local
- * storage. The API has no `onboardingCompleted` field on the User model yet, so
- * the flag does not survive a device change; until a `PUT /users/me/onboarding`
- * route exists, an admin who onboards on their laptop and then opens the site
- * on their phone will be asked to walk the wizard again.
+ * `linkState` comes from the server (`onboardingBlock` in the auth controller),
+ * not from inspecting `user.schoolId` here. The client used to infer the answer
+ * and could only respond with an error, because an inferred boolean has exactly
+ * one branch. The server additionally knows that `super_admin` legitimately has
+ * no school and that a `schoolId` can point at an archived school, so the rule
+ * lives in exactly one place.
  */
 const OnboardingGuard = () => {
-  const { user, loading, onboardingCompleted } = useAuth();
+  const { user, loading, onboardingCompleted, linkState } = useAuth();
   const location = useLocation();
 
   if (loading) return <FullPageSpinner />;
@@ -38,12 +41,24 @@ const OnboardingGuard = () => {
   const isOnboardingPath = location.pathname.startsWith(ROUTES.ONBOARDING);
   const isDashboardPath = location.pathname === ROUTES.DASHBOARD;
 
-  if (onboardingCompleted && isOnboardingPath) {
-    return <Navigate to={ROUTES.DASHBOARD} replace />;
+  // Platform staff belong to no school by design. `needsSchoolProvisioning`
+  // already excludes them; this second condition covers the window before the
+  // server's first `/auth/me` resolves, when `linkState` is still unknown.
+  const isPlatformStaff = user.role === 'super_admin';
+  const isLinked = linkState?.linked === true || isPlatformStaff;
+
+  // Finishing the wizard is only "done" once there is a school to have finished
+  // configuring. Gating on both closes the flag/school mismatch — an account
+  // that somehow recorded completion without a school would otherwise be waved
+  // into a dashboard whose every query returns nothing.
+  const isOnboarded = onboardingCompleted && isLinked;
+
+  if (!isOnboarded && isDashboardPath) {
+    return <Navigate to={ROUTES.ONBOARDING} replace />;
   }
 
-  if (!onboardingCompleted && isDashboardPath) {
-    return <Navigate to={ROUTES.ONBOARDING} replace />;
+  if (isOnboarded && isOnboardingPath) {
+    return <Navigate to={ROUTES.DASHBOARD} replace />;
   }
 
   return <Outlet />;

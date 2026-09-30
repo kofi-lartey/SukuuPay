@@ -52,8 +52,20 @@ export const PERSONAS = [
     id: 'no-school',
     label: 'Account with no school',
     description:
-      'A user whose account was never linked to a school. Step 1 must show the support message rather than a broken form.',
-    build: () => buildWorld({ studentCount: 0, completedProfile: false, unlinked: true }),
+      'A user whose account was never linked to a school — exactly the state every self-service signup used to end up in. Step 1 must now render in CREATE mode (prefilled from schoolIntent) and POST /schools/me, not show a support message.',
+    build: () =>
+      buildWorld({
+        studentCount: 0,
+        completedProfile: false,
+        unlinked: true,
+        // Stands in for the school details the bursar typed at `/signup`, which
+        // the real `signupSchema` used to strip before the controller saw it.
+        schoolIntent: {
+          name: 'Prampram Basic & JHS',
+          classification: 'senior_high',
+          region: 'Greater Accra',
+        },
+      }),
   },
   {
     id: 'unverified',
@@ -147,6 +159,7 @@ function buildWorld({
   status = 'active',
   role = 'school_admin',
   seed = 1337,
+  schoolIntent = null,
 }) {
   const rng = makeRng(seed);
   const schoolId = objectId(seed);
@@ -171,7 +184,15 @@ function buildWorld({
     address: completedProfile ? '12 Independence Avenue, Cantonments' : '',
     city: completedProfile ? 'Accra' : '',
     region: completedProfile ? region : '',
-    gpsAddress: completedProfile ? 'GA-376-2513' : '',
+    gpsAddress: completedProfile ? 'GA-183-8164' : '',
+    // Independence Avenue, Cantonments. Present only once the profile is complete
+    // so the map picker has a pin to restore, and the mock exercises the
+    // "edit mode hydrates a stored coordinate" path rather than always starting
+    // empty.
+    location: completedProfile
+      ? { latitude: 5.5601, longitude: -0.2053, source: 'map_pin', updatedAt: new Date().toISOString() }
+      : { latitude: null, longitude: null, source: null, updatedAt: null },
+
     logo: null,
     stamp: null,
     brandColor: '#0F5132',
@@ -215,8 +236,16 @@ function buildWorld({
     status: 'active',
     isEmailVerified: verified,
     // Real field on the real model, mocked so the guard can be exercised
-    // before the backend has one.
+    // without the backend having one. With `onboardingCompleted` true *and* no
+    // schoolId this is the flag/school mismatch the guard now refuses to wave
+    // into the dashboard.
     onboardingCompleted,
+    onboardingHighestStep: onboardingCompleted ? 3 : completedProfile ? 2 : 0,
+    // Only meaningful for an unlinked account, which is the one that renders
+    // Step 1 in CREATE mode.
+    schoolIntent: schoolIntent
+      ? { name: '', classification: '', region: '', ...schoolIntent }
+      : { name: '', classification: '', region: '' },
     lastLoginAt: new Date().toISOString(),
     createdAt: new Date().toISOString(),
   };
@@ -231,6 +260,9 @@ function buildWorld({
     verificationTokens: new Map(),
     sentSms: [],
     sessions: new Map(),
+    // Populated by `POST /schools/join`. Kept on the world rather than in a
+    // module-level Map so `setPersona` resets it with everything else.
+    joinRequests: [],
   };
 }
 

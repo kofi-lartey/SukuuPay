@@ -79,4 +79,62 @@ export const verifyHubtel = async (schoolId, credentials) => {
   }
 };
 
-export default { getSchool, updateSchool, updatePayoutAccount, verifyHubtel };
+/**
+ * `POST /schools/me` — create the signed-in admin's own school and link them to
+ * it. The endpoint that replaced the "not linked, contact support" dead end.
+ *
+ * Idempotent server-side: a replayed submit returns `200` with the existing
+ * school rather than `409`, so a double-clicked Continue is harmless.
+ *
+ * `409 SCHOOL_ALREADY_REGISTERED` is the one failure worth branching on. It
+ * means the email belongs to a School that already exists — a second bursar of a
+ * school someone else registered — and the only route forward is
+ * `joinSchoolByCode`, so the error carries that code for the caller to switch on.
+ */
+export const provisionMySchool = async (payload) => {
+  try {
+    const { data } = await api.post('/schools/me', payload);
+    return {
+      // The real controller responds `{ success, message, data: school, user }`,
+      // so `data.data` is the school itself. The `?.school` hop covers a
+      // wrapper that nests it one level deeper, which is the shape the mock
+      // adapter produces — both resolve to the school record here.
+      school: data.data?.school || data.data || data.school || data,
+      // Returned alongside so the caller can swap the identity into AuthContext
+      // without a follow-up `/auth/me` just to learn a `schoolId` this response
+      // already contains.
+      user: data.user,
+    };
+  } catch (error) {
+    throw toApiError(error, 'We could not create your school. Please try again.');
+  }
+};
+
+/**
+ * `POST /schools/join` — ask to join a school that already exists.
+ *
+ * A `202` is success, not a failure: the school code identifies the school, it
+ * does not authenticate the applicant, so an existing admin of that school has
+ * to approve before access is granted. `INVALID_SCHOOL_CODE` is the only
+ * rejection the applicant can act on alone.
+ */
+export const joinSchoolByCode = async ({ schoolCode, applicantName, applicantPosition }) => {
+  try {
+    const { data } = await api.post('/schools/join', {
+      schoolCode,
+      applicantName,
+      applicantPosition,
+    });
+    return data.data || data;
+  } catch (error) {
+    throw toApiError(error, 'We could not send your request. Please try again.');
+  }
+};
+export default {
+  getSchool,
+  updateSchool,
+  provisionMySchool,
+  joinSchoolByCode,
+  updatePayoutAccount,
+  verifyHubtel,
+};

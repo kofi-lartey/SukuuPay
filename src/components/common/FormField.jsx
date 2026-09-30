@@ -1,18 +1,29 @@
 import React, { useId } from 'react';
 import { ChevronDown } from 'lucide-react';
 
+// Compact control size (P4): `py-2` + a 13px/18px type pair gives a 36px control,
+// against 42px before. Across the eight fields of the signup form that is ~72px.
+//
+// Both line-heights are explicit. `text-sm` carries its own `line-height`, but an
+// arbitrary `text-[13px]` does not — it would inherit whatever line-height the
+// parent happened to have, so the control height would vary by context. The
+// `/[…]` form pins it.
+//
+// 36px clears WCAG 2.5.8 AA (24x24 CSS px minimum) comfortably but is below the
+// 44px of 2.5.5 AAA and Apple's HIG. That is the floor: do not shrink further.
 const baseControl =
-  'w-full rounded-lg border border-slate-200 bg-white py-2.5 text-sm font-medium text-ink placeholder:font-normal placeholder:text-slate-500 transition-all focus:border-brand-700 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/30';
+  'w-full rounded-lg border border-slate-200 bg-white py-2 text-[13px]/[18px] font-medium text-ink placeholder:font-normal placeholder:text-slate-500 transition-all focus:border-brand-700 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/30';
 
 const Label = ({ htmlFor, children, hint, required = false }) => (
-  <div className="mb-1 flex items-baseline justify-between gap-3">
-    <label htmlFor={htmlFor} className="text-[12px] font-semibold text-slate-700">
+  <div className="mb-0.5 flex items-baseline justify-between gap-3">
+    <label htmlFor={htmlFor} className="text-[11px]/[15px] font-semibold text-slate-700">
       {children}
       {required && <span className="ml-0.5 text-red-600">*</span>}
     </label>
-    {hint && <span className="shrink-0 text-[11px] font-medium text-slate-500">{hint}</span>}
+    {hint && <span className="shrink-0 text-[10px]/[14px] font-medium text-slate-500">{hint}</span>}
   </div>
 );
+
 
 /** Text-like input with a leading icon. */
 export const Field = ({
@@ -118,7 +129,10 @@ export const PrefixedField = ({
         {label}
       </Label>
       <div className="flex">
-        <span className="flex select-none items-center gap-1.5 rounded-l-lg border border-r-0 border-slate-200 bg-slate-50 px-3 py-2.5 text-[13px] font-bold text-slate-700">
+        {/* `py-2` matches `baseControl` so the adornment and the input share a
+            baseline and height. Left at `py-2.5` it sat 4px taller and the seam
+            between them was visible. */}
+        <span className="flex select-none items-center gap-1.5 rounded-l-lg border border-r-0 border-slate-200 bg-slate-50 px-3 py-2 text-[12px]/[18px] font-bold text-slate-700">
           {prefix}
         </span>
         <input

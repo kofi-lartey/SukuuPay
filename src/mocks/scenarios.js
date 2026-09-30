@@ -96,6 +96,20 @@ export const SCENARIOS = [
     description: 'Another bursar is editing the same school. Tests the conflict path and whether the form stays editable.',
     config: { latencyMs: 200, failSchoolUpdate: true, mockOnlyEnabled: true },
   },
+  {
+    id: 'school-already-registered',
+    label: 'Provisioning: school email taken',
+    description:
+      'POST /schools/me answers 409 SCHOOL_ALREADY_REGISTERED, as it does for a second bursar of a school someone else registered. Step 1 must offer the join-by-code sheet rather than showing an error the user cannot act on — the last remaining dead end in the CREATE path.',
+    config: { latencyMs: 200, forceSchoolEmailTaken: true, mockOnlyEnabled: true },
+  },
+  {
+    id: 'fail-provision',
+    label: 'Provisioning rejected (422)',
+    description:
+      'POST /schools/me rejects the profile. The bursar must stay on Step 1, see the message, and keep their draft — provisioning is the one save with no retry path, so losing the form here is the worst outcome in the flow.',
+    config: { latencyMs: 200, failProvision: true, mockOnlyEnabled: true },
+  },
 ];
 
 export const getScenario = (id) => SCENARIOS.find((s) => s.id === id) || SCENARIOS[0];

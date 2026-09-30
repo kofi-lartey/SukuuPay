@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Mock route handlers.
  *
  * Each handler mirrors the corresponding Express route in Backend/src — same
@@ -25,7 +25,7 @@ import {
   userForToken,
 } from './db';
 import { getScenario } from './scenarios';
-import { buildStudents, CITY_BY_REGION, ghanaPhone, makeRng, objectId, token } from './fixtures';
+import { buildStudents, CITY_BY_REGION, ghanaPhone, makeRng, objectId, slugify, token } from './fixtures';
 import { getScenarioId } from './db';
 
 export class MockError extends Error {
@@ -52,11 +52,93 @@ const CURRENT_YEAR = new Date().getFullYear();
 const GHANA_REGIONS = Object.keys(CITY_BY_REGION).sort();
 const STUDENT_CLASSES = ['JHS 1', 'JHS 2', 'JHS 3', 'Basic 1', 'Basic 2', 'Basic 3', 'SHS 1', 'SHS 2', 'SHS 3'];
 
+/** The School model's `type` enum. */
+const SCHOOL_TYPES = ['public', 'private', 'international', 'mission', 'charter'];
+
+/**
+ * Signup classification → `School.type`, mirroring
+ * Backend/src/utils/schoolTypeMapping.js. The mock has to reproduce this or the
+ * "Senior High School" path would pass here and 422 against the real API.
+ */
+const CLASSIFICATION_TO_TYPE = {
+  private: 'private',
+  international: 'international',
+  senior_high: 'public',
+  university: 'private',
+};
+
+const toSchoolType = (value) => {
+  if (typeof value !== 'string' || !value) return null;
+  const key = value.trim().toLowerCase();
+  if (SCHOOL_TYPES.includes(key)) return key;
+  return CLASSIFICATION_TO_TYPE[key] ?? null;
+};
+
+/**
+ * Mirrors `onboardingBlock` in Backend/src/controllers/authController.js.
+ *
+ * The client used to infer link state from `schoolId === null`, which is exactly
+ * why an unlinked account could only be shown an error. Producing the same block
+ * here is what lets the whole CREATE-mode path be demonstrated offline.
+ */
+const onboardingBlock = (user) => {
+  if (!user) {
+    return {
+      linked: false,
+      reason: 'ANONYMOUS',
+      schoolId: null,
+      completed: false,
+      highestStep: 0,
+      nextRoute: null,
+    };
+  }
+
+  if (user.role === 'super_admin') {
+    return {
+      linked: true,
+      reason: 'PLATFORM_STAFF',
+      schoolId: null,
+      completed: user.onboardingCompleted === true,
+      highestStep: user.onboardingHighestStep ?? 0,
+      nextRoute: user.onboardingCompleted ? '/dashboard' : '/onboarding/school-profile',
+    };
+  }
+
+  const school = user.schoolId ? findSchool(user.schoolId) : null;
+  // `findSchool` ignores `deletedAt`, so an archived school still resolves here.
+  // The real controller checks `deletedAt: null`; the mock world only marks
+  // schools 'suspended', so this stays simple without faking the branch.
+  const linked = Boolean(school && school.status !== 'archived');
+
+  const completed = linked && user.onboardingCompleted === true;
+
+  return {
+    linked,
+    reason: linked ? 'LINKED' : user.schoolId ? 'DANGLING' : 'UNLINKED',
+    schoolId: linked ? user.schoolId : null,
+    completed,
+    highestStep: user.onboardingHighestStep ?? 0,
+    nextRoute: linked
+      ? completed
+        ? '/dashboard'
+        : '/onboarding/school-profile'
+      : '/onboarding/school-profile',
+  };
+};
+
 const publicUser = (user) => {
   if (!user) return null;
   const { password, ...rest } = user;
   return rest;
 };
+
+/**
+ * Roles a signup form may claim. Mirrors `SELF_SIGNUP_ROLES` in
+ * Backend/src/validators/authValidators.js — `super_admin` is a platform
+ * operator and must never be self-granted.
+ */
+const SELF_SIGNUP_ROLES = ['school_admin', 'accountant', 'teacher', 'viewer'];
+
 
 // ── Auth ───────────────────────────────────────────────────────────────────
 
@@ -79,8 +161,14 @@ const login = ({ body }) => {
     throw new MockError(403, 'This account has been deactivated. Contact support.', 'ACCOUNT_SUSPENDED');
   }
 
-  return { user: publicUser(user), tokens: issueToken(user._id), message: 'Signed in' };
+  return {
+    user: publicUser(user),
+    tokens: issueToken(user._id),
+    onboarding: onboardingBlock(user),
+    message: 'Signed in',
+  };
 };
+
 
 const signup = ({ body }) => {
   const name = String(body?.name || '').trim();
@@ -104,13 +192,31 @@ const signup = ({ body }) => {
     name,
     email,
     phone,
-    position: body?.position || '',
-    role: 'school_admin',
+// Resolved from the "Other" text upstream, so whatever arrives is a concrete
+    // title and never the sentinel.
+    position: String(body?.position ?? '').trim(),
+    // Mirrors `SELF_SIGNUP_ROLES` in the backend validator: `super_admin` is not
+    // claimable by a signup form, and an unrecognised value falls back to
+    // `school_admin` rather than erroring — the same failure the real controller
+    // produces, on a field the user can fix.
+    role: SELF_SIGNUP_ROLES.includes(String(body?.role ?? ''))
+      ? String(body.role)
+      : 'school_admin',
     schoolId: null,
     isPlatformOwner: false,
     status: 'active',
     isEmailVerified: false,
     onboardingCompleted: false,
+    onboardingHighestStep: 0,
+    // What the bursar typed about their school. The real `signupSchema` had no
+    // `school` key, so `stripUnknown` deleted this before the controller saw it
+    // and Step 1 had nothing to prefill from; it is now kept and Step 1 renders
+    // in CREATE mode pre-populated with it.
+    schoolIntent: {
+      name: String(body?.school?.name || '').trim(),
+      classification: String(body?.school?.classification || '').trim(),
+      region: String(body?.school?.region || '').trim(),
+    },
     createdAt: new Date().toISOString(),
   };
   db.users.push(user);
@@ -205,12 +311,259 @@ const resetPassword = ({ params, body }) => {
 const me = ({ token: accessToken }) => {
   const user = userForToken(accessToken);
   if (!user) throw new MockError(401, 'Not authenticated', 'UNAUTHENTICATED');
-  // The real controller wraps the user: `GET /auth/me` responds `{ user }`, and
-  // `services/user.js` and `services/auth.js` both read `data.user`.
-  return { user: publicUser(user) };
+  // The real controller wraps the user: `GET /auth/me` responds
+  // `{ user, onboarding }`, and both `services/user.js` and `services/auth.js`
+  // read them. `onboarding` is the server's resolved link state — without it the
+  // client has to infer "is this account linked" from a nullable `schoolId`,
+  // which is how the dead end got there in the first place.
+  return { user: publicUser(user), onboarding: onboardingBlock(user) };
 };
 
+
 // ── Schools ────────────────────────────────────────────────────────────────
+
+/**
+ * `POST /schools/me` — self-service provisioning. Mirrors
+ * `provisionSchoolForUser` in Backend/src/services/school.service.js.
+ *
+ * This is the handler that makes the CREATE-mode branch of Step 1 real. Without
+ * it the mock would reject the one call the whole feature depends on, and the
+ * "no school linked" persona would have nothing but the old dead end to show.
+ *
+ * Idempotent by construction: a replayed submit finds `user.schoolId` already
+ * set and returns `200` with the existing school instead of creating a second
+ * one — the same behaviour the real service has, and the reason a double-clicked
+ * Continue is harmless.
+ */
+const provisionMySchool = ({ body, user }) => {
+  if (!user) throw new MockError(401, 'Not authenticated', 'UNAUTHENTICATED');
+if (user.role === 'super_admin') {
+    throw new MockError(403, 'Platform staff accounts are not linked to a school', 'FORBIDDEN');
+  }
+
+  // Only a school administrator registers a school. Mirrors
+  // `provisionSchoolForUser`: `POST /upload/school-logo` is separately guarded by
+  // `authorize('super_admin', 'school_admin')`, so an accountant who created a
+  // school would be refused their own logo afterwards.
+  if (user.role !== 'school_admin') {
+    throw new MockError(
+      403,
+      'Only a school administrator can create a school. Enter your school code to join one instead.',
+      'ROLE_CANNOT_CREATE_SCHOOL'
+    );
+  }
+
+
+  if (user.schoolId) {
+    const existing = findSchool(user.schoolId);
+    if (existing) {
+      return { school: existing, user: publicUser(user) };
+    }
+    // Dangling reference: fall through and let them provision again.
+  }
+
+  const data = body || {};
+  const errors = {};
+
+  const name = String(data.name ?? '').trim();
+  if (name.length < 2) errors.name = '"name" length must be at least 2 characters long';
+
+  const type = toSchoolType(data.type);
+  if (!type) errors.type = '"type" must be one of [public, private, international, mission, charter]';
+
+  const phoneDigits = String(data.phone ?? '').replace(/\D/g, '');
+  let phone = null;
+  if (/^233\d{9}$/.test(phoneDigits)) phone = phoneDigits;
+  else if (/^0\d{9}$/.test(phoneDigits)) phone = `233${phoneDigits.slice(1)}`;
+  else if (/^\d{9}$/.test(phoneDigits)) phone = `233${phoneDigits}`;
+  if (!phone) errors.phone = 'Invalid Ghana phone number format. Use format: 024xxxxxxx or 23324xxxxxxx';
+
+  const email = String(data.email ?? '').trim().toLowerCase();
+  if (!EMAIL.test(email)) errors.email = '"email" must be a valid email';
+
+  const address = String(data.address ?? '').trim();
+  if (address.length < 5) errors.address = '"address" length must be at least 5 characters long';
+
+  const city = String(data.city ?? '').trim();
+  if (city.length < 2) errors.city = '"city" length must be at least 2 characters long';
+
+  const region = String(data.region ?? '').trim();
+  if (!GHANA_REGIONS.includes(region)) {
+    errors.region = `"region" must be one of [${GHANA_REGIONS.join(', ')}]`;
+  }
+
+  if (data.yearFounded !== undefined && data.yearFounded !== null && data.yearFounded !== '') {
+    const year = Number(data.yearFounded);
+    if (!Number.isInteger(year) || year < 1800 || year > CURRENT_YEAR) {
+      errors.yearFounded = `"yearFounded" must be less than or equal to ${CURRENT_YEAR}`;
+    }
+  }
+  if (data.motto !== undefined && String(data.motto).length > 200) {
+    errors.motto = '"motto" length must be less than or equal to 200 characters long';
+  }
+  if (data.gpsAddress !== undefined && String(data.gpsAddress).trim()) {
+    const match = String(data.gpsAddress).trim().match(/^([A-Za-z]{2})[-\s]*(\d{3})[-\s]*(\d{4})$/);
+    if (!match) {
+      errors.gpsAddress =
+        'Enter a valid Ghana Post GPS address, e.g. GA-183-8164 (2 letters, then 3 digits, then 4 digits)';
+    } else {
+      data.gpsAddress = `${match[1].toUpperCase()}-${match[2]}-${match[3]}`;
+    }
+  }
+  // Same half-pair guard as the update path: a single coordinate would place the
+  // pin in the Gulf of Guinea, which is worse than no pin.
+  if (data['location.latitude'] !== undefined || data['location.longitude'] !== undefined) {
+    const lat = data['location.latitude'];
+    const lng = data['location.longitude'];
+    if (typeof lat !== 'number' || typeof lng !== 'number' || !isFinite(lat) || !isFinite(lng)) {
+      errors.location = 'Give both coordinates, or neither.';
+    } else if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      errors.location = 'Those coordinates are outside Ghana.';
+    }
+  }
+
+  if (Object.keys(errors).length) {
+    const [field, message] = Object.entries(errors)[0];
+    throw new MockError(422, message, 'VALIDATION_ERROR', errors, field);
+  }
+
+  // Checked after validation so a malformed request reports its own field error
+  // rather than the duplicate-email message.
+  if (findSchoolByEmail(email)) {
+    throw new MockError(
+      409,
+      'A school with this email is already registered. Enter your school code to join it instead.',
+      'SCHOOL_ALREADY_REGISTERED'
+    );
+  }
+
+  const db = getDb();
+  const school = {
+    _id: objectId(Date.now() % 999979),
+    name,
+    slug: `${slugify(name)}-${Math.floor(Date.now() % 97)}`,
+    // Six characters, matching `generateSchoolCode` (3 initials + 3 digits).
+    schoolCode: makeSchoolCode(name, db.schools),
+    type,
+    motto: String(data.motto ?? '').trim(),
+    yearFounded: data.yearFounded ? Number(data.yearFounded) : null,
+    phone,
+    email,
+    website: String(data.website ?? '').trim(),
+    address,
+    city,
+    region,
+    gpsAddress: data.gpsAddress || '',
+    // Coordinates land here as the nested object the School model defines; the
+    // dotted transport keys are reassembled, matching `provisionSchoolForUser`.
+    location: {
+      latitude: typeof data['location.latitude'] === 'number' ? data['location.latitude'] : null,
+      longitude: typeof data['location.longitude'] === 'number' ? data['location.longitude'] : null,
+      source: ['gps_address', 'map_pin', 'device', 'manual'].includes(data['location.source'])
+        ? data['location.source']
+        : typeof data['location.latitude'] === 'number'
+          ? 'manual'
+          : null,
+      updatedAt:
+        typeof data['location.latitude'] === 'number' ? new Date().toISOString() : null,
+    },
+    logo: data.logo || null,
+    stamp: null,
+    brandColor: '#0F5132',
+    payment: { gatewayMode: 'hubtel', platformMarkupPercent: 1.5, settlement: null },
+    sms: { provider: 'arke', senderId: 'SukuuPay', balance: 0 },
+    // The real service grants the trial here, so a self-provisioned school is
+    // indistinguishable from an operator-created one.
+    subscription: { plan: 'trial', status: 'trial' },
+    academic: {
+      currentTerm: '',
+      currentYear: `${new Date().getFullYear() - 1}/${new Date().getFullYear()}`,
+      termsPerYear: 3,
+      classes: [],
+      gradingSystem: 'WAEC',
+    },
+    notifications: { email: true, sms: true, inApp: true, whatsapp: true },
+    status: 'active',
+    stats: { totalStudents: 0, totalTeachers: 0, totalParents: 0, totalPaymentsThisMonth: 0 },
+    createdBy: user._id,
+    createdAt: new Date().toISOString(),
+  };
+  db.schools.push(school);
+
+  user.schoolId = school._id;
+  db.joinRequests = db.joinRequests || [];
+
+  return { school, user: publicUser(user) };
+};
+
+/** Same shape as `generateSchoolCode`: three initials, then the lowest free counter. */
+function makeSchoolCode(name, schools) {
+  const words = String(name).trim().split(/\s+/).filter(Boolean);
+  let initials;
+  if (words.length === 1) initials = words[0].substring(0, 3);
+  else if (words.length === 2) initials = words[0].substring(0, 2) + words[1].substring(0, 1);
+  else initials = words.slice(0, 3).map((w) => w.substring(0, 1)).join('');
+
+  initials = initials.replace(/[^A-Z]/gi, '').toUpperCase().substring(0, 3);
+  if (initials.length < 3) initials = initials.padEnd(3, 'X');
+
+  let counter = 1;
+  while (schools.some((s) => s.schoolCode === `${initials}${String(counter).padStart(3, '0')}`)) {
+    counter += 1;
+    if (counter > 999) {
+      initials = `${initials.substring(0, 2)}${String.fromCharCode(65 + (counter % 26))}`;
+      counter = 1;
+    }
+  }
+  return `${initials}${String(counter).padStart(3, '0')}`;
+}
+
+const findSchoolByEmail = (email) =>
+  getDb().schools.find((s) => String(s.email || '').toLowerCase() === email);
+
+/**
+ * `POST /schools/join` — request to join a school that already exists.
+ *
+ * The code identifies the school; it does not authenticate the applicant, so the
+ * mock mirrors the real service and parks the request as `pending` rather than
+ * linking anybody. Handing out access on the code alone would be the one thing
+ * this flow must not do — codes are initials plus a three-digit counter.
+ */
+const joinSchool = ({ body, user }) => {
+  if (!user) throw new MockError(401, 'Not authenticated', 'UNAUTHENTICATED');
+  if (user.schoolId) {
+    throw new MockError(409, 'Your account is already linked to a school', 'ALREADY_LINKED');
+  }
+
+  const code = String(body?.schoolCode ?? '').trim().toUpperCase();
+  const school = getDb().schools.find((s) => s.schoolCode === code);
+  if (!school) throw new MockError(404, 'That school code is not recognised', 'INVALID_SCHOOL_CODE');
+  if (school.status !== 'active') {
+    throw new MockError(409, 'That school is not accepting new staff right now', 'SCHOOL_NOT_ACCEPTING');
+  }
+
+  const db = getDb();
+  db.joinRequests = db.joinRequests || [];
+  const existing = db.joinRequests.find(
+    (r) => r.userId === user._id && r.schoolId === school._id && r.status === 'pending'
+  );
+  if (existing) {
+    return { requestId: existing._id, status: 'pending', schoolName: school.name };
+  }
+
+  const request = {
+    _id: objectId(Date.now() % 999961),
+    userId: user._id,
+    schoolId: school._id,
+    applicantName: String(body?.applicantName || user.name || ''),
+    applicantPosition: String(body?.applicantPosition || user.position || ''),
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+  };
+  db.joinRequests.push(request);
+
+  return { requestId: request._id, status: 'pending', schoolName: school.name };
+};
 
 const getSchool = ({ params, user }) => {
   const user2 = user || null;
@@ -285,6 +638,52 @@ const updateSchool = ({ params, body, user }) => {
   if (data.city !== undefined && String(data.city).trim().length < 2) {
     errors.city = '"city" length must be at least 2 characters long';
   }
+  if (data.gpsAddress !== undefined && String(data.gpsAddress).trim()) {
+    // Mirrors `gpsAddressValidator`: the undashed spelling is accepted on input
+    // and normalised on write, so nothing downstream sees two formats.
+    const raw = String(data.gpsAddress).trim();
+    const match = raw.match(/^([A-Za-z]{2})[-\s]*(\d{3})[-\s]*(\d{4})$/);
+    if (!match) {
+      errors.gpsAddress =
+        'Enter a valid Ghana Post GPS address, e.g. GA-183-8164 (2 letters, then 3 digits, then 4 digits)';
+    } else {
+      data.gpsAddress = `${match[1].toUpperCase()}-${match[2]}-${match[3]}`;
+    }
+  }
+
+  // Coordinates arrive as flattened dotted keys, exactly as `updateSchoolSchema`
+  // and `provisionMySchoolSchema` accept them. `School` has no literal
+  // `"location.latitude"` property, so writing the key straight onto the school
+  // object would create one — the reassembly below mirrors `updateSchool`.
+  const LOCATION_SOURCES = ['gps_address', 'map_pin', 'device', 'manual'];
+  if (data['location.latitude'] !== undefined || data['location.longitude'] !== undefined) {
+    const lat = data['location.latitude'];
+    const lng = data['location.longitude'];
+    if (typeof lat !== 'number' || typeof lng !== 'number' || !isFinite(lat) || !isFinite(lng)) {
+      errors.location = 'Give both coordinates, or neither.';
+    } else if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      errors.location = 'Those coordinates are outside Ghana.';
+    } else if (
+      data['location.source'] !== undefined &&
+      !LOCATION_SOURCES.includes(data['location.source'])
+    ) {
+      // Rejected, not coerced. The backend's Joi schema 422s on an unknown
+      // source, and silently rewriting it to 'manual' here would hide a real
+      // divergence behind a passing mock run.
+      errors.location = `"location.source" must be one of [${LOCATION_SOURCES.join(', ')}]`;
+    } else {
+      data.__location = {
+        latitude: lat,
+        longitude: lng,
+        source: data['location.source'] ?? 'manual',
+      };
+    }
+  }
+
+  // Never persisted verbatim — the dotted keys are transport, not fields.
+  delete data['location.latitude'];
+  delete data['location.longitude'];
+  delete data['location.source'];
 
   if (Object.keys(errors).length) {
     const [field, message] = Object.entries(errors)[0];
@@ -302,7 +701,25 @@ const updateSchool = ({ params, body, user }) => {
     }
   });
 
-  return { ...school, __stripped: Object.keys(data).filter((k) => !ALLOWED.includes(k)) };
+  // Coordinates reassembled into the nested object the School model defines,
+  // with the freshness stamp the service adds.
+  if (data.__location) {
+    const previous = school.location || {};
+    const moved =
+      previous.latitude !== data.__location.latitude ||
+      previous.longitude !== data.__location.longitude;
+    school.location = {
+      latitude: data.__location.latitude,
+      longitude: data.__location.longitude,
+      source: data.__location.source,
+      updatedAt: moved ? new Date().toISOString() : previous.updatedAt || null,
+    };
+  }
+
+  return {
+    ...school,
+    __stripped: Object.keys(data).filter((k) => !ALLOWED.includes(k) && !k.startsWith('location.')),
+  };
 };
 
 const uploadSchoolLogo = async ({ data, user }) => {
@@ -772,6 +1189,12 @@ export const ROUTES = [
     return { tokens };
   }, { public: true }],
 
+  // Self-service school provisioning and join-by-code. Declared before the
+  // `/schools/:schoolId` patterns for readability; they cannot collide, since
+  // "me" and "join" are not ObjectIds.
+  ['POST', /^\/schools\/me$/, provisionMySchool],
+  ['POST', /^\/schools\/join$/, joinSchool],
+
   // `verifyHubtel` is a POST: `services/school.js` calls
   // `api.post('/schools/:id/verify-hubtel', credentials)`. Registering it as PUT
   // made the mock 404 on a call the frontend genuinely makes.
@@ -804,3 +1227,4 @@ export const ROUTES = [
 ];
 
 export { publicUser, validateStudentPayload, GHANA_PHONE, ghanaPhone, buildStudents };
+

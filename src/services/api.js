@@ -37,12 +37,44 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+/**
+ * Routes an unlinked account back to the provisioning step.
+ *
+ * The server answers any school-scoped request from an account with no school
+ * with `409 SCHOOL_NOT_LINKED` and `action: PROVISION_SCHOOL`, rather than the
+ * `403 You do not have access to this school` the service used to return. That
+ * 403 is wrong in the most confusing way for a brand-new admin: nothing is being
+ * denied to them, they simply have nothing to act on yet.
+ *
+ * One redirect, guarded. A full page navigation drops the SPA and re-runs the
+ * guard from scratch, which is the behaviour we want here — the cached user is
+ * stale by definition, since the session that produced the 409 predates
+ * whatever changed server-side.
+ */
+let provisionRedirectIssued = false;
+
+const routeToSchoolProvisioning = () => {
+  if (provisionRedirectIssued) return;
+  const { pathname } = window.location;
+  // Already inside the wizard: the step itself owns the message, and a redirect
+  // from `/onboarding/school-profile` to `/onboarding/school-profile` would
+  // discard the user's half-typed form.
+  if (pathname.startsWith('/onboarding')) return;
+  provisionRedirectIssued = true;
+  window.location.href = '/onboarding/school-profile';
+};
+
 // Response interceptor to handle token refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    
+
+    if (error.response?.data?.code === 'SCHOOL_NOT_LINKED') {
+      routeToSchoolProvisioning();
+      return Promise.reject(error);
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       try {

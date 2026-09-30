@@ -73,7 +73,8 @@ const applyScenario = async (method, path) => {
   }
   if (base) await sleep(base + Math.random() * (base * 0.4));
 
-  const { flakyRate, slowImport, failSchoolUpdate, failProfile } = scenario.config || {};
+  const { flakyRate, slowImport, failSchoolUpdate, failProfile, forceSchoolEmailTaken, failProvision } =
+    scenario.config || {};
 
   if (flakyRate && Math.random() < flakyRate) {
     throw new MockError(500, 'Internal server error', 'INTERNAL_ERROR');
@@ -86,6 +87,20 @@ const applyScenario = async (method, path) => {
   }
   if (failProfile && method.toUpperCase() === 'PUT' && /^\/schools\/[^/]+$/.test(path)) {
     throw new MockError(422, '"name" length must be at least 2 characters long', 'VALIDATION_ERROR');
+  }
+
+  // Injected before the handler so `POST /schools/me` behaves as it would for a
+  // second bursar of an already-registered school. Step 1 branches on this code,
+  // and a mock that only ever produced success would never open the join sheet.
+  if (forceSchoolEmailTaken && method.toUpperCase() === 'POST' && path === '/schools/me') {
+    throw new MockError(
+      409,
+      'A school with this email is already registered. Enter your school code to join it instead.',
+      'SCHOOL_ALREADY_REGISTERED'
+    );
+  }
+  if (failProvision && method.toUpperCase() === 'POST' && path === '/schools/me') {
+    throw new MockError(422, '"address" length must be at least 5 characters long', 'VALIDATION_ERROR');
   }
 };
 

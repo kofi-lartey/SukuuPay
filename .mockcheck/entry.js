@@ -26,12 +26,12 @@ preinstallMockApi();
 
 const { default: api } = await import('../src/services/api.js');
 const { installMockApi } = await import('../src/mocks/index.jsx');
-const { resetDb, setScenario, getDb } = await import('../src/mocks/db.js');
-const { getSchool, updateSchool, updatePayoutAccount, verifyHubtel } = await import('../src/services/school.js');
+const { resetDb, setScenario, getDb, issueToken } = await import('../src/mocks/db.js');
+const { getSchool, updateSchool, updatePayoutAccount, verifyHubtel, provisionMySchool, joinSchoolByCode } = await import('../src/services/school.js');
 const { bulkImport, createStudent, listStudents } = await import('../src/services/students.js');
-const { sendBulk, getSmsBalance } = await import('../src/services/sms.js');
+const { sendBulk } = await import('../src/services/sms.js');
 const { getMe } = await import('../src/services/user.js');
-const { login, signup, resendVerificationEmail } = await import('../src/services/auth.js');
+const { login, signup, verifyEmail, resendVerificationEmail } = await import('../src/services/auth.js');
 
 installMockApi();
 
@@ -65,6 +65,30 @@ const expectStatus = async (promise, status, label) => {
 
 /** Signs in and leaves the tokens in localStorage, as the real login does. */
 const signIn = async (email) => {
+  const { user } = await login(email, 'MockPass123!');
+  return user;
+};
+
+/**
+ * Signs up a fresh account, verifies it, and returns the stored user.
+ *
+ * Signup issues no session and returns no user, so the only way to observe what
+ * was persisted is to verify and then read `/auth/me` — the same two steps the
+ * real flow goes through. Reading the request back instead would only prove the
+ * form sent what we already know it sent.
+ */
+const signUp = async ({ email, position = '', role, school }) => {
+  const result = await signup({
+    name: 'Ama Serwa',
+    email,
+    phone: '+233241234567',
+    password: 'MockPass123!',
+    position,
+    role,
+    ...(school ? { school } : {}),
+  });
+
+  await verifyEmail(result.verification?.code || '123456');
   const { user } = await login(email, 'MockPass123!');
   return user;
 };
@@ -138,9 +162,14 @@ const me = await signIn('bursar@example.org');
 const schoolId = me.schoolId;
 
 await check('GET /auth/me round-trips the session', async () => {
-  const fresh = await getMe();
+  // The envelope, not a bare user: `onboarding` is the server's resolved link
+  // state, and it is what replaced the client inferring "am I linked?" from a
+  // nullable `schoolId`.
+  const { user: fresh, onboarding } = await getMe();
   expect(fresh._id === me._id, 'different user returned');
-  return fresh.email;
+  expect(onboarding?.linked === true, 'a linked account did not report linked');
+  expect(onboarding?.reason === 'LINKED', `expected reason LINKED, got ${onboarding?.reason}`);
+  return `${fresh.email}, linked=${onboarding.linked}, next=${onboarding.nextRoute}`;
 });
 
 await check('GET /schools/:id returns the school', async () => {
@@ -192,7 +221,7 @@ await check('PUT /schools/:id rejects a one-character name', () =>
 await check('PUT /schools/:id rejects a non-uri website', () =>
   expectStatus(updateSchool(schoolId, { website: 'sukuupay dot com' }), 422, 'PUT /schools'));
 
-// ?? Payout: the endpoint that does not exist on the real API ??????????????
+// ?? Payout: the endpoint that does not exist on the real API ???????????????
 
 await check('payout 404s under payout-unsupported (the real API today)', async () => {
   setScenario('payout-unsupported');
@@ -403,9 +432,18 @@ await check('seeded roster contains fully paid students (Step 4 filter)', async 
 
 // ?? SMS ????????????????????????????????????????????????????????????????????
 
-await check('SMS balance is super_admin only, and Step 4 tolerates null', async () => {
-  const balance = await getSmsBalance();
-  expect(balance === null, `expected null for a school admin, got ${JSON.stringify(balance)}`);
+await check('the SMS balance helper is gone, not merely unused', async () => {
+  // Step 4 used to call `GET /admin/sms-balance`, which is `authorize("super_admin")`
+  // — so every school admin got `403 You do not have access to this resource` on
+  // reaching the reminder step, including by skipping the import step. The old
+  // helper swallowed the 403 and returned null, so the mock run looked healthy
+  // while the real request was failing.
+  //
+  // The fix was to delete the caller rather than to keep tolerating a forbidden
+  // request, so the assertion is that the export no longer exists.
+  const sms = await import('../src/services/sms.js');
+  expect(sms.getSmsBalance === undefined, 'getSmsBalance is still exported');
+  return 'no school-admin call to a super_admin endpoint';
 });
 
 await check('POST /sms/bulk 404s under sms-unsupported (the real API today)', async () => {
@@ -617,6 +655,474 @@ await check('logout clears the session and /auth/me then 401s', async () => {
 
 await check('an unknown route is reported, not silently swallowed', () =>
   expectStatus(api.get('/does-not-exist'), 404, 'GET /does-not-exist'));
+
+// ?? School provisioning: the unlinked-account path ??????????????????????????
+//
+// Everything above assumes the account already has a school. That was the only
+// state any self-service signup could reach, and it terminated on a "contact
+// support" card. These assertions pin the replacement: an unlinked account
+// creates its own school and is linked, in one call.
+
+const PROFILE = {
+  name: 'Prampram Basic & JHS',
+  type: 'private',
+  phone: '0241234567',
+  email: 'office@prampram.edu.gh',
+  address: '12 Independence Avenue, Cantonments',
+  city: 'Accra',
+  region: 'Greater Accra',
+};
+
+/**
+ * Signs in the unlinked persona.
+ *
+ * `resetDb` issues fresh sessions, so every block re-authenticates rather than
+ * trusting a token captured earlier.
+ */
+const signInUnlinked = async () => {
+  resetDb('no-school');
+  setScenario('healthy');
+  return signIn('unlinked@example.org');
+};
+
+await check('GET /auth/me reports an unlinked account as needing provisioning', async () => {
+  // The regression that started all this. Before, this state could only be
+  // detected client-side, and the only response the UI had for it was a
+  // dead-end error.
+  await signInUnlinked();
+  const { user, onboarding } = await getMe();
+  expect(user.schoolId === null, 'expected no schoolId');
+  expect(onboarding.linked === false, 'expected linked false');
+  expect(onboarding.reason === 'UNLINKED', `expected UNLINKED, got ${onboarding.reason}`);
+  expect(
+    onboarding.nextRoute === '/onboarding/school-profile',
+    `expected the provisioning route, got ${onboarding.nextRoute}`
+  );
+  return `linked=false, routes to ${onboarding.nextRoute}`;
+});
+
+await check('POST /schools/me creates a school and links the account', async () => {
+  const user = await signInUnlinked();
+  expect(user.schoolId === null, 'precondition: should start unlinked');
+
+  const result = await provisionMySchool(PROFILE);
+  expect(result.school?.name === PROFILE.name, 'school not returned');
+  expect(result.school?.slug, 'no slug generated');
+  expect(result.school?.schoolCode, 'no school code generated');
+  // A self-provisioned school must be indistinguishable from an operator-created
+  // one, trial included — otherwise a bursar provisions and lands on a
+  // subscription-less dashboard.
+  expect(result.school?.subscription?.plan === 'trial', 'no trial granted');
+  // `schoolId` is on the response so the client can swap the identity in without
+  // a second round trip.
+  expect(result.user?.schoolId === result.school._id, 'response user was not linked');
+  return `${result.school.schoolCode}, slug ${result.school.slug}`;
+});
+
+await check('the account is linked in the store, not just in the response', async () => {
+  // Guards the atomic write. If only the response were updated, the guard would
+  // still see a null schoolId on the next page load and loop the bursar back to
+  // Step 1 forever.
+  const stored = getDb().users.find((u) => u.email === 'unlinked@example.org');
+  expect(Boolean(stored.schoolId), 'schoolId was not persisted');
+  const school = getDb().schools.find((s) => s._id === stored.schoolId);
+  expect(Boolean(school), 'the persisted schoolId points at nothing');
+  return `linked to ${school.name}`;
+});
+
+await check('POST /schools/me is idempotent for an already-linked account', async () => {
+  const before = getDb().schools.length;
+  const result = await provisionMySchool({ ...PROFILE, name: 'A Second Attempt' });
+  // The real service returns the existing school rather than creating a
+  // duplicate. A second School would leave the bursar administering two
+  // institutions and break the 5000-student import against both.
+  expect(getDb().schools.length === before, 'a duplicate school was created');
+  expect(result.school?.name === PROFILE.name, 'did not return the existing school');
+  return 'replay returned the original school, created nothing';
+});
+
+await check('POST /schools/me maps a signup classification onto School.type', async () => {
+  // `senior_high` is offered by the signup form and is NOT in the School enum.
+  // Unmapped, this is a 422 about an enum the bursar never saw — raised by the
+  // last step of onboarding, after they filled in everything else.
+  await signInUnlinked();
+  const result = await provisionMySchool({ ...PROFILE, type: 'senior_high' });
+  expect(result.school?.type === 'public', `expected public, got ${result.school?.type}`);
+  return 'senior_high -> public';
+});
+
+await check('POST /schools/me maps university onto School.type', async () => {
+  // Fresh persona per mapping: the previous call left this account linked, and
+  // provisioning is idempotent, so a second call would return the school created
+  // above rather than create a new one.
+  await signInUnlinked();
+  const result = await provisionMySchool({ ...PROFILE, type: 'university' });
+  expect(result.school?.type === 'private', `expected private, got ${result.school?.type}`);
+  return 'university -> private';
+});
+
+await check('POST /schools/me rejects a genuinely unknown type', async () => {
+  await signInUnlinked();
+  await expectStatus(provisionMySchool({ ...PROFILE, type: 'witchcraft_academy' }), 422, 'POST /schools/me');
+});
+
+await check('POST /schools/me rejects a non-Ghana phone', async () => {
+  await signInUnlinked();
+  await expectStatus(provisionMySchool({ ...PROFILE, phone: '+1 415 555 0100' }), 422, 'POST /schools/me');
+});
+
+await check('POST /schools/me reports a taken school email as SCHOOL_ALREADY_REGISTERED', async () => {
+  // The second-bursar case, and the reason a join path has to exist. A bare 409
+  // here is the same dead end in a smaller window.
+  // A genuinely separate, unlinked account attempting the same address.
+  const db = getDb();
+  await provisionMySchool(PROFILE);
+  const second = {
+    _id: 'e'.repeat(24),
+    name: 'Second Bursar',
+    email: 'second@prampram.edu.gh',
+    phone: '233245550101',
+    role: 'school_admin',
+    schoolId: null,
+    status: 'active',
+    isEmailVerified: true,
+    onboardingCompleted: false,
+    schoolIntent: { name: '', classification: '', region: '' },
+  };
+  db.users.push(second);
+  const tokens = issueToken(second._id);
+  localStorage.setItem('auth_token', tokens.accessToken);
+
+  try {
+    await provisionMySchool(PROFILE);
+    throw new Error('expected a rejection');
+  } catch (error) {
+    expect(error.code === 'SCHOOL_ALREADY_REGISTERED', `expected SCHOOL_ALREADY_REGISTERED, got ${error.code}`);
+    expect(/school code/.test(error.message), 'the message does not point at the join path');
+    expect(second.schoolId === null, 'the rejected account was linked anyway');
+    expect(
+      db.schools.filter((s) => s.email === PROFILE.email).length === 1,
+      'a duplicate school was created'
+    );
+    // The original owner's link must survive a failed attempt by someone else.
+    const ownerRecord = db.users.find((u) => u.email === 'unlinked@example.org');
+    expect(
+      ownerRecord.schoolId === db.schools.find((s) => s.email === PROFILE.email)._id,
+      "the original owner's link was disturbed"
+    );
+    return `${error.code}; original owner still linked, rejected applicant not`;
+  }
+});
+
+await check('school-already-registered scenario opens the join branch', async () => {
+  await signInUnlinked();
+  setScenario('school-already-registered');
+  try {
+    await provisionMySchool(PROFILE);
+    throw new Error('expected a rejection');
+  } catch (error) {
+    expect(error.code === 'SCHOOL_ALREADY_REGISTERED', `expected SCHOOL_ALREADY_REGISTERED, got ${error.code}`);
+    return 'Step 1 branches to the join sheet';
+  }
+});
+
+await check('fail-provision leaves the bursar on Step 1 with a 422', async () => {
+  await signInUnlinked();
+  setScenario('fail-provision');
+  await expectStatus(provisionMySchool(PROFILE), 422, 'POST /schools/me');
+});
+
+await check('POST /schools/join rejects an unrecognised code', async () => {
+  await signInUnlinked();
+  await expectStatus(joinSchoolByCode({ schoolCode: 'ZZZ999' }), 404, 'POST /schools/join');
+});
+
+await check('POST /schools/join parks a valid request as pending, not linked', async () => {
+  // The security property this whole path rests on: a school code identifies the
+  // school, it does not authenticate the applicant. Codes are initials plus a
+  // three-digit counter, so granting access on one alone would let a guess hand
+  // out the bursary.
+  const user = await signInUnlinked();
+  const code = getDb().schools[0].schoolCode;
+
+  const result = await joinSchoolByCode({ schoolCode: code, applicantName: user.name });
+  expect(result.status === 'pending', `expected pending, got ${result.status}`);
+  expect(result.schoolName === getDb().schools[0].name, 'wrong school resolved');
+
+  const stored = getDb().users.find((u) => u.email === 'unlinked@example.org');
+  expect(stored.schoolId === null, 'the applicant was linked by presenting a code');
+  return `pending against ${result.schoolName}, still unlinked`;
+});
+
+await check('POST /schools/join is idempotent while a request is pending', async () => {
+  const code = getDb().schools[0].schoolCode;
+  await joinSchoolByCode({ schoolCode: code });
+  const userId = getDb().users.find((u) => u.email === 'unlinked@example.org')._id;
+  const pending = getDb().joinRequests.filter((r) => r.userId === userId);
+  expect(pending.length === 1, `expected 1 pending request, found ${pending.length}`);
+  return 'resubmitting did not duplicate the request';
+});
+
+await check('POST /schools/join refuses an account that already has a school', async () => {
+  // Needs a linked persona: the previous blocks deliberately leave this account
+  // unlinked, which is the state join exists for.
+  resetDb('new-admin');
+  setScenario('healthy');
+  await signIn('bursar@example.org');
+  await expectStatus(
+    joinSchoolByCode({ schoolCode: getDb().schools[0].schoolCode }),
+    409,
+    'POST /schools/join'
+  );
+});
+
+await check('a super_admin is never routed into provisioning', async () => {
+  // Platform staff belong to no school by design. Sending them here would ask
+  // the founder to invent a school just to use the platform.
+  resetDb('super-admin');
+  const admin = await signIn('admin@example.com');
+  expect(admin.role === 'super_admin', 'wrong persona');
+
+  // Reported as `linked` with no schoolId, so the guard treats it as onboarded
+  // rather than diverting to Step 1.
+  const { onboarding } = await getMe();
+  expect(onboarding.reason === 'PLATFORM_STAFF', `expected PLATFORM_STAFF, got ${onboarding.reason}`);
+  expect(onboarding.schoolId === null, 'platform staff should have no schoolId');
+  expect(onboarding.linked === true, 'platform staff must not read as unlinked');
+
+  await expectStatus(provisionMySchool(PROFILE), 403, 'POST /schools/me');
+  return 'PLATFORM_STAFF — linked, and provisioning refused';
+});
+
+// ?? School location: Ghana Post GPS + map pin ????????????????????????????
+//
+// `gpsAddress` used to be an unvalidated free-text string and the school had no
+// coordinates at all. Both now go through the wire, so the mock has to reproduce
+// the normalisation and the guards or the two sides disagree.
+
+await check('PUT /schools/:id persists a valid digital address', async () => {
+  const updated = await updateSchool(schoolId, { gpsAddress: 'GA-183-8164' });
+  expect(updated.gpsAddress === 'GA-183-8164', `got ${JSON.stringify(updated.gpsAddress)}`);
+  return updated.gpsAddress;
+});
+
+await check('PUT /schools/:id normalises the undashed spelling', async () => {
+  // Everything downstream should only ever see the canonical dashed form, so a
+  // value pasted from a PDF does not create a second spelling in the database.
+  const updated = await updateSchool(schoolId, { gpsAddress: 'ga1838164' });
+  expect(updated.gpsAddress === 'GA-183-8164', `got ${JSON.stringify(updated.gpsAddress)}`);
+  return 'ga1838164 -> GA-183-8164';
+});
+
+await check('PUT /schools/:id normalises a spaced-out paste', async () => {
+  const updated = await updateSchool(schoolId, { gpsAddress: '  GA - 183 - 8164  ' });
+  expect(updated.gpsAddress === 'GA-183-8164', `got ${JSON.stringify(updated.gpsAddress)}`);
+  return '"GA - 183 - 8164" -> GA-183-8164';
+});
+
+await check('PUT /schools/:id rejects a malformed digital address', async () => {
+  // A transposed digit in the last group still looks plausible, which is why the
+  // format is enforced rather than merely suggested.
+  await expectStatus(updateSchool(schoolId, { gpsAddress: 'GA-123-4567-8901' }), 422, 'PUT /schools');
+});
+
+await check('PUT /schools/:id rejects a wrong-length address group', async () => {
+  await expectStatus(updateSchool(schoolId, { gpsAddress: 'GA-18-8164' }), 422, 'PUT /schools');
+});
+
+await check('PUT /schools/:id accepts an empty digital address', async () => {
+  // Optional field. Rejecting "" would make it mandatory and break a school
+  // clearing it.
+  const updated = await updateSchool(schoolId, { gpsAddress: '' });
+  expect(updated.gpsAddress === '', `got ${JSON.stringify(updated.gpsAddress)}`);
+  return 'clearable';
+});
+
+await check('PUT /schools/:id persists map coordinates as a nested object', async () => {
+  // Sent as flattened dotted keys because that is the only nested form Joi
+  // accepts; reassembled into `school.location` rather than stored literally.
+  const updated = await updateSchool(schoolId, {
+    'location.latitude': 5.6037,
+    'location.longitude': -0.187,
+    'location.source': 'map_pin',
+  });
+  expect(updated.location?.latitude === 5.6037, `latitude ${JSON.stringify(updated.location)}`);
+  expect(updated.location?.longitude === -0.187, `longitude ${JSON.stringify(updated.location)}`);
+  expect(updated.location?.source === 'map_pin', `source ${JSON.stringify(updated.location)}`);
+  expect(updated['location.latitude'] === undefined, 'the dotted key leaked onto the school');
+  expect(updated['location.longitude'] === undefined, 'the dotted key leaked onto the school');
+  expect(Boolean(updated.location?.updatedAt), 'no freshness stamp');
+  return `5.603700, -0.187000 (${updated.location.source})`;
+});
+
+await check('PUT /schools/:id rejects a half coordinate pair', async () => {
+  // One coordinate alone would place the pin in the Gulf of Guinea, which is
+  // worse than no pin at all.
+  await expectStatus(updateSchool(schoolId, { 'location.latitude': 5.6037 }), 422, 'PUT /schools');
+});
+
+await check('PUT /schools/:id rejects coordinates outside the globe', async () => {
+  await expectStatus(
+    updateSchool(schoolId, { 'location.latitude': 95, 'location.longitude': 0 }),
+    422,
+    'PUT /schools'
+  );
+});
+
+await check('PUT /schools/:id rejects an unknown location source', async () => {
+  await expectStatus(
+    updateSchool(schoolId, {
+      'location.latitude': 5.6,
+      'location.longitude': -0.2,
+      'location.source': 'guesswork',
+    }),
+    422,
+    'PUT /schools'
+  );
+});
+
+await check('the seeded school carries a coordinate pair the map can restore', async () => {
+  // The "edit mode hydrates a stored pin" path. Without a fixture location the
+  // map picker would only ever be exercised starting empty.
+  resetDb('established');
+  const user = await signIn('head.bursary@example.org');
+  const school = await getSchool(user.schoolId);
+  expect(Number.isFinite(school.location?.latitude), 'no seeded latitude');
+  expect(Number.isFinite(school.location?.longitude), 'no seeded longitude');
+  expect(school.gpsAddress && school.gpsAddress.includes('-'), 'no seeded digital address');
+  return `${school.gpsAddress} @ ${school.location.latitude}, ${school.location.longitude}`;
+});
+
+await check('POST /schools/me accepts a digital address and coordinates', async () => {
+  resetDb('no-school');
+  setScenario('healthy');
+  await signIn('unlinked@example.org');
+  const result = await provisionMySchool({
+    ...PROFILE,
+    gpsAddress: 'ga1838164',
+    'location.latitude': 5.6037,
+    'location.longitude': -0.187,
+    'location.source': 'device',
+  });
+  expect(result.school?.gpsAddress === 'GA-183-8164', `got ${JSON.stringify(result.school?.gpsAddress)}`);
+  expect(result.school?.location?.latitude === 5.6037, 'no stored latitude');
+  expect(result.school?.location?.source === 'device', 'no stored source');
+  return `${result.school.gpsAddress}, ${result.school.location.latitude}`;
+});
+
+await check('POST /schools/me rejects a malformed digital address', async () => {
+  resetDb('no-school');
+  setScenario('healthy');
+  await signIn('unlinked@example.org');
+  await expectStatus(provisionMySchool({ ...PROFILE, gpsAddress: 'nonsense' }), 422, 'POST /schools/me');
+});
+
+// ?? Account creation: role and position ???????????????????????????????????
+//
+// Both fields were absent from the signup payload. `position` used to receive the
+// school classification, so every account was saved with a job title of
+// "senior_high", and `role` was hard-coded to `school_admin` server-side.
+
+await check('signup persists the chosen position', async () => {
+  resetDb('healthy');
+  const user = await signUp({
+    email: 'bursary@school.test',
+    position: 'Deputy Headmaster',
+    role: 'school_admin',
+  });
+  expect(user.position === 'Deputy Headmaster', `got ${JSON.stringify(user.position)}`);
+  expect(user.position !== 'senior_high', 'the classification leaked into position again');
+  return user.position;
+});
+
+await check('signup accepts a free-text position the list never anticipated', async () => {
+  // The "Other" escape. A hard enum would force a wrong answer or a support
+  // ticket to record a real job title.
+  resetDb('healthy');
+  const user = await signUp({ email: 'warden@school.test', position: 'Chief Cook', role: 'school_admin' });
+  expect(user.position === 'Chief Cook', `got ${JSON.stringify(user.position)}`);
+  return user.position;
+});
+
+await check('signup persists the chosen role', async () => {
+  for (const role of ['school_admin', 'accountant', 'teacher', 'viewer']) {
+    resetDb('healthy');
+    const user = await signUp({ email: `${role}@school.test`, role });
+    expect(user.role === role, `expected ${role}, got ${user.role}`);
+  }
+  return 'all four roles round-trip';
+});
+
+await check('signup refuses to grant super_admin', async () => {
+  // The single most damaging field on the model. A signup form must not mint a
+  // platform operator.
+  resetDb('healthy');
+  const user = await signUp({ email: 'eve@evil.test', role: 'super_admin' });
+  expect(user.role !== 'super_admin', `self-granted super_admin: ${user.role}`);
+  expect(user.role === 'school_admin', `expected the fallback, got ${user.role}`);
+  return `fell back to ${user.role}`;
+});
+
+await check('signup falls back to school_admin for an unknown role', async () => {
+  resetDb('healthy');
+  const user = await signUp({ email: 'root@school.test', role: 'root' });
+  expect(user.role === 'school_admin', `got ${user.role}`);
+  return user.role;
+});
+
+await check('a non-admin signup is sent the join path, not a create form', async () => {
+  // `POST /schools/me` rejects non-admins, and `POST /upload/school-logo` is
+  // separately `authorize('super_admin','school_admin')` — so an accountant who
+  // created a school would be refused their own logo afterwards.
+  resetDb('healthy');
+  const user = await signUp({ email: 'clerk@school.test', role: 'accountant' });
+  try {
+    await provisionMySchool(PROFILE);
+    throw new Error('expected a rejection');
+  } catch (error) {
+    expect(error.code === 'ROLE_CANNOT_CREATE_SCHOOL', `expected ROLE_CANNOT_CREATE_SCHOOL, got ${error.code}`);
+    expect(/school code/.test(error.message), 'the message does not point at the join path');
+    expect(user.schoolId === null, 'the account was linked anyway');
+    return error.code;
+  }
+});
+
+await check('signup omits the school intent for a joining role', async () => {
+  // The client omits `school` for non-admins, so there is nothing to prefill a
+  // Step 1 they never reach.
+  resetDb('healthy');
+  const user = await signUp({ email: 'clerk2@school.test', role: 'accountant' });
+  expect(!user.schoolIntent?.name, `intent should be empty, got ${user.schoolIntent?.name}`);
+  return 'no intent recorded';
+});
+
+await check('a school_admin keeps its school intent for Step 1 prefill', async () => {
+  resetDb('healthy');
+  const user = await signUp({
+    email: 'admin2@school.test',
+    role: 'school_admin',
+    school: { name: 'Prampram Basic & JHS', classification: 'senior_high', region: 'Greater Accra' },
+  });
+  expect(user.schoolIntent?.name === 'Prampram Basic & JHS', `got ${JSON.stringify(user.schoolIntent)}`);
+  return user.schoolIntent.name;
+});
+
+await check('a school that skipped the import step has an empty roster', async () => {
+  // The precondition behind Step 4's "Students not uploaded yet" path. Provisioning
+  // a fresh school creates it with no students, which is exactly the state an
+  // admin is in when they press "Skip for Now" on Step 3 and arrive at Step 4.
+  //
+  // Step 4 distinguishes this from "still loading" with its own `rosterEmpty`
+  // flag, because `null` was previously doing both jobs — which is how an admin
+  // could press "Send Reminder to All Owing" against nothing.
+  await signInUnlinked();
+  const { school } = await provisionMySchool(PROFILE);
+
+  const students = await listStudents({ perPage: 100 });
+  expect(Array.isArray(students), `expected an array, got ${typeof students}`);
+  expect(students.length === 0, `expected an empty roster, got ${students.length}`);
+  return `${school.name}: 0 students -> Step 4 shows the empty-roster notice`;
+});
 
 console.log(`\n${pass} passed, ${fail} failed.`);
 process.exit(fail === 0 ? 0 : 1);

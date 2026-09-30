@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
+  CircleAlert,
   CircleCheck,
   LayoutDashboard,
   LoaderCircle,
@@ -14,7 +15,7 @@ import MomoPreviewCard from '../../components/onboarding/MomoPreviewCard';
 import useOnboardingProgress from '../../hooks/useOnboardingProgress';
 import useToast from '../../hooks/useToast';
 import { listStudents } from '../../services/students';
-import { getSmsBalance, sendBulk } from '../../services/sms';
+import { sendBulk } from '../../services/sms';
 import { useAuth } from '../../context/AuthContext';
 import { ROUTES } from '../../utils/constants';
 
@@ -64,11 +65,21 @@ const Step4SendReminder = () => {
 
   const [sample, setSample] = useState(null);
   const [owingCount, setOwingCount] = useState(null);
-  const [smsBalance, setSmsBalance] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [finishing, setFinishing] = useState(false);
+
+  /**
+   * Roster state, kept explicit rather than inferred from `owingCount === null`.
+   *
+   * `null` was doing two jobs: "still loading" and "loaded, and there are no
+   * students". A school that skipped the import step is exactly the second case,
+   * and conflating them means the empty-roster path cannot be detected — which is
+   * how an admin ends up pressing "Send Reminder to All Owing" against nothing.
+   */
+  const [rosterEmpty, setRosterEmpty] = useState(false);
+  const [rosterLoaded, setRosterLoaded] = useState(false);
 
   const schoolId = user?.schoolId;
   const draft = getStepDraft('send-reminder');
@@ -88,25 +99,35 @@ const Step4SendReminder = () => {
     if (!schoolId) return undefined;
 
     (async () => {
-      const [students, balance] = await Promise.all([
-        listStudents({ perPage: 100, sortBy: 'balance', sortOrder: 'desc' }),
-        getSmsBalance(),
-      ]);
-      if (!active) return;
-
-      setSmsBalance(balance);
-      setOwingCount(students.length || null);
-
-      const first = students.find((student) => (student.balance ?? 0) > 0) || students[0];
-      if (first) {
-        const parent = first.parents?.find((p) => p.isPrimary) || first.parents?.[0];
-        setSample({
-          parentName: parent?.parentName || 'Parent',
-          studentName: first.studentName,
-          balance: formatCedis(first.balance),
-          term: first.term || 'the current term',
-          payLink: first.payLink ? first.payLink.replace(/^https?:\/\//, '') : 'your school pay link',
+      try {
+        const students = await listStudents({
+          perPage: 100,
+          sortBy: 'balance',
+          sortOrder: 'desc',
         });
+        if (!active) return;
+
+        setOwingCount(students.length || null);
+        setRosterEmpty(students.length === 0);
+        setRosterLoaded(true);
+
+        const first = students.find((student) => (student.balance ?? 0) > 0) || students[0];
+        if (first) {
+          const parent = first.parents?.find((p) => p.isPrimary) || first.parents?.[0];
+          setSample({
+            parentName: parent?.parentName || 'Parent',
+            studentName: first.studentName,
+            balance: formatCedis(first.balance),
+            term: first.term || 'the current term',
+            payLink: first.payLink ? first.payLink.replace(/^https?:\/\//, '') : 'your school pay link',
+          });
+        }
+      } catch {
+        // A roster that cannot be read is not an empty roster. Reporting it as
+        // one would tell the admin they have no students when in fact the request
+        // failed, and would send them off to import a roster that already exists.
+        if (!active) return;
+        setRosterLoaded(false);
       }
     })();
 
@@ -135,6 +156,18 @@ const Step4SendReminder = () => {
   };
 
   const handleSend = async () => {
+    // Nothing to send to. Onboarding lets a school skip the import step, and the
+    // reminder step has to handle that state rather than firing a bulk SMS at an
+    // empty roster and reporting "sent 0".
+    if (rosterLoaded && rosterEmpty) {
+      toast.warning('Students not uploaded yet. Import your roster to send reminders.');
+      // Still completes onboarding: the school is configured, only the roster is
+      // outstanding, and blocking here would strand the admin in the wizard with
+      // no way forward.
+      await finish('Setup complete.');
+      return;
+    }
+
     setSending(true);
     try {
       const outcome = await sendBulk(schoolId, { owingOnly: true, template: TEMPLATE }, TEMPLATE);
@@ -158,12 +191,23 @@ const Step4SendReminder = () => {
   };
 
   const recipientCount = owingCount ?? 0;
-  const costEstimate =
-    smsBalance != null && recipientCount
-      ? `${recipientCount} message${recipientCount === 1 ? '' : 's'} · about GH₵ ${(
-          recipientCount * 0.05
-        ).toFixed(2)}`
-      : null;
+  /**
+   * Cost estimate from the recipient count alone.
+   *
+   * This used to be gated on the platform's master SMS balance, fetched from
+   * `GET /admin/sms-balance`. That route sits behind `authorize("super_admin")`,
+   * so every school admin got a 403 "You do not have access to this resource" the
+   * moment they reached this step — including by skipping the import step, which
+   * is how it was found. It also gated the estimate on a number that is not the
+   * school's to see: the platform's master credit, not their balance. Deriving the
+   * figure from the per-message unit cost removes both problems.
+   */
+  const SMS_UNIT_COST = 0.05;
+  const costEstimate = recipientCount
+    ? `${recipientCount} message${recipientCount === 1 ? '' : 's'} · about GH₵ ${(
+        recipientCount * SMS_UNIT_COST
+      ).toFixed(2)}`
+    : null;
 
   return (
     <div>
@@ -202,11 +246,31 @@ const Step4SendReminder = () => {
           </p>
 
           <div className="mt-5 flex flex-col gap-3">
+            {/* Stated before the click, not only after it. A button that silently
+                redirects reads as broken; one that is explained first reads as
+                a designed path. */}
+            {rosterLoaded && rosterEmpty && (
+              <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3">
+                <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
+                <p className="text-[12px] font-medium leading-relaxed text-amber-900">
+                  <span className="font-bold">Students not uploaded yet.</span> Reminders go to
+                  parents on your roster, so there is nobody to send to yet. You can import
+                  students later — your setup is not lost.
+                </p>
+              </div>
+            )}
+
             <ActionButton
               icon={Send}
               pending={sending}
               disabled={sending || finishing}
-              onClick={() => setConfirmOpen(true)}
+              // An empty roster bypasses the confirmation dialog. Asking "send 0
+              // messages?" is a dead end dressed as a confirmation; the notice
+              // above already explains the state and `handleSend` takes it from
+              // there.
+              onClick={() =>
+                rosterLoaded && rosterEmpty ? handleSend() : setConfirmOpen(true)
+              }
               className="bg-brand-700 text-white shadow-lift hover:bg-brand-800"
             >
               {sending ? 'Sending…' : 'Send Reminder to All Owing'}

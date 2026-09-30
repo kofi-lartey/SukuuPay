@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
@@ -28,7 +28,14 @@ import {
 } from '../../components/auth/OnboardingAside';
 import { PasswordStrength } from '../../components/auth/CodeInput';
 import { Field, FormAlert, PrefixedField, SelectField } from '../../components/common/FormField';
-import { GHANA_REGIONS, SCHOOL_CLASSIFICATIONS } from '../../utils/constants';
+import RoleSelector from '../../components/auth/RoleSelector';
+import PositionSelect from '../../components/auth/PositionSelect';
+import {
+  GHANA_REGIONS,
+  OTHER_POSITION,
+  SCHOOL_CLASSIFICATIONS,
+  canCreateSchool,
+} from '../../utils/constants';
 
 // Sliding Carousel Data for the Signup Aside panel
 const signupSlideContent = [
@@ -155,6 +162,9 @@ const SignupAsideCarousel = () => {
 };
 
 const EMPTY_FORM = {
+  role: 'school_admin',
+  position: '',
+  positionOther: '',
   schoolName: '',
   schoolClassification: '',
   region: '',
@@ -166,13 +176,41 @@ const EMPTY_FORM = {
   agreed: false,
 };
 
+/**
+ * The concrete job title to persist.
+ *
+ * `OTHER` is a UI sentinel and must never be stored — `User.position` would end up
+ * holding the literal string "OTHER". Resolving it here keeps that knowledge in
+ * one place rather than at every call site.
+ */
+const resolvePosition = (form) =>
+  form.position === OTHER_POSITION ? form.positionOther.trim() : form.position;
+
 const validate = (form) => {
   const errors = {};
 
-  if (!form.principalName.trim()) errors.principalName = 'Enter the headteacher’s full name';
-  if (!form.schoolName.trim()) errors.schoolName = 'Enter your school’s registered name';
-  if (!form.schoolClassification) errors.schoolClassification = 'Select a category';
-  if (!form.region) errors.region = 'Select a region';
+  if (!form.role) errors.role = 'Choose how you will use SukuuPay';
+
+  if (form.position === OTHER_POSITION) {
+    if (!form.positionOther.trim()) errors.position = 'Enter your position';
+    else if (form.positionOther.trim().length > 80) {
+      errors.position = 'Keep the position to 80 characters or fewer';
+    }
+  } else if (!form.position) {
+    errors.position = 'Select your position';
+  }
+
+  if (!form.principalName.trim()) errors.principalName = 'Enter your full name';
+
+  // Only a `school_admin` registers a school; the other roles join one that
+  // already exists, so asking them to name and categorise their own school would
+  // be asking for information they do not have.
+  if (canCreateSchool(form.role)) {
+    if (!form.schoolName.trim()) errors.schoolName = 'Enter your school’s registered name';
+    if (!form.schoolClassification) errors.schoolClassification = 'Select a category';
+    if (!form.region) errors.region = 'Select a region';
+  }
+
   if (!/^\S+@\S+\.\S+$/.test(form.email)) errors.email = 'Enter a valid email address';
   if (form.phone.replace(/\D/g, '').length < 9) errors.phone = 'Enter a valid Ghanaian number';
 
@@ -250,12 +288,33 @@ const Signup = () => {
         email: email,
         phone: `+233${form.phone.replace(/\D/g, '').replace(/^233/, '')}`,
         password: form.password,
-        position: form.schoolClassification,
-        school: {
-          name: form.schoolName.trim(),
-          classification: form.schoolClassification,
-          region: form.region,
-        },
+        // `position` is the job title on the User model. This used to send
+        // `schoolClassification`, so every account created here was saved with a
+        // job title of "senior_high" — and the headteacher's own name was never
+        // recorded as their role at all.
+        position: resolvePosition(form),
+        // Server-validated against `SELF_SIGNUP_ROLES`, which excludes
+        // `super_admin`. The client constrains the choice too, but that is
+        // convenience, not the control — the server must not trust this field.
+        role: form.role,
+        // The classification belongs in `school`, which the signup schema used to
+        // have no key for: the shared `validate` middleware runs Joi with
+        // `stripUnknown`, so the whole object was deleted before the controller
+        // ran, and the bursar was asked for their school twice — the second time
+        // behind a dead end. It is now kept as `User.schoolIntent` and prefills
+        // Step 1.
+        //
+        // Sent only for roles that register a school. For the others it would be
+        // another thing to invent, and it would prefill a Step 1 they never reach.
+        ...(canCreateSchool(form.role)
+          ? {
+              school: {
+                name: form.schoolName.trim(),
+                classification: form.schoolClassification,
+                region: form.region,
+              },
+            }
+          : {}),
       });
 
       // The account exists but the code was never delivered. Re-rendering the
@@ -292,9 +351,18 @@ const Signup = () => {
           </span>
           <h2 className="mt-3 text-base font-extrabold text-ink">Account setup initiated</h2>
           <p className="mt-1.5 max-w-sm text-[12px] sm:text-[13px] leading-relaxed text-slate-600">
-            Thank you, <span className="font-bold text-ink">{form.schoolName}</span>. Verify your
-            email to activate the account, then our onboarding bursar in Accra/Tema will reach out
-            within two hours.
+            {canCreateSchool(form.role) ? (
+              <>
+                Verify your email, sign in, and you will set up{' '}
+                <span className="font-bold text-ink">{form.schoolName}</span> yourself — the
+                school details you just entered come with you, so it takes about two minutes.
+              </>
+            ) : (
+              <>
+                Verify your email, sign in, then enter the school code your headteacher gave you
+                to join their school.
+              </>
+            )}
           </p>
         </div>
 
@@ -329,63 +397,106 @@ const Signup = () => {
       title="Create your school account"
       description="Join leading Ghanaian private and international basic & high schools."
     >
-      <form onSubmit={handleSubmit} noValidate className="space-y-3.5">
+      <form onSubmit={handleSubmit} noValidate className="space-y-3">
         {formError && <FormAlert>{formError}</FormAlert>}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field
-            label="School name"
-            required
-            icon={Building2}
-            placeholder="Prampram Basic & JHS"
-            value={form.schoolName}
-            onChange={set('schoolName')}
-            error={errors.schoolName}
-          />
-          <SelectField
-            label="Classification"
-            required
-            value={form.schoolClassification}
-            onChange={set('schoolClassification')}
-            error={errors.schoolClassification}
-          >
-            <option value="">Select category...</option>
-            {SCHOOL_CLASSIFICATIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </SelectField>
-        </div>
+        <RoleSelector
+          value={form.role}
+          onChange={(value) => {
+            setForm((prev) => ({ ...prev, role: value }));
+            setErrors((prev) => ({ ...prev, role: undefined }));
+          }}
+          error={errors.role}
+          touched={Boolean(errors.role)}
+        />
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <SelectField
-            label="Region"
-            required
-            icon={MapPin}
-            value={form.region}
-            onChange={set('region')}
-            error={errors.region}
-          >
-            <option value="">Select region...</option>
-            {GHANA_REGIONS.map((region) => (
-              <option key={region} value={region}>
-                {region}
-              </option>
-            ))}
-          </SelectField>
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          <PositionSelect
+            value={form.position}
+            otherValue={form.positionOther}
+            onChange={(value) => {
+              setForm((prev) => ({ ...prev, position: value }));
+              setErrors((prev) => ({ ...prev, position: undefined }));
+            }}
+            onOtherChange={(value) => {
+              setForm((prev) => ({ ...prev, positionOther: value }));
+              setErrors((prev) => ({ ...prev, position: undefined }));
+            }}
+            error={errors.position}
+            touched={Boolean(errors.position)}
+          />
+
           <Field
-            label="Headteacher / principal"
+            label={canCreateSchool(form.role) ? 'Headteacher / principal' : 'Your full name'}
             required
             icon={User}
-            placeholder="Dr. Kwame Mensah"
+            placeholder={canCreateSchool(form.role) ? 'Dr. Kwame Mensah' : 'Ama Serwa'}
             value={form.principalName}
             onChange={set('principalName')}
             error={errors.principalName}
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {/* Only someone registering their own school is asked to describe it.
+            The other roles join an existing school with a code, so these fields
+            are hidden rather than merely optional — asking an accountant to
+            categorise a school they do not own invites a wrong answer. */}
+        {canCreateSchool(form.role) ? (
+          <>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              <Field
+                label="School name"
+                required
+                icon={Building2}
+                placeholder="Prampram Basic & JHS"
+                value={form.schoolName}
+                onChange={set('schoolName')}
+                error={errors.schoolName}
+              />
+              <SelectField
+                label="Classification"
+                required
+                value={form.schoolClassification}
+                onChange={set('schoolClassification')}
+                error={errors.schoolClassification}
+              >
+                <option value="">Select category...</option>
+                {SCHOOL_CLASSIFICATIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </SelectField>
+            </div>
+
+            <SelectField
+              label="Region"
+              required
+              icon={MapPin}
+              value={form.region}
+              onChange={set('region')}
+              error={errors.region}
+            >
+              <option value="">Select region...</option>
+              {GHANA_REGIONS.map((region) => (
+                <option key={region} value={region}>
+                  {region}
+                </option>
+              ))}
+            </SelectField>
+          </>
+        ) : (
+          <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
+            <p className="text-[12px] font-medium leading-relaxed text-amber-900">
+              You will be joining a school that is already on SukuuPay. After verifying your
+              email, ask your headteacher for the school code and enter it on the next step —
+              they will approve your access.
+            </p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
           <Field
             label="Official work email"
             required
@@ -403,7 +514,6 @@ const Signup = () => {
             hint="MoMo enabled"
             prefix={
               <>
-                <span aria-hidden="true">🇬🇭</span>
                 <span>+233</span>
               </>
             }
@@ -416,7 +526,7 @@ const Signup = () => {
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
           <div>
             <Field
               label="Password"

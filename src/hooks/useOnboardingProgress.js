@@ -4,6 +4,7 @@ import {
   ONBOARDING_STEP_KEY_PREFIX,
   ONBOARDING_STEPS,
 } from '../utils/constants';
+import { useAuth } from '../context/AuthContext';
 
 const stepKey = (stepId) => `${ONBOARDING_STEP_KEY_PREFIX}_${stepId}`;
 
@@ -28,26 +29,34 @@ const writeJson = (key, value) => {
 };
 
 /**
- * localStorage-backed wizard state.
+ * Wizard state: how far the admin has unlocked, plus the per-step drafts.
  *
  * Two independent concerns live here:
- *   1. `highestStep` — how far the admin has unlocked. Drives the stepper and
- *      the guard; clicking a future step is not allowed.
+ *   1. `highestStep` — drives the stepper and the guard. Two sources, and the
+ *      higher wins: `User.onboardingHighestStep` on the server (so the wizard
+ *      follows a bursar to a second device) and the localStorage key (which
+ *      covers the instant before the PATCH lands). Previously the localStorage
+ *      key was the *only* source, which is why an admin who onboarded on a
+ *      laptop started again at step 1 on their phone.
  *   2. per-step drafts — the raw form values, so a refresh mid-wizard does not
  *      discard a half-typed bank account number.
  *
- * `localStorage` is per-browser, so an admin who resumes on a different device
- * starts at step 1. Server-side resume needs a `PUT /users/me/onboarding`
- * endpoint, which does not exist yet.
+ * Drafts are still browser-local by design. They are unsaved input, not
+ * progress: syncing a half-typed card number across devices is not worth the
+ * surface area, and Step 1's field values are recoverable from the server now
+ * that the school actually exists.
  */
 export const useOnboardingProgress = () => {
-  // `highestStep` mirrors the localStorage value so the stepper re-renders when
-  // a step is unlocked; drafts are deliberately not mirrored (see below).
+  const { onboarding, saveOnboardingStep } = useAuth();
+
+  // `highestStep` mirrors the resolved value so the stepper re-renders when a
+  // step is unlocked; drafts are deliberately not mirrored (see below).
   const [highestStep, setHighestStep] = useState(() => {
     const stored = Number(localStorage.getItem(ONBOARDING_PROGRESS_KEY));
     const lastIndex = ONBOARDING_STEPS.length - 1;
-    if (!Number.isFinite(stored) || stored < 0) return 0;
-    return Math.min(stored, lastIndex);
+    const local = Number.isFinite(stored) && stored >= 0 ? stored : 0;
+    const remote = Number(onboarding?.highestStep) || 0;
+    return Math.min(Math.max(local, remote), lastIndex);
   });
 
   // Drafts are read straight from localStorage rather than mirrored into state.
@@ -65,15 +74,25 @@ export const useOnboardingProgress = () => {
     localStorage.removeItem(stepKey(stepId));
   }, []);
 
-  /** Unlock `index` and everything below it, never re-locking a cleared wizard. */
-  const unlockStep = useCallback((index) => {
-    const target = Math.max(0, Math.min(index, ONBOARDING_STEPS.length - 1));
-    setHighestStep((current) => {
-      if (target <= current) return current;
-      localStorage.setItem(ONBOARDING_PROGRESS_KEY, String(target));
-      return target;
-    });
-  }, []);
+  /**
+   * Unlock `index` and everything below it, never re-locking a cleared wizard.
+   *
+   * Also persisted server-side, but not awaited: losing that write costs a
+   * second device a walk back through step 1, which is not worth blocking
+   * navigation on.
+   */
+  const unlockStep = useCallback(
+    (index) => {
+      const target = Math.max(0, Math.min(index, ONBOARDING_STEPS.length - 1));
+      setHighestStep((current) => {
+        if (target <= current) return current;
+        localStorage.setItem(ONBOARDING_PROGRESS_KEY, String(target));
+        return target;
+      });
+      saveOnboardingStep(target);
+    },
+    [saveOnboardingStep]
+  );
 
   /**
    * Wipe every draft. Called only once onboarding is genuinely finished — the
