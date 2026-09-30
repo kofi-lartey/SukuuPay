@@ -842,6 +842,186 @@ const listStudents = ({ query, user }) => {
   };
 };
 
+// ── Cohorts and alumni ──────────────────────────────────────────────────────
+//
+// The Cohorts and Alumni tabs call these, and without them the mock 404s and
+// the feature reads as broken even though it works against a seeded database.
+//
+// The grouping mirrors the real `getCohorts` exactly: a cohort is everyone with a
+// `graduationYear`, and `graduatedCount` / `transferredCount` / `droppedCount`
+// are three different statuses counted within it. The real service needed a
+// `$toString` around its `$subtract` for the same reason these are computed in JS
+// rather than by string surgery — `$concat` refuses a number.
+
+const studentsOfSchool = (schoolId) => studentsFor(schoolId);
+
+const listCohorts = ({ params, query }) => {
+  const schoolId = params.schoolId;
+  const members = studentsOfSchool(schoolId).filter((s) => s.graduationYear && !s.deletedAt);
+
+  const byYear = new Map();
+  members.forEach((student) => {
+    const year = String(student.graduationYear);
+    if (!byYear.has(year)) byYear.set(year, []);
+    byYear.get(year).push(student);
+  });
+
+  let cohorts = [...byYear.entries()]
+    .map(([year, rows]) => {
+      const by = (status) => rows.filter((s) => s.status === status).length;
+      const honorsBreakdown = rows.reduce((acc, s) => {
+        if (s.honors) acc[s.honors] = (acc[s.honors] || 0) + 1;
+        return acc;
+      }, {});
+
+      return {
+        _id: `cohort_${year}`,
+        id: `cohort_${year}`,
+        name: `Class of ${year}`,
+        // The same arithmetic the real pipeline does, string-safe: `year - 1` is
+        // a number, and the real bug was handing one to `$concat`.
+        academicYear: `${Number(year) - 1}/${year}`,
+        startDate: rows
+          .map((r) => new Date(r.createdAt).getTime())
+          .reduce((min, t) => Math.min(min, t), Infinity),
+        endDate: rows
+          .map((r) => (r.graduationDate ? new Date(r.graduationDate).getTime() : 0))
+          .reduce((max, t) => Math.max(max, t), 0),
+        studentCount: rows.length,
+        graduatedCount: by('graduated'),
+        transferredCount: by('transferred_out'),
+        droppedCount: by('removed'),
+        honorsBreakdown,
+        classes: [...new Set(rows.map((r) => r.studentClass))],
+      };
+    })
+    .sort((a, b) => Number(b._id.split('_')[1]) - Number(a._id.split('_')[1]));
+
+  const search = String(query?.search || '').toLowerCase();
+  if (search) {
+    cohorts = cohorts.filter(
+      (c) => c.name.toLowerCase().includes(search) || c.academicYear.includes(search)
+    );
+  }
+
+  const page = Number(query?.page) || 1;
+  const limit = Number(query?.limit) || 20;
+  return {
+    cohorts: cohorts.slice((page - 1) * limit, page * limit),
+    pagination: {
+      page,
+      limit,
+      totalItems: cohorts.length,
+      totalPages: Math.max(1, Math.ceil(cohorts.length / limit)),
+      hasNext: page * limit < cohorts.length,
+    },
+  };
+};
+
+const getCohortDetail = ({ params, query }) => {
+  const year = String(params.cohortId || '').replace('cohort_', '');
+  if (!/^\d{4}$/.test(year)) {
+    throw new MockError(400, 'Invalid cohort ID — expected cohort_2026', 'INVALID_COHORT_ID');
+  }
+
+  // The query first, never `params.schoolId`.
+  //
+  // `extractParams` fills the positional slots `id`/`token`/`schoolId`/`userId`
+  // from the matched path segment, so on this route `params.schoolId` is the
+  // literal string `"cohort_2025"`. It looks like a school id and silently
+  // matches nothing — the detail came back with zero students and the list said
+  // 26. The real service scopes from the caller, not the path, so the query is
+  // the right source here too.
+  const schoolId = query?.schoolId;
+  const rows = studentsFor(schoolId).filter((s) => s.graduationYear === year);
+
+  const by = (status) => rows.filter((s) => s.status === status).length;
+  const honorsBreakdown = rows.reduce((acc, s) => {
+    if (s.honors) acc[s.honors] = (acc[s.honors] || 0) + 1;
+    return acc;
+  }, {});
+
+  const classes = [...new Set(rows.map((s) => s.studentClass))].map((name) => ({
+    id: name,
+    name,
+    level: Number(name.match(/\d+/)?.[0] || 12),
+    teacher: null,
+    studentCount: rows.filter((s) => s.studentClass === name).length,
+  }));
+
+  const page = Number(query?.page) || 1;
+  const limit = Number(query?.limit) || 50;
+
+  return {
+    // `__raw` because the real response has a `students` field of its own, which
+    // the adapter would otherwise hoist into `data`.
+    __raw: {
+      cohort: {
+      _id: `cohort_${year}`,
+      id: `cohort_${year}`,
+      name: `Class of ${year}`,
+      academicYear: `${Number(year) - 1}/${year}`,
+      classes,
+      statistics: {
+        totalStudents: rows.length,
+        graduated: by('graduated'),
+        transferred: by('transferred_out'),
+        dropped: by('removed'),
+        repeating: rows.filter((s) => s.isRepeating).length,
+        honorsBreakdown,
+      },
+      },
+      honorsBreakdown,
+      students: rows
+        .slice()
+        .sort((a, b) => String(a.lastName || a.studentName).localeCompare(String(b.lastName || b.studentName)))
+        .slice((page - 1) * limit, page * limit)
+        // The real detail query excludes the guardian sub-documents.
+        .map(({ parents, emergencyContacts, uniquePayLinkToken, payLink, ...rest }) => rest),
+    },
+  };
+};
+
+const listAlumni = ({ params, query }) => {
+  let rows = studentsFor(params.schoolId).filter(
+    (s) => s.status === 'graduated' && s.isAlumni
+  );
+
+  if (query?.graduationYear) rows = rows.filter((r) => r.graduationYear === String(query.graduationYear));
+  if (query?.honors) rows = rows.filter((r) => r.honors === query.honors);
+
+  const search = String(query?.search || '').toLowerCase();
+  if (search) {
+    // Literal substring, escaped — the real service had `$regex` interpolation
+    // and a `.*` search returned the entire roll.
+    rows = rows.filter((r) =>
+      [r.studentName, r.studentId, r.certificateNumber]
+        .filter(Boolean)
+        .some((field) => String(field).toLowerCase().includes(search))
+    );
+  }
+
+  const sortBy = query?.sortBy || 'lastName';
+  const dir = query?.sortOrder === 'desc' ? -1 : 1;
+  rows = rows.slice().sort((a, b) =>
+    String(a[sortBy] ?? a.studentName).localeCompare(String(b[sortBy] ?? b.studentName)) * dir
+  );
+
+  const page = Number(query?.page) || 1;
+  const limit = Number(query?.limit) || 50;
+
+  return {
+    alumni: rows.slice((page - 1) * limit, page * limit),
+    pagination: {
+      page,
+      limit,
+      totalItems: rows.length,
+      totalPages: Math.max(1, Math.ceil(rows.length / limit)),
+      hasNext: page * limit < rows.length,
+    },
+  };
+};
+
 /**
  * The roster aggregates behind the Students module KPI band.
  *
@@ -1305,13 +1485,24 @@ export const ROUTES = [
   ['POST', /^\/students\/bulk$/, bulkImport],
   ['POST', /^\/students\/single$/, createStudent],
   ['GET', /^\/students\/stats$/, studentStats],
-  ['GET', /^\/students\/([^/]+)\/profile$/, studentProfile],
+  ['GET', /^\/students\/(?<id>[^/]+)\/profile$/, studentProfile],
   ['GET', /^\/students\/([^/]+)\/parents$/, ({ params }) => {
-    const student = db.students.find((s) => s._id === params.id);
+    // `params.token`, not `params.id`: the adapter's positional fallback names
+    // the first group `token`, and this route has one unnamed group.
+    const student = db.students.find((s) => s._id === params.token);
     if (!student) throw new MockError(404, 'Student not found', 'NOT_FOUND');
     return { parents: student.parents || [] };
   }],
   ['GET', /^\/students$/, listStudents],
+
+  // Two segments for the cohort detail, matching the real route. The mock has the
+  // same ordering dependency the Express router does: a single-segment
+  // `/cohorts/:id` would be captured by `/cohorts/:schoolId` and the detail
+  // handler would be unreachable — which is exactly how the real route was
+  // broken.
+  ['GET', /^\/cohorts\/detail\/(?<cohortId>[^/]+)$/, getCohortDetail],
+  ['GET', /^\/cohorts\/(?<schoolId>[^/]+)$/, listCohorts],
+  ['GET', /^\/alumni\/(?<schoolId>[^/]+)$/, listAlumni],
 
   ['POST', /^\/sms\/bulk\/([^/]+)$/, sendBulkSms, { mockOnly: true }],
   ['GET', /^\/admin\/sms-balance$/, getSmsBalance],

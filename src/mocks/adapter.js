@@ -146,10 +146,23 @@ const resolveRoute = (method, path) => {
     const match = path.match(pattern);
     if (match) {
       const params = { ...extractParams(path) };
-      match.slice(1).forEach((value, index) => {
-        const key = ['token', 'schoolId', 'id'][index] || `param${index}`;
-        params[key] = value;
-      });
+      if (match.groups) {
+        // Named groups win when a route declares them.
+        //
+        // The positional fallback below names the *first* segment `token` no
+        // matter what it actually is, which is right for `/pay/:token` and wrong
+        // for every other single-segment route. A route like
+        // `/cohorts/detail/(?<cohortId>[^/]+)` then reads
+        // `params.cohortId`, and a handler that asks for a key that does not
+        // exist gets `undefined` — which is how the cohort detail handler
+        // received no id at all and rejected a perfectly valid `cohort_2025`.
+        Object.assign(params, match.groups);
+      } else {
+        match.slice(1).forEach((value, index) => {
+          const key = ['token', 'schoolId', 'id'][index] || `param${index}`;
+          params[key] = value;
+        });
+      }
       return { handler, params };
     }
   }
@@ -212,8 +225,18 @@ export const mockAdapter = async (config) => {
     // frontend instead of the backend hides response-shape bugs — which is
     // exactly what `data.data?.students` in `services/students.js` was: green
     // against the mock, an always-empty list in production.
+    // An explicit escape hatch for a handler whose payload legitimately contains
+    // a `students` key that must NOT be hoisted — the cohort detail returns
+    // `{ cohort, honorsBreakdown, students }` and `students` there is a field of
+    // the response, not the response itself. `result.students ?? result` would
+    // otherwise replace the whole payload with that array and the client would
+    // read `undefined` for `cohort`.
+    const raw = result && typeof result === 'object' ? result.__raw : undefined;
+
     const isPlainObject = result && typeof result === 'object' && !Array.isArray(result);
-    const payload = isPlainObject
+    const payload = raw
+      ? { success: true, data: raw }
+      : isPlainObject
       ? { success: true, ...result, ...(result.meta ? { meta: result.meta } : {}), data: result.students ?? result }
       : { success: true, data: result };
 

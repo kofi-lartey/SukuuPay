@@ -29,6 +29,7 @@ const { installMockApi } = await import('../src/mocks/index.jsx');
 const { resetDb, setScenario, getDb, issueToken } = await import('../src/mocks/db.js');
 const { getSchool, updateSchool, updatePayoutAccount, verifyHubtel, provisionMySchool, joinSchoolByCode } = await import('../src/services/school.js');
 const { bulkImport, createStudent, listStudents } = await import('../src/services/students.js');
+const { listCohorts, getCohort, listAlumni } = await import('../src/services/students.js');
 const { sendBulk } = await import('../src/services/sms.js');
 const { getMe } = await import('../src/services/user.js');
 const { login, signup, verifyEmail, resendVerificationEmail } = await import('../src/services/auth.js');
@@ -402,7 +403,13 @@ await check('POST /students/bulk truncates at 5,000 rows', async () => {
 await check('GET /students matches the real { data, meta } envelope', async () => {
   resetDb('established');
   const user = await signIn('head.bursary@example.org');
-  const { data } = await api.get('/students', { params: { perPage: 25, sortBy: 'balance', sortOrder: 'desc' } });
+  // `status: 'active'` because the collection also holds the graduated alumni
+  // the Cohorts and Alumni tabs read. That is the real arrangement — a graduate
+  // is a student record — so an unfiltered count returns every cohort member
+  // ever, which is exactly what the real endpoint does too.
+  const { data } = await api.get('/students', {
+    params: { perPage: 25, sortBy: 'balance', sortOrder: 'desc', status: 'active' },
+  });
 
   // Exactly `listStudentsController`: `data` is a bare ARRAY, `meta` is a
   // sibling. An object-under-`data` shape is what made the real
@@ -494,6 +501,66 @@ await check('POST /sms/bulk refuses when the balance is exhausted', async () => 
 });
 
 // ?? Scenarios ??????????????????????????????????????????????????????????????
+
+await check('GET /cohorts returns cohorts with real outcome counts', async () => {
+  // Reset first: these run mid-file, and the world may have been rebuilt by an
+  // earlier check. Without a known scenario the schoolId in scope can belong to
+  // a world that no longer exists, and the handler correctly returns nothing.
+  resetDb('established');
+  // schoolId is a module-level binding captured before the reset, so the
+  // rebuilt world has a different one. Take it from the session.
+  const bursar = await signIn('head.bursary@example.org');
+  const { rows } = await listCohorts({ schoolId: bursar.schoolId, page: 1, limit: 20 });
+  expect(rows.length > 0, `expected cohorts, got ${rows.length}`);
+  rows.forEach((c) => {
+    expect(
+      c.studentCount === c.graduatedCount + c.transferredCount + c.droppedCount,
+      `cohort ${c.id}: ${c.studentCount} != ${c.graduatedCount}+${c.transferredCount}+${c.droppedCount}`
+    );
+    // The real bug: `$concat` handed a number, so the endpoint 500'd. The mock
+    // computes the same string in JS, and this asserts it is a real "YYYY/YYYY".
+    expect(/^\d{4}\/\d{4}$/.test(c.academicYear), `bad academicYear: ${c.academicYear}`);
+  });
+  return `${rows.length} cohorts, e.g. ${rows[0].id} (${rows[0].academicYear})`;
+});
+
+await check('GET /cohorts/detail/:cohortId agrees with the list', async () => {
+  resetDb('established');
+  // schoolId is a module-level binding captured before the reset, so the
+  // rebuilt world has a different one. Take it from the session.
+  const bursar = await signIn('head.bursary@example.org');
+  const { rows } = await listCohorts({ schoolId: bursar.schoolId, page: 1, limit: 20 });
+  const target = rows[0];
+  const detail = await getCohort(target.id, { schoolId: bursar.schoolId, page: 1, limit: 50 });
+  expect(detail.cohort, 'no cohort in the detail payload');
+  expect(
+    detail.cohort.statistics.totalStudents === target.studentCount,
+    `list said ${target.studentCount}, detail said ${detail.cohort.statistics.totalStudents}`
+  );
+  expect(detail.students.length > 0, 'no students in the detail');
+  // The real detail query strips guardians, so the token is never exposed here.
+  expect(
+    detail.students.every((s) => s.uniquePayLinkToken === undefined),
+    'a pay-link token leaked into the cohort detail'
+  );
+  return `${target.id}: ${detail.students.length} rows`;
+});
+
+await check('GET /alumni returns only real graduates', async () => {
+  resetDb('established');
+  const bursar = await signIn('head.bursary@example.org');
+  const { rows } = await listAlumni({ schoolId: bursar.schoolId, page: 1, limit: 20, honors: 'HONORS' });
+  expect(rows.length > 0, 'no alumni with HONORS');
+  expect(
+    rows.every((a) => a.status === 'graduated' && a.isAlumni),
+    'a non-graduate appeared in the alumni list'
+  );
+  expect(
+    rows.every((a) => Boolean(a.certificateNumber)),
+    'an alumnus had no certificate number'
+  );
+  return `${rows.length} honors alumni, e.g. ${rows[0].certificateNumber}`;
+});
 
 await check('offline: listStudents degrades to [] rather than throwing', async () => {
   // The service swallows failures on purpose — the SMS preview is decorative
@@ -1121,6 +1188,14 @@ await check('a school that skipped the import step has an empty roster', async (
   const { rows: students } = await listStudents({ perPage: 100 });
   expect(Array.isArray(students), `expected an array, got ${typeof students}`);
   expect(students.length === 0, `expected an empty roster, got ${students.length}`);
+
+  // A school with no import has no cohorts either. Asserted here because
+  // `PROFILE` is defined above this point but not above the other student
+  // checks, and referencing it earlier is a temporal-dead-zone crash rather
+  // than a readable failure.
+  const { rows: cohorts } = await listCohorts({ schoolId: school.schoolId, page: 1, limit: 20 });
+  expect(cohorts.length === 0, `expected no cohorts for an unpopulated school, got ${cohorts.length}`);
+
   return `${school.name}: 0 students -> Step 4 shows the empty-roster notice`;
 });
 

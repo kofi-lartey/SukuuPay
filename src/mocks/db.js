@@ -22,6 +22,7 @@ import {
   MALE_NAMES,
   FEMALE_NAMES,
   CITY_BY_REGION,
+  buildAlumni,
   SCHOOL_MOTTOS,
 } from './fixtures';
 
@@ -253,9 +254,20 @@ function buildWorld({
   return {
     schools: [school],
     users: [user],
-    students: studentCount
-      ? buildStudents(schoolId, studentCount, { seed: seed + 3, classes, academicYear: ACADEMIC_YEAR })
-      : [],
+    students: [
+      ...(studentCount
+        ? buildStudents(schoolId, studentCount, { seed: seed + 3, classes, academicYear: ACADEMIC_YEAR })
+        : []),
+      // Cohorts for the Cohorts and Alumni tabs. Kept separate from the active
+      // roster so `stats.totalStudents` and the scenario's `studentCount` still
+      // describe the current roll call — a leaver is not on the roster.
+      // `completedProfile: false` also means a school that skipped the import
+      // step has a genuinely empty roster *and* no cohorts, which is what the
+      // wizard's empty state promises.
+      ...(studentCount && completedProfile
+        ? buildAlumni(schoolId, { seed: seed + 11, classes, academicYear: ACADEMIC_YEAR })
+        : []),
+    ],
     payments: [],
     verificationTokens: new Map(),
     sentSms: [],

@@ -205,6 +205,99 @@ export const buildStudents = (schoolId, count, { seed = 7, classes, academicYear
   return out;
 };
 
+/**
+ * Graduating cohorts, for the Cohorts and Alumni tabs.
+ *
+ * `buildStudents` produces only active students, so without this the Cohorts tab
+ * has nothing to show in `npm run dev:mock` and reads as a broken feature even
+ * though it works against a seeded database. Mirrors the seeded shape: a cohort
+ * is everyone with a `graduationYear`, and what became of them is split across
+ * graduated / transferred_out / removed so the cohort detail's four counters are
+ * all real numbers rather than three permanent zeroes.
+ *
+ * A leaver carries `graduationYear` without `isAlumni` — they were in the
+ * graduating year but did not complete it. That is the same semantic the service
+ * uses, and the alumni list (which requires `isAlumni`) correctly excludes them.
+ */
+export const buildAlumni = (
+  schoolId,
+  { seed = 31, classes, academicYear } = {}
+) => {
+  const rng = makeRng(seed);
+  const classList = classes || CLASS_SETS.jhs;
+  const year = Number(String(academicYear || '2025/2026').slice(0, 4));
+  const out = [];
+
+  // Most recent first, as the cohort list sorts.
+  [0, 1, 2].forEach((back) => {
+    const gradYear = year - back;
+    const size = 26 - back * 4;
+
+    for (let i = 0; i < size; i += 1) {
+      const gender = rng() > 0.5 ? 'male' : 'female';
+      const firstName = pick(rng, gender === 'male' ? MALE_NAMES : FEMALE_NAMES);
+      const lastName = pick(rng, SURNAMES);
+      const totalOwed = intBetween(rng, 8000, 120000);
+      const roll = rng();
+      const outcome = roll < 0.85 ? 'graduated' : roll < 0.95 ? 'transferred_out' : 'removed';
+
+      const honorsRoll = rng();
+      const honors =
+        honorsRoll < 0.7 ? 'NONE' : honorsRoll < 0.85 ? 'HONORS' : honorsRoll < 0.95 ? 'HIGH_HONORS' : 'HIGHEST_HONORS';
+
+      // Graduations happen in the last week of July, not "now".
+      const graduationDate = new Date(gradYear, 6, 20 + Math.floor(rng() * 11)).toISOString();
+
+      const record = {
+        _id: objectId(seed * 1000 + back * 100 + i),
+        studentId: `SK-${gradYear}-${String(1000 + i).padStart(4, '0')}`,
+        studentName: `${firstName} ${lastName}`,
+        studentClass: classList[classList.length - 1] || 'JHS 3',
+        gender,
+        studentImage: null,
+        schoolId,
+        status: outcome,
+        totalOwed,
+        // Most graduates settled in full; a few left a balance, which is what
+        // makes the alumni table's "outstanding at exit" column worth reading.
+        totalPaid: rng() < 0.8 ? totalOwed : intBetween(rng, 0, totalOwed),
+        balance: 0, // set below, once totalPaid is known
+        deadline: new Date(gradYear, 2, 31).toISOString(),
+        academicYear: `${gradYear - 1}/${gradYear}`,
+        parents: [
+          {
+            parentName: `${pick(rng, FEMALE_NAMES)} ${lastName}`,
+            relationship: 'mother',
+            phone: ghanaPhone(rng),
+            email: `${slugify(firstName)}.${slugify(lastName)}@example.com`,
+            isPrimary: true,
+            isAlive: true,
+          },
+        ],
+        emergencyContacts: [],
+        uniquePayLinkToken: token(rng, 7),
+        payLink: `https://sukuupay.com/pay/${token(rng, 7)}`,
+        term: 'Term 3',
+        isAlumni: outcome === 'graduated',
+        graduationYear: String(gradYear),
+        graduationDate: outcome === 'graduated' ? graduationDate : null,
+        graduationType: 'STANDARD',
+        certificateNumber:
+          outcome === 'graduated' ? `CERT-${gradYear}-${String(1000 + i).padStart(6, '0')}` : null,
+        honors: outcome === 'graduated' ? honors : 'NONE',
+        transferOutDate: outcome === 'transferred_out' ? graduationDate : null,
+        transferOutReason: outcome === 'transferred_out' ? 'Relocation' : null,
+        createdAt: new Date(gradYear - 5, 8, 5).toISOString(),
+      };
+
+      record.balance = record.totalOwed - record.totalPaid;
+      out.push(record);
+    }
+  });
+
+  return out;
+};
+
 /** The header row the backend's bulk importer expects. */
 export const IMPORT_HEADERS = [
   'Student Name',
