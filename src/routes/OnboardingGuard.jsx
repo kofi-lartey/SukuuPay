@@ -39,7 +39,15 @@ const OnboardingGuard = () => {
   }
 
   const isOnboardingPath = location.pathname.startsWith(ROUTES.ONBOARDING);
-  const isDashboardPath = location.pathname === ROUTES.DASHBOARD;
+  // Segment-aware, because the dashboard is now a subtree rather than one page.
+  // An exact match on `/dashboard` alone would leave every module beneath it
+  // unguarded: an account that has not finished onboarding could walk straight
+  // to /dashboard/students, and the shell would mount around a page whose every
+  // query returns nothing. One check has to cover the whole subtree, or the next
+  // module added is the one that leaks.
+  const isDashboardPath =
+    location.pathname === ROUTES.DASHBOARD ||
+    location.pathname.startsWith(`${ROUTES.DASHBOARD}/`);
 
   // Platform staff belong to no school by design. `needsSchoolProvisioning`
   // already excludes them; this second condition covers the window before the

@@ -12,6 +12,16 @@ export const ROUTES = {
   TERMS: '/terms',
   PRIVACY: '/privacy',
   DASHBOARD: '/dashboard',
+  // Dashboard modules nest under DASHBOARD so the whole management system is one
+  // guarded subtree: a single `<Route path="/dashboard">` owns the shell, and
+  // the guard's one dashboard check covers every module beneath it.
+  DASHBOARD_STUDENTS: '/dashboard/students',
+  DASHBOARD_PAYMENTS: '/dashboard/payments',
+  DASHBOARD_PLANS: '/dashboard/installment-plans',
+  DASHBOARD_SMS: '/dashboard/sms-reminders',
+  DASHBOARD_REPORTS: '/dashboard/reports',
+  DASHBOARD_ACTIVITY: '/dashboard/activity-log',
+  DASHBOARD_SETTINGS: '/dashboard/settings',
   ONBOARDING: '/onboarding',
 };
 
@@ -46,7 +56,166 @@ export const NAV_LINKS = [
   { label: 'Contact', to: ROUTES.CONTACT },
 ];
 
+// ── Dashboard (management system) navigation ─────────────────────────────────
+
+/**
+ * The management system's navigation, as one definition.
+ *
+ * `DashboardSidebar` renders this and nothing else hardcodes a module link, so
+ * the sidebar, the mobile drawer and the active-route logic cannot drift apart —
+ * the same contract `NAV_LINKS` gives the marketing navbar.
+ *
+ * Grouped rather than a flat list of eight. A bursar's working day is a
+ * sequence — find the student, check what they owe, take the money, remind the
+ * stragglers — and the groups name those sequences. It also keeps the rail
+ * scannable at eight items without a sub-menu, which is worth more here than
+ * saving the four group labels: a school admin uses this dozens of times a day
+ * and the section heading is a landmark, not decoration.
+ *
+ * `icon` is a lucide *name*, not a component, exactly as `ONBOARDING_STEPS` does
+ * it. This module is imported by things that must stay free of JSX, so it
+ * resolves the name in `DashboardSidebar`'s lookup map.
+ *
+ * `exact: true` on the overview is load-bearing, not cosmetic: `/dashboard` is a
+ * prefix of every other module path, so a `startsWith` match would light up
+ * "Dashboard" at the same time as the module being viewed.
+ */
+export const DASHBOARD_NAV = [
+  {
+    id: 'overview',
+    label: null,
+    items: [
+      {
+        to: ROUTES.DASHBOARD,
+        label: 'Dashboard',
+        icon: 'LayoutDashboard',
+        exact: true,
+        description: 'Collection position and what needs attention today.',
+      },
+    ],
+  },
+  {
+    id: 'records',
+    label: 'Records',
+    items: [
+      {
+        to: ROUTES.DASHBOARD_STUDENTS,
+        label: 'Students',
+        icon: 'Users',
+        description: 'Roster, imports, class transfers and parent contacts.',
+      },
+      {
+        to: ROUTES.DASHBOARD_PAYMENTS,
+        label: 'Payments',
+        icon: 'CreditCard',
+        description: 'Every MoMo payment, its receipt and its refunds.',
+      },
+      {
+        to: ROUTES.DASHBOARD_PLANS,
+        label: 'Installment Plans',
+        icon: 'CalendarClock',
+        description: 'Split a student bill into dated installments.',
+      },
+    ],
+  },
+  {
+    id: 'outreach',
+    label: 'Outreach',
+    items: [
+      {
+        to: ROUTES.DASHBOARD_SMS,
+        label: 'SMS Reminders',
+        icon: 'MessageSquare',
+        description: 'Nudge parents who have not paid, and track delivery.',
+      },
+    ],
+  },
+  {
+    id: 'insight',
+    label: 'Insight',
+    items: [
+      {
+        to: ROUTES.DASHBOARD_REPORTS,
+        label: 'Reports',
+        icon: 'ChartColumn',
+        description: 'Daily, term, outstanding and compliance reporting.',
+      },
+      {
+        to: ROUTES.DASHBOARD_ACTIVITY,
+        label: 'Activity Log',
+        icon: 'ScrollText',
+        description: 'Who changed what, and when.',
+      },
+    ],
+  },
+  {
+    id: 'administration',
+    label: 'Administration',
+    items: [
+      {
+        to: ROUTES.DASHBOARD_SETTINGS,
+        label: 'Settings',
+        icon: 'Settings',
+        // A teacher's job is records; a bursar's is money. Both would find the
+        // school's paystack settings and billing page in Settings irrelevant at
+        // best and alarming at worst, so the module is hidden rather than shown
+        // disabled — a rail full of dead entries trains people to ignore it.
+        // This is presentation only: the server's `authorize` is the boundary,
+        // and hiding an entry must never be the thing that enforces it.
+        roles: ['super_admin', 'school_admin'],
+        description: 'School profile, academic year, paystack and billing.',
+      },
+    ],
+  },
+];
+
+/**
+ * Whether `role` may see a nav module.
+ *
+ * A module with no `roles` is visible to everyone; otherwise the role must be
+ * listed. Unknown/absent roles (the pre-`/auth/me` paint, where `user` is still
+ * null) get the *full* rail rather than an empty one, and the sidebar hides
+ * until the identity resolves — see `DashboardLayout`. Hiding nothing is the
+ * safe failure direction: a nav that flickers as it loads is worse than one
+ * that briefly shows an entry the guard would refuse anyway.
+ */
+export const canAccessNavItem = (role, item) => {
+  if (!item?.roles) return true;
+  if (!role) return true;
+  return item.roles.includes(role);
+};
+
+/** Flattens `DASHBOARD_NAV` to a single list, honouring role visibility. */
+export const visibleDashboardNav = (role) =>
+  DASHBOARD_NAV.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => canAccessNavItem(role, item)),
+  })).filter((group) => group.items.length > 0);
+
+/**
+ * Whether `pathname` is inside `item`'s module.
+ *
+ * Segment-aware, deliberately. A bare `startsWith` makes `/dashboard/payments`
+ * light up on `/dashboard/payments-archive` and — worse — `/dashboard` light up
+ * on every module, because it is their common prefix. `exact: true` is what
+ * rescues the overview; this is what rescues every other entry, and it is why
+ * new modules need no matching logic of their own.
+ */
+export const isNavItemActive = (pathname, item) =>
+  item.exact ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`);
+
+/** The nav entry for the current route, or null for an unmatched path. */
+export const activeDashboardItem = (pathname, role) => {
+  const groups = visibleDashboardNav(role);
+  for (const group of groups) {
+    const match = group.items.find((item) => isNavItemActive(pathname, item));
+    if (match) return match;
+  }
+  return null;
+};
+
 export const COMPANY_ADDRESS = {
+
   office: 'Prampram Technology Center',
   street: 'Opposite District Assembly, Greater Accra Region, Ghana',
   email: 'hello@sukuupay.com',

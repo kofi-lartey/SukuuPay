@@ -842,6 +842,89 @@ const listStudents = ({ query, user }) => {
   };
 };
 
+/**
+ * The roster aggregates behind the Students module KPI band.
+ *
+ * Mirrors `getStudentStats` on the server: one pass over the school's students,
+ * because the real endpoint exists precisely so the client never derives these
+ * by summing a page of twenty rows out of a thousand.
+ */
+const studentStats = ({ query, user }) => {
+  const schoolId = resolveSchoolId(user, query?.schoolId);
+  if (!schoolId) throw new MockError(400, 'A schoolId is required', 'NO_SCHOOL_SCOPE');
+
+  let rows = studentsFor(schoolId);
+  if (query?.class) rows = rows.filter((s) => s.studentClass === query.class);
+  if (query?.status && query.status !== 'all') rows = rows.filter((s) => s.status === query.status);
+
+  const now = Date.now();
+  const cleared = rows.filter((s) => (s.balance || 0) <= 0);
+  const overdue = rows.filter(
+    (s) => (s.balance || 0) > 0 && s.deadline && new Date(s.deadline).getTime() < now
+  );
+  const withPlan = rows.filter((s) => s.planStatus && s.planStatus !== 'none');
+  const sum = (list, key) => list.reduce((total, s) => total + (s[key] || 0), 0);
+
+  return {
+    totalRoster: rows.length,
+    fullyCleared: cleared.length,
+    clearedPercent: rows.length ? Math.round((cleared.length / rows.length) * 1000) / 10 : 0,
+    activePlans: withPlan.length,
+    activePlanStudents: withPlan.length,
+    overdueStudents: overdue.length,
+    overdueAmount: sum(overdue, 'balance'),
+    totalOwed: sum(rows, 'totalOwed'),
+    totalPaid: sum(rows, 'totalPaid'),
+    outstanding: sum(rows.filter((s) => (s.balance || 0) > 0), 'balance'),
+  };
+};
+/** One student plus the aggregate the profile drawer renders. */
+const studentProfile = ({ params, query, user }) => {
+  const schoolId = resolveSchoolId(user, query?.schoolId);
+  if (!schoolId) throw new MockError(400, 'A schoolId is required', 'NO_SCHOOL_SCOPE');
+
+  const student = studentsFor(schoolId).find(
+    (s) => s._id === params.id || s.studentId === params.id
+  );
+  if (!student) throw new MockError(404, 'Student not found', 'NOT_FOUND');
+
+  return {
+    student,
+    guardians: student.parents || [],
+    emergencyContacts: student.emergencyContacts || [],
+    plans: [],
+    activePlan: null,
+    installmentProgress: null,
+    recentPayments: db.payments.filter((p) => p.studentId === student._id).slice(-20).reverse(),
+    classHistory: student.classHistory || [],
+    auditTrail: [],
+  };
+};
+
+/**
+ * A dry run of the bulk endpoints: report what would change, write nothing.
+ *
+ * The mock honours `dryRun` because the real endpoints do, and the whole point
+ * of the preview is that a developer can see the dialog state without a
+ * backend.
+ */
+const bulkDryRun = ({ body }) => {
+  const matched = body?.ids?.length || 0;
+  // Returned bare, not nested: the adapter sets `data` to the handler's object,
+  // so a `{ data: … }` return would arrive as `data.data` and read as undefined.
+  return {
+    committed: false,
+    matched,
+    updated: 0,
+    changed: 0,
+    archived: 0,
+    regenerated: 0,
+    failed: 0,
+    errors: [],
+    preview: [],
+  };
+};
+
 const validateStudentPayload = (payload, school) => {
   const errors = [];
   if (!payload.studentName || String(payload.studentName).trim().length < 2) errors.push('"studentName" is required');
@@ -1212,8 +1295,22 @@ export const ROUTES = [
     return { url: `https://res.cloudinary.com/mock/image/upload/${objectId(21)}` };
   }],
 
+  // Literal segments before the parameter, matching `student.routes.js`. The
+  // mock has the same ordering dependency the real router does, and getting it
+  // wrong here would hide a real bug.
+  ['POST', /^\/students\/bulk\/update$/, bulkDryRun],
+  ['POST', /^\/students\/bulk\/archive$/, bulkDryRun],
+  ['POST', /^\/students\/bulk\/status$/, bulkDryRun],
+  ['POST', /^\/students\/bulk\/pay-links$/, bulkDryRun],
   ['POST', /^\/students\/bulk$/, bulkImport],
   ['POST', /^\/students\/single$/, createStudent],
+  ['GET', /^\/students\/stats$/, studentStats],
+  ['GET', /^\/students\/([^/]+)\/profile$/, studentProfile],
+  ['GET', /^\/students\/([^/]+)\/parents$/, ({ params }) => {
+    const student = db.students.find((s) => s._id === params.id);
+    if (!student) throw new MockError(404, 'Student not found', 'NOT_FOUND');
+    return { parents: student.parents || [] };
+  }],
   ['GET', /^\/students$/, listStudents],
 
   ['POST', /^\/sms\/bulk\/([^/]+)$/, sendBulkSms, { mockOnly: true }],

@@ -337,7 +337,7 @@ await check('POST /students/bulk converts cedis to pesewas', async () => {
   resetDb('new-admin');
   const user = await signIn('bursar@example.org');
   await bulkImport(csvFile(cleanRows(1)), { schoolId: user.schoolId });
-  const students = await listStudents({ perPage: 10 });
+  const { rows: students } = await listStudents({ perPage: 10 });
   const imported = students.find((s) => s.studentName === 'Ama Test 1');
   expect(imported, 'imported student not found');
   expect(imported.totalOwed === 120000, `expected 120000 pesewas, got ${imported.totalOwed}`);
@@ -417,14 +417,14 @@ await check('GET /students matches the real { data, meta } envelope', async () =
 });
 
 await check('the service reads that envelope and returns a plain array', async () => {
-  const students = await listStudents({ perPage: 25, sortBy: 'balance', sortOrder: 'desc' });
+  const { rows: students } = await listStudents({ perPage: 25, sortBy: 'balance', sortOrder: 'desc' });
   expect(Array.isArray(students), `expected an array, got ${typeof students}`);
   expect(students.length === 25, `expected 25 students, got ${students.length}`);
   return `${students.length} students`;
 });
 
 await check('seeded roster contains fully paid students (Step 4 filter)', async () => {
-  const all = await listStudents({ perPage: 100 });
+  const { rows: all } = await listStudents({ perPage: 100 });
   const paid = all.filter((s) => s.balance === 0).length;
   expect(paid > 0, 'no fully paid students in the fixture — the "all owing" filter is untestable');
   return `${paid} of ${all.length} fully paid`;
@@ -499,7 +499,7 @@ await check('offline: listStudents degrades to [] rather than throwing', async (
   // The service swallows failures on purpose — the SMS preview is decorative
   // and must never block the wizard. This asserts that contract holds.
   setScenario('offline');
-  const students = await listStudents({ perPage: 5 });
+  const { rows: students } = await listStudents({ perPage: 5 });
   expect(Array.isArray(students), 'expected an array');
   expect(students.length === 0, 'expected an empty list');
 });
@@ -1118,7 +1118,7 @@ await check('a school that skipped the import step has an empty roster', async (
   await signInUnlinked();
   const { school } = await provisionMySchool(PROFILE);
 
-  const students = await listStudents({ perPage: 100 });
+  const { rows: students } = await listStudents({ perPage: 100 });
   expect(Array.isArray(students), `expected an array, got ${typeof students}`);
   expect(students.length === 0, `expected an empty roster, got ${students.length}`);
   return `${school.name}: 0 students -> Step 4 shows the empty-roster notice`;

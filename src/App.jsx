@@ -16,7 +16,15 @@ import Signup from './pages/auth/Signup';
 import VerifyEmail from './pages/auth/VerifyEmail';
 import ResetPassword from './pages/auth/ResetPassword';
 import NewPassword from './pages/auth/NewPassword';
-import Dashboard from './pages/Dashboard';
+import DashboardLayout from './components/dashboard/DashboardLayout';
+import Overview from './pages/dashboard/Overview';
+import Students from './pages/dashboard/Students';
+import Payments from './pages/dashboard/Payments';
+import InstallmentPlans from './pages/dashboard/InstallmentPlans';
+import SmsReminders from './pages/dashboard/SmsReminders';
+import Reports from './pages/dashboard/Reports';
+import ActivityLog from './pages/dashboard/ActivityLog';
+import Settings from './pages/dashboard/Settings';
 import OnboardingLayout from './pages/onboarding/OnboardingLayout';
 import Step1SchoolProfile from './pages/onboarding/Step1SchoolProfile';
 import Step2PaymentSetup from './pages/onboarding/Step2PaymentSetup';
@@ -61,12 +69,6 @@ function App() {
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/reset-password/:token" element={<NewPassword />} />
 
-              {/* `/dashboard` keeps the marketing navbar and footer it has
-                  always had; only the guard around it is new. */}
-              <Route element={<OnboardingGuard />}>
-                <Route path="/dashboard" element={<Dashboard />} />
-              </Route>
-
               <Route path="*" element={<NotFound />} />
             </Route>
 
@@ -79,6 +81,31 @@ function App() {
                 <Route path="payment-setup" element={<Step2PaymentSetup />} />
                 <Route path="import-students" element={<Step3ImportStudents />} />
                 <Route path="send-reminder" element={<Step4SendReminder />} />
+              </Route>
+            </Route>
+
+            {/* The management system, and the same decision as the wizard
+                above: it mounts its own shell and must not pick up the
+                marketing navbar and footer, which cost vertical space an
+                authenticated admin needs for the module they are working in.
+                The shell carries a "Back to website" link, so the way out of
+                the app is not lost with the navbar.
+
+                One route group, one shell, eight modules as children. Nesting
+                is what makes the subtree a single unit the guard can gate, and
+                what lets a new module be one <Route> plus one nav entry rather
+                than a new guarded branch. The shell owns the rail and the
+                topbar; each child owns only its page. */}
+            <Route element={<OnboardingGuard />}>
+              <Route path="/dashboard" element={<DashboardLayout />}>
+                <Route index element={<Overview />} />
+                <Route path="students" element={<Students />} />
+                <Route path="payments" element={<Payments />} />
+                <Route path="installment-plans" element={<InstallmentPlans />} />
+                <Route path="sms-reminders" element={<SmsReminders />} />
+                <Route path="reports" element={<Reports />} />
+                <Route path="activity-log" element={<ActivityLog />} />
+                <Route path="settings" element={<Settings />} />
               </Route>
             </Route>
           </Routes>

@@ -20,6 +20,24 @@ export default {
           900: '#0A3722',
         },
         ink: '#0B1220',
+        /**
+         * Mobile Money networks.
+         *
+         * Defined once because three surfaces render the same three networks and
+         * must agree on them: the transaction table's pill, the Payment Channels
+         * stacked bar, and the chart's channel filter. Reading MTN's amber from
+         * `amber-500` in one place and `bg-[#F59E0B]` in another is how a
+         * network ends up two shades apart between the list and its legend.
+         *
+         * `DEFAULT` is the mark/dot/segment colour, `soft` the pill background,
+         * `ink` the label. Telecel is rose rather than pink: the design calls for
+         * a warm red that still reads as a distinct brand beside MTN's amber.
+         */
+        momo: {
+          mtn: { DEFAULT: '#F59E0B', soft: '#FEF3C7', ink: '#B45309' },
+          telecel: { DEFAULT: '#F43F5E', soft: '#FFE4E6', ink: '#BE123C' },
+          at: { DEFAULT: '#3B82F6', soft: '#DBEAFE', ink: '#1D4ED8' },
+        },
       },
       fontFamily: {
         sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
