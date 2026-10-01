@@ -10,6 +10,7 @@ import {
   MessageSquare,
   ScrollText,
   Settings,
+  UserCog,
   Users,
   X,
 } from 'lucide-react';
@@ -31,6 +32,7 @@ const ICONS = {
   ChartColumn,
   ScrollText,
   Settings,
+  UserCog,
 };
 
 /**

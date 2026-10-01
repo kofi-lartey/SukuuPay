@@ -25,6 +25,7 @@ import InstallmentPlans from './pages/dashboard/InstallmentPlans';
 import SmsReminders from './pages/dashboard/SmsReminders';
 import Reports from './pages/dashboard/Reports';
 import ActivityLog from './pages/dashboard/ActivityLog';
+import UserManagement from './pages/dashboard/UserManagement';
 import Settings from './pages/dashboard/Settings';
 import OnboardingLayout from './pages/onboarding/OnboardingLayout';
 import Step1SchoolProfile from './pages/onboarding/Step1SchoolProfile';
@@ -92,7 +93,7 @@ function App() {
                 The shell carries a "Back to website" link, so the way out of
                 the app is not lost with the navbar.
 
-                One route group, one shell, eight modules as children. Nesting
+                One route group, one shell, nine modules as children. Nesting
                 is what makes the subtree a single unit the guard can gate, and
                 what lets a new module be one <Route> plus one nav entry rather
                 than a new guarded branch. The shell owns the rail and the
@@ -106,6 +107,7 @@ function App() {
                 <Route path="sms-reminders" element={<SmsReminders />} />
                 <Route path="reports" element={<Reports />} />
                 <Route path="activity-log" element={<ActivityLog />} />
+                <Route path="user-management" element={<UserManagement />} />
                 <Route path="settings" element={<Settings />} />
               </Route>
             </Route>

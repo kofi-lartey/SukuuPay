@@ -26,6 +26,7 @@ import InstallmentPlans from '../src/pages/dashboard/InstallmentPlans.jsx';
 import SmsReminders from '../src/pages/dashboard/SmsReminders.jsx';
 import Reports from '../src/pages/dashboard/Reports.jsx';
 import ActivityLog from '../src/pages/dashboard/ActivityLog.jsx';
+import UserManagement from '../src/pages/dashboard/UserManagement.jsx';
 import SettingsPage from '../src/pages/dashboard/Settings.jsx';
 import RosterKpiRow from '../src/components/students/RosterKpiRow.jsx';
 import RosterFilterBar from '../src/components/students/RosterFilterBar.jsx';
@@ -101,6 +102,7 @@ const at = (path) => (
             <Route path="sms-reminders" element={<SmsReminders />} />
             <Route path="reports" element={<Reports />} />
             <Route path="activity-log" element={<ActivityLog />} />
+            <Route path="user-management" element={<UserManagement />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>
@@ -138,6 +140,7 @@ const MODULES = [
   'SMS Reminders',
   'Reports',
   'Activity Log',
+  'User Management',
   'Settings',
 ];
 
@@ -177,11 +180,11 @@ await check('the shell mounts at /dashboard', () => {
   return 'skip link and rail present';
 });
 
-await check('all eight modules are in the rail', () => {
+await check('all nine modules are in the rail', () => {
   const html = renderRoute('/dashboard');
   const missing = MODULES.filter((label) => !has(html, `>${label}<`));
   if (missing.length) throw new Error(`missing from the rail: ${missing.join(', ')}`);
-  return '8 of 8';
+  return '9 of 9';
 });
 
 await check('the shell replaces the marketing chrome', () => {
@@ -223,6 +226,7 @@ await check('exactly one rail entry is marked current, on every route', () => {
     ['/dashboard/sms-reminders', 'SMS Reminders'],
     ['/dashboard/reports', 'Reports'],
     ['/dashboard/activity-log', 'Activity Log'],
+    ['/dashboard/user-management', 'User Management'],
     ['/dashboard/settings', 'Settings'],
   ];
 
@@ -233,7 +237,7 @@ await check('exactly one rail entry is marked current, on every route', () => {
     if (label !== expected) throw new Error(`${path} marked "${label}" current, expected "${expected}"`);
   });
 
-  return '8 routes, one correct entry each';
+  return '9 routes, one correct entry each';
 });
 
 await check('every module page renders its own content', () => {
@@ -255,9 +259,15 @@ await check('every module page renders its own content', () => {
     // server — it is the default tab's first control — so it is the honest thing
     // to assert.
     ['/dashboard/sms-reminders', 'Select Audience'],
-    ['/dashboard/reports', 'Outstanding balances'],
+    // `&amp;`, not `&`: `renderToString` escapes the ampersand, so a needle
+    // written as prose fails against correct markup. This also changed from the
+    // scaffold's lowercase section title to the real card's name.
+    ['/dashboard/reports', 'Outstanding Balances &amp; Arrears Ledger'],
     ['/dashboard/activity-log', 'Read-only by design'],
-    ['/dashboard/settings', 'Academic year and term'],
+    // The needle is the roster's own primary action. Asserting the module's title
+    // would pass even if the table never rendered, which is the failure a route
+    // check is supposed to catch.
+    ['/dashboard/user-management', 'Invite team member'],
   ];
 
   pages.forEach(([path, needle]) => {
@@ -265,15 +275,22 @@ await check('every module page renders its own content', () => {
     if (!has(html, needle)) throw new Error(`${path} did not render "${needle}"`);
   });
 
-  return '7 module pages rendered';
+  return '8 module pages rendered';
 });
 
-await check('Settings is hidden from non-admin roles in the rail', () => {
+await check('Settings and User Management are hidden from non-admin roles in the rail', () => {
+  // The same rule for both, and asserted together: inviting a colleague mints a
+  // credential and names them to a third party, which is an administrative act
+  // with an audit trail — not something a bursar should do for a colleague.
   const teacher = visibleDashboardNav('teacher').flatMap((g) => g.items.map((i) => i.label));
   const admin = visibleDashboardNav('school_admin').flatMap((g) => g.items.map((i) => i.label));
-  if (teacher.includes('Settings')) throw new Error('a teacher can see Settings');
-  if (!admin.includes('Settings')) throw new Error('a school admin cannot see Settings');
-  return 'teacher 7, school admin 8';
+  for (const hidden of ['Settings', 'User Management']) {
+    if (teacher.includes(hidden)) throw new Error(`a teacher can see ${hidden}`);
+    if (!admin.includes(hidden)) throw new Error(`a school admin cannot see ${hidden}`);
+  }
+  if (teacher.length !== 7) throw new Error(`teacher rail has ${teacher.length} entries, expected 7`);
+  if (admin.length !== 9) throw new Error(`admin rail has ${admin.length} entries, expected 9`);
+  return 'teacher 7, school admin 9';
 });
 
 // -- Payments ----------------------------------------------------------------
@@ -737,6 +754,158 @@ await check('FormField is only ever imported by name', async () => {
     throw new Error(`default-imported SelectField (which is Field) in: ${offenders.join(', ')}`);
   }
   return 'no default imports of SelectField';
+});
+
+// ── Settings and Reports ─────────────────────────────────────────────────────
+
+await check('Settings shows a skeleton on the server, not a flash of empty fields', () => {
+  // Settings cannot be asserted through its content: `useEffect` never runs under
+  // `renderToString`, so `getSettings` is never called and the page sits at its
+  // own loading branch. That branch is the honest thing to assert — and it
+  // matters, because a Settings page that rendered an *empty form* before the
+  // settings arrived would invite a bursar to type a school's legal name over the
+  // top of the real one and save it.
+  const html = renderRoute('/dashboard/settings');
+  if (!has(html, 'animate-pulse')) {
+    throw new Error('Settings did not render a loading skeleton on its first frame');
+  }
+  if (has(html, 'Save profile')) {
+    throw new Error('Settings rendered its save controls before any settings had loaded');
+  }
+  return 'skeleton on the first paint, no editable fields';
+});
+
+await check('every Settings section declares whether it is writable', async () => {
+  // Three of the seven sections have no write endpoint behind them. The failure
+  // this guards is a section that renders a form field for a setting nothing can
+  // persist — which looks fine until someone fills it in and gets a 422.
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(
+    new URL('../../src/pages/dashboard/Settings.jsx', import.meta.url),
+    'utf8'
+  );
+
+  for (const label of [
+    'School Profile',
+    'Payment Gateway',
+    'SMS & Sender ID',
+    'Academic Calendar',
+    'Notification Preferences',
+    'Fees & Billing Structure',
+    'Security & Compliance',
+  ]) {
+    if (!source.includes(`label: '${label}'`)) {
+      throw new Error(`the Settings rail is missing the "${label}" section`);
+    }
+  }
+
+  // Every non-writable section must carry a reason. A disabled control with no
+  // explanation reads as a bug, and three of these seven are disabled.
+  const readOnly = source.match(/writable: false,\s*\n\s*reason:/g) || [];
+  if (readOnly.length < 3) {
+    throw new Error(`${readOnly.length} read-only sections carry a reason; expected at least 3`);
+  }
+  return '7 sections, 3 read-only and each with a stated reason';
+});
+
+await check('the Reports catalogue never offers PDF', async () => {
+  // `?format=pdf` returns a deliberate 501 from `sendReportFile` — the backend
+  // has no PDF dependency and says so in the error message. A PDF control on a
+  // report card would therefore have exactly one possible outcome.
+  // `../src`, not `../../src`: an import specifier is resolved relative to this
+  // file, which lives in `.mockcheck/`. The `new URL('../../src/', import.meta.url)`
+  // form used elsewhere below is for filesystem reads in the *built* bundle, which
+  // sits two levels down. Getting these confused is the whole reason the Settings
+  // check below reads source rather than importing it.
+  const { REPORTS } = await import('../src/services/reports.js');
+
+  if (REPORTS.length !== 9) throw new Error(`expected 9 reports, the catalogue has ${REPORTS.length}`);
+
+  const withPdf = REPORTS.filter((r) => (r.formats || []).includes('pdf'));
+  if (withPdf.length) {
+    throw new Error(`PDF offered on: ${withPdf.map((r) => r.key).join(', ')}`);
+  }
+  // CSV and XLSX are real, and every report must offer at least one.
+  const withoutExport = REPORTS.filter((r) => !(r.formats || []).length);
+  if (withoutExport.length) {
+    throw new Error(`no export format on: ${withoutExport.map((r) => r.key).join(', ')}`);
+  }
+  return `9 reports, ${REPORTS.length} with CSV/XLSX, none with PDF`;
+});
+
+await check('the Reports grid renders its catalogue', () => {
+  // Rendered on the server: the grid is the module's catalogue and does not
+  // depend on a fetch, so it is the one part of Reports that a route check can
+  // honestly assert. The report *detail* is fetched per card and is covered by
+  // the source check below.
+  const html = renderRoute('/dashboard/reports');
+  ['All Reports', 'Collections &amp; Revenue', 'Compliance &amp; Arrears'].forEach((needle) => {
+    if (!has(html, needle)) throw new Error(`the Reports grid is missing the "${needle}" tab`);
+  });
+  if (!has(html, 'Daily Collection Summary')) {
+    throw new Error('the Reports grid did not render a report card');
+  }
+  return 'category tabs and report cards';
+});
+
+// ── The User Management module ───────────────────────────────────────────────
+await check('the invite dialog explains what the recipient gets', async () => {
+  // A source assertion, not a render, and the reason is the harness rather than
+  // the component: `Modal` portals to `document.body`, and this file's runner
+  // stubs `document` with plain objects, so `createPortal` has no real DOM node to
+  // target. Rendering it here would fail for every invocation regardless of what
+  // the component contains.
+  //
+  // So this locks the copy that carries the product requirement — the dialog
+  // tells an admin a password is about to be emailed to their colleague, before
+  // the button is pressed. It is a weaker check than a render and is honest about
+  // that: it proves the words are in the component, not that they are on screen.
+  // The render path is covered by `every JSX component is imported or declared
+  // locally`, which is what catches the failure mode a portal cannot hide here.
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(
+    new URL('../../src/components/user-management/InviteTeamMemberDialog.jsx', import.meta.url),
+    'utf8'
+  );
+
+  // The two fields the requirement names.
+  for (const needle of ['Full name', 'Email address']) {
+    if (!source.includes(needle)) throw new Error(`the invite dialog has no "${needle}" field`);
+  }
+
+  // The one that matters most. "We email you a password" is a surprise if it is
+  // discovered afterwards, and by then the only remedy is a re-send.
+  if (!source.includes('What happens next')) {
+    throw new Error('the dialog does not explain what the recipient will be emailed');
+  }
+  for (const needle of ['temporary password', 'your name, so they know who invited']) {
+    if (!source.includes(needle)) {
+      throw new Error(`the dialog does not mention "${needle}"`);
+    }
+  }
+
+  // No password field anywhere. A control here would suggest the client chooses
+  // the credential, which it does not — the server mints it from the School ID.
+  if (/name=["']password["']|type=["']password["']/.test(source)) {
+    throw new Error('the invite dialog offers a password field; the password is server-generated');
+  }
+
+  return 'two required fields, and the delivery explained up front';
+});
+
+await check('a school_admin sees User Management in the rail of the page itself', () => {
+  // The nav item and the route have to agree. A rail entry pointing at a route
+  // that is not registered renders a 404 to an admin who followed the link the
+  // shell gave them, which is the exact failure the two-step registration is
+  // meant to make impossible.
+  const html = renderRoute('/dashboard/user-management');
+  if (!has(html, 'aria-current="page"')) {
+    throw new Error('no rail entry is marked current on /dashboard/user-management');
+  }
+  if (!has(html, 'Search by name, email or position')) {
+    throw new Error('the roster did not render its search box');
+  }
+  return 'route and rail agree';
 });
 
 // ── The parent-facing pay page ───────────────────────────────────────────────

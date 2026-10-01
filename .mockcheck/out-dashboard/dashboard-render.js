@@ -2,71 +2,10 @@ import { jsx, jsxs, Fragment } from "react/jsx-runtime";
 import { renderToString } from "react-dom/server";
 import { useLocation, Link, useNavigate, Outlet, useSearchParams, MemoryRouter, Routes, Route } from "react-router-dom";
 import React, { createContext, useState, useEffect, useCallback, useContext, useRef, useMemo, useId } from "react";
-import axios from "axios";
-import { Info, TriangleAlert, CircleAlert, CircleCheck, X, Settings as Settings$1, ScrollText, ChartColumn, MessageSquare, CalendarClock, CreditCard, Users, LayoutDashboard, Building2, ChevronUp, Menu, GraduationCap, ChevronDown, Search, Plus, Bell, User, LogOut, TrendingUp, ChevronRight, Loader2, Send, Download, Receipt, HandCoins, SlidersHorizontal, Hourglass, ChevronLeft, ArrowUp, ArrowDown, PencilLine, Ban, Link as Link$1, Archive, Trash2, CirclePlay, RotateCcw, Wallet, History, Star, ShieldCheck, Camera, UploadCloud, ImageOff, FileSpreadsheet, Check, Sparkles, ArrowUpRight, ArrowRight, ArrowLeft, QrCode, Printer, BadgeCheck, Eye, FileText, UserPlus, Smartphone, Clock, ArrowDownRight, RefreshCw, Landmark, Banknote, ExternalLink, AlertTriangle, CheckCircle2, AlertCircle, List, LayoutGrid, BellRing, CalendarX2, CalendarDays, CircleDollarSign, Megaphone, Circle, Flag, Signal, Wifi, BatteryMedium, MoreVertical, Save, CheckCheck, Construction, BarChart3, PieChart, Filter } from "lucide-react";
+import { a as api, t as toApiError, r as runReport, d as downloadReport, R as REPORTS, b as REPORT_CATEGORIES } from "./assets/reports-BuNrROki.js";
+import { Info, TriangleAlert, CircleAlert, CircleCheck, X, UserCog, Settings as Settings$1, ScrollText, ChartColumn, MessageSquare, CalendarClock, CreditCard, Users, LayoutDashboard, Building2, ChevronUp, Menu, GraduationCap, ChevronDown, Search, Plus, Bell, User, LogOut, TrendingUp, ChevronRight, Loader2, Send, Download, Receipt, HandCoins, SlidersHorizontal, Hourglass, ChevronLeft, ArrowUp, ArrowDown, PencilLine, Ban, Link as Link$1, Archive, Trash2, CirclePlay, RotateCcw, Wallet, History, Star, ShieldCheck, Camera, UploadCloud, ImageOff, FileSpreadsheet, Check, Sparkles, ArrowUpRight, ArrowRight, ArrowLeft, QrCode, Printer, BadgeCheck, Eye, FileText, UserPlus, Smartphone, Clock, ArrowDownRight, RefreshCw, Landmark, Banknote, ExternalLink, AlertTriangle, CheckCircle2, AlertCircle, List, LayoutGrid, BellRing, CalendarX2, CalendarDays, CircleDollarSign, Megaphone, Circle, Flag, Signal, Wifi, BatteryMedium, MoreVertical, Save, CheckCheck, BarChart3, Filter, UserRound, AtSign, KeyRound, Lock, School } from "lucide-react";
 import { createPortal } from "react-dom";
-const API_BASE_URL = "http://localhost:2345/api";
-const clearSession = () => {
-  localStorage.removeItem("auth_token");
-  localStorage.removeItem("refresh_token");
-  if (window.location.pathname !== "/login") {
-    window.location.href = "/login";
-  }
-};
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    "Content-Type": "application/json"
-  }
-});
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("auth_token");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-let provisionRedirectIssued = false;
-const routeToSchoolProvisioning = () => {
-  if (provisionRedirectIssued) return;
-  const { pathname } = window.location;
-  if (pathname.startsWith("/onboarding")) return;
-  provisionRedirectIssued = true;
-  window.location.href = "/onboarding/school-profile";
-};
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-    if (error.response?.data?.code === "SCHOOL_NOT_LINKED") {
-      routeToSchoolProvisioning();
-      return Promise.reject(error);
-    }
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      try {
-        const refreshToken = localStorage.getItem("refresh_token");
-        const response = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken });
-        const { accessToken, refreshToken: newRefreshToken } = response.data.tokens || {};
-        if (!accessToken) {
-          clearSession();
-          return Promise.reject(refreshError);
-        }
-        localStorage.setItem("auth_token", accessToken);
-        if (newRefreshToken) localStorage.setItem("refresh_token", newRefreshToken);
-        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-        return api(originalRequest);
-      } catch (refreshError2) {
-        clearSession();
-        return Promise.reject(refreshError2);
-      }
-    }
-    return Promise.reject(error);
-  }
-);
+import "axios";
 const TOKEN_KEYS = ["auth_token", "refresh_token"];
 const storeTokens = ({ accessToken, refreshToken }) => {
   if (accessToken) localStorage.setItem("auth_token", accessToken);
@@ -146,19 +85,55 @@ window.addEventListener("storage", (event) => {
     notifyListeners(null, null);
   }
 });
-const toApiError = (error, fallback) => {
-  const message = error?.response?.data?.message || (error?.code === "ECONNABORTED" ? "The request timed out. Please try again." : error?.message) || fallback;
-  const wrapped = new Error(message);
-  wrapped.status = error?.response?.status;
-  wrapped.code = error?.response?.data?.code;
-  return wrapped;
-};
 const updateMe = async (userId, patch) => {
   try {
     const { data } = await api.put(`/users/${userId}`, patch);
     return data.user || data.data?.user || data.data || data;
   } catch (error) {
     throw toApiError(error, "Failed to save your profile.");
+  }
+};
+const listUsers = async ({ page = 1, limit = 50, role, status } = {}) => {
+  try {
+    const { data } = await api.get("/users", { params: { page, limit, role, status } });
+    return {
+      users: data.users || [],
+      pagination: data.pagination || { page, limit, total: 0, pages: 0 }
+    };
+  } catch (error) {
+    throw toApiError(error, "Failed to load the team list.");
+  }
+};
+const inviteUser = async (payload) => {
+  try {
+    const { data } = await api.post("/users/invite", payload);
+    return { user: data.user, emailSent: data.emailSent === true, message: data.message };
+  } catch (error) {
+    throw toApiError(error, "Could not send that invitation.");
+  }
+};
+const resendUserInvite = async (userId) => {
+  try {
+    const { data } = await api.post(`/users/${userId}/resend-invite`);
+    return { user: data.user, emailSent: data.emailSent === true, message: data.message };
+  } catch (error) {
+    throw toApiError(error, "Could not re-send that invitation.");
+  }
+};
+const updateUserRole = async (userId, role) => {
+  try {
+    const { data } = await api.put(`/users/${userId}/role`, { role });
+    return data.user;
+  } catch (error) {
+    throw toApiError(error, "Could not change that role.");
+  }
+};
+const removeUser = async (userId) => {
+  try {
+    const { data } = await api.delete(`/users/${userId}`);
+    return data;
+  } catch (error) {
+    throw toApiError(error, "Could not remove that user.");
   }
 };
 const AuthContext = createContext();
@@ -436,6 +411,7 @@ const ROUTES = {
   DASHBOARD_SMS: "/dashboard/sms-reminders",
   DASHBOARD_REPORTS: "/dashboard/reports",
   DASHBOARD_ACTIVITY: "/dashboard/activity-log",
+  DASHBOARD_USERS: "/dashboard/user-management",
   DASHBOARD_SETTINGS: "/dashboard/settings",
   ONBOARDING: "/onboarding"
 };
@@ -535,6 +511,20 @@ const DASHBOARD_NAV = [
     label: "Administration",
     items: [
       {
+        to: ROUTES.DASHBOARD_USERS,
+        label: "User Management",
+        icon: "UserCog",
+        // Same audience as Settings, and for a sharper reason. Inviting a
+        // colleague mints a credential and names them to a third party, so it is
+        // an administrative act with an audit trail — not something a teacher or
+        // a bursar should be able to do for their colleagues. Hiding the module
+        // keeps the rail honest about who administers what; the server's
+        // `authorize('super_admin', 'school_admin')` remains the boundary, and
+        // this must never be the thing that enforces it.
+        roles: ["super_admin", "school_admin"],
+        description: "Invite colleagues, manage roles and review who has access."
+      },
+      {
         to: ROUTES.DASHBOARD_SETTINGS,
         label: "Settings",
         icon: "Settings",
@@ -560,6 +550,48 @@ const visibleDashboardNav = (role) => DASHBOARD_NAV.map((group) => ({
   items: group.items.filter((item) => canAccessNavItem(role, item))
 })).filter((group) => group.items.length > 0);
 const isNavItemActive = (pathname, item) => item.exact ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`);
+const SIGNUP_ROLES = [
+  {
+    value: "school_admin",
+    label: "School administrator",
+    description: "Full access, including payments, staff and settings.",
+    canCreateSchool: true
+  },
+  {
+    value: "accountant",
+    label: "Accountant / bursar",
+    description: "Payments, receipts and financial reports.",
+    canCreateSchool: false
+  },
+  {
+    value: "teacher",
+    label: "Teacher",
+    description: "Student records and class information.",
+    canCreateSchool: false
+  },
+  {
+    value: "viewer",
+    label: "Viewer",
+    description: "Read-only access to reports and records.",
+    canCreateSchool: false
+  }
+];
+const USER_ROLES = ["super_admin", "school_admin", "accountant", "teacher", "viewer"];
+const OTHER_POSITION = "OTHER";
+const POSITIONS = [
+  { value: "Headteacher / Headmistress", label: "Headteacher / Headmistress" },
+  { value: "Proprietor / Proprietress", label: "Proprietor / Proprietress" },
+  { value: "Administrator", label: "Administrator" },
+  { value: "Accountant", label: "Accountant" },
+  { value: "Bursar", label: "Bursar" },
+  { value: "Registrar", label: "Registrar" },
+  { value: "Librarian", label: "Librarian" },
+  { value: "Senior Teacher", label: "Senior Teacher" },
+  { value: "Teacher", label: "Teacher" },
+  { value: "School Secretary", label: "School Secretary" },
+  { value: "Parent / Guardian", label: "Parent / Guardian" },
+  { value: OTHER_POSITION, label: "Other" }
+];
 const STUDENT_IMPORT_COLUMNS = [
   "Student Name",
   "Student Class",
@@ -580,7 +612,8 @@ const ICONS = {
   MessageSquare,
   ChartColumn,
   ScrollText,
-  Settings: Settings$1
+  Settings: Settings$1,
+  UserCog
 };
 const DashboardSidebar = ({ user, school, variant = "fixed", className = "", onClose }) => {
   const { pathname } = useLocation();
@@ -3951,7 +3984,7 @@ const SIZES = {
   lg: "h-12 w-12 text-sm",
   xl: "h-16 w-16 text-lg"
 };
-const initialsOf = (name) => String(name || "").split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join("");
+const initialsOf$1 = (name) => String(name || "").split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join("");
 const toneFor = (student) => {
   const key = String(student?._id || student?.id || student?.studentName || "");
   let hash = 0;
@@ -3980,7 +4013,7 @@ const StudentAvatar = ({ student, size = "md", className = "", decorative = true
           className: "h-full w-full object-cover",
           loading: "lazy"
         }
-      ) : initialsOf(student?.studentName) || "?"
+      ) : initialsOf$1(student?.studentName) || "?"
     }
   );
 };
@@ -9015,7 +9048,7 @@ const formatDateTime = (value) => {
   }).format(date);
   return `${day}, ${time}`;
 };
-const formatDate = (value) => {
+const formatDate$1 = (value) => {
   const date = parse(value);
   if (!date) return "—";
   return new Intl.DateTimeFormat("en-GB", {
@@ -9572,7 +9605,7 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
                 Row,
                 {
                   label: "Date",
-                  value: receipt.date ? `${formatDate(receipt.date)} · ${formatDateTime(receipt.date)}` : void 0
+                  value: receipt.date ? `${formatDate$1(receipt.date)} · ${formatDateTime(receipt.date)}` : void 0
                 }
               ),
               /* @__PURE__ */ jsx(Row, { label: "Method", value: receipt.paymentMethod }),
@@ -14014,207 +14047,2466 @@ const SmsReminders = () => {
     )
   ] });
 };
-const ModuleScaffold = ({
-  eyebrow,
-  title,
-  description,
-  action,
-  sections = [],
-  notes = [],
-  children
-}) => /* @__PURE__ */ jsxs(Fragment, { children: [
-  /* @__PURE__ */ jsx(PageHeader, { eyebrow, title, description }),
-  action && /* @__PURE__ */ jsx("div", { className: "mb-4 flex flex-wrap items-center gap-2", children: /* @__PURE__ */ jsx(
-    "span",
-    {
-      title: "Not available yet",
-      className: "inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-slate-200 px-4 py-2.5 text-sm font-extrabold text-slate-500",
-      children: action
-    }
-  ) }),
-  /* @__PURE__ */ jsx(Card, { padding: "p-4", className: "mb-5 border-amber-200 bg-amber-50", children: /* @__PURE__ */ jsxs("div", { className: "flex items-start gap-3", children: [
-    /* @__PURE__ */ jsx("span", { className: "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700", children: /* @__PURE__ */ jsx(Construction, { className: "h-[18px] w-[18px]", "aria-hidden": "true" }) }),
-    /* @__PURE__ */ jsxs("div", { children: [
-      /* @__PURE__ */ jsx("p", { className: "text-sm font-extrabold text-amber-900", children: "This module is being built" }),
-      /* @__PURE__ */ jsx("p", { className: "mt-0.5 text-[13px] font-medium text-amber-800", children: "The layout below is final; the data behind it is not wired yet. Nothing here is placeable." })
-    ] })
-  ] }) }),
-  children,
-  sections.length > 0 && /* @__PURE__ */ jsxs("div", { className: "mt-5", children: [
-    /* @__PURE__ */ jsx("h2", { className: "mb-3 text-[11px] font-extrabold uppercase tracking-wider text-slate-400", children: "What this module will hold" }),
-    /* @__PURE__ */ jsx("div", { className: "grid grid-cols-1 gap-3 md:grid-cols-2", children: sections.map((section) => /* @__PURE__ */ jsx(Card, { padding: "p-4", className: "shadow-none", children: /* @__PURE__ */ jsxs("div", { className: "flex items-start gap-3", children: [
-      section.icon ? /* @__PURE__ */ jsx("span", { className: "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500", children: /* @__PURE__ */ jsx(section.icon, { className: "h-4 w-4", "aria-hidden": "true" }) }) : null,
-      /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
-        /* @__PURE__ */ jsx("p", { className: "text-sm font-extrabold text-ink", children: section.title }),
-        /* @__PURE__ */ jsx("p", { className: "mt-0.5 text-[13px] font-medium leading-snug text-slate-500", children: section.description }),
-        section.endpoint && /* @__PURE__ */ jsx("code", { className: "mt-2 inline-block rounded-md bg-slate-50 px-2 py-1 font-mono text-[11px] font-bold text-slate-500", children: section.endpoint })
+const Rate = ({ value, expected, className = "" }) => {
+  if (!expected) {
+    return /* @__PURE__ */ jsx("span", { className: `text-slate-400 ${className}`, title: "Nothing was billed, so there is no rate to calculate", children: "—" });
+  }
+  return /* @__PURE__ */ jsx("span", { className, children: formatPercent(value) });
+};
+const formatDate = (value) => {
+  if (!value) return "—";
+  const when = new Date(value);
+  if (Number.isNaN(when.getTime())) return "—";
+  return when.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+};
+const SECTIONS$1 = {
+  daily: "Daily collections",
+  term: "Term summary",
+  outstanding: "Outstanding balances",
+  overdue: "Overdue installments",
+  "payment-methods": "Payment methods",
+  "class-collections": "Class collections",
+  compliance: "Installment compliance",
+  "headmaster-monthly": "Headteacher summary",
+  "parent-contacts": "Parent contacts"
+};
+const ReportBody = ({ report, data }) => {
+  const s = data.summary || {};
+  if (report === "headmaster-monthly") {
+    return /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
+      /* @__PURE__ */ jsx("div", { className: "grid grid-cols-2 gap-3 sm:grid-cols-4", children: [
+        { label: "Collected this month", value: s.collectedDisplay },
+        { label: "Collected last month", value: formatCedi(s.previousCollected) },
+        {
+          label: "Change",
+          value: formatCedi(s.monthOnMonthChange),
+          tone: s.monthOnMonthChange < 0 ? "text-red-600" : "text-emerald-700"
+        },
+        { label: "Outstanding", value: s.totalOutstandingDisplay }
+      ].map((tile) => /* @__PURE__ */ jsxs("div", { className: "rounded-xl bg-slate-50 p-3", children: [
+        /* @__PURE__ */ jsx("p", { className: "text-[10px] font-extrabold uppercase tracking-wider text-slate-500", children: tile.label }),
+        /* @__PURE__ */ jsx("p", { className: `mt-1 text-[15px] font-extrabold ${tile.tone || "text-ink"}`, children: tile.value ?? "—" })
+      ] }, tile.label)) }),
+      /* @__PURE__ */ jsx("dl", { className: "divide-y divide-slate-100", children: data.rows.map((row) => /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-between gap-4 py-2", children: [
+        /* @__PURE__ */ jsx("dt", { className: "text-[13px] font-semibold text-slate-600", children: row.metric }),
+        /* @__PURE__ */ jsx("dd", { className: "text-[13px] font-extrabold text-ink", children: row.display })
+      ] }, row.metric)) }),
+      /* @__PURE__ */ jsxs("p", { className: "flex items-start gap-2 text-[11px]/[16px] font-medium text-slate-500", children: [
+        /* @__PURE__ */ jsx(Info, { className: "mt-0.5 h-3.5 w-3.5 shrink-0", "aria-hidden": "true" }),
+        /* @__PURE__ */ jsx("span", { children: "“Collected this month” is one calendar month. “Total expected” and “Total collected to date” are lifetime figures across every enrolled student, so the collection rate below is a lifetime rate — not this month’s." })
       ] })
-    ] }) }, section.title)) })
-  ] }),
-  notes.length > 0 && /* @__PURE__ */ jsx("ul", { className: "mt-5 space-y-2", children: notes.map((note) => /* @__PURE__ */ jsx(
-    "li",
-    {
-      className: "rounded-xl border border-slate-100 bg-white px-4 py-3 text-[13px] font-medium leading-relaxed text-slate-600",
-      children: note
+    ] });
+  }
+  if (report === "payment-methods") {
+    const max = Math.max(...(data.rows || []).map((r) => r.amount), 0);
+    return /* @__PURE__ */ jsxs("div", { children: [
+      /* @__PURE__ */ jsx("p", { className: "mb-3 text-[12px] font-semibold text-slate-500", children: `${formatCount(s.transactionCount)} completed payments · ${formatCedi(s.totalCollected)}` }),
+      /* @__PURE__ */ jsx("div", { className: "space-y-2.5", children: (data.rows || []).map((row) => /* @__PURE__ */ jsxs("div", { children: [
+        /* @__PURE__ */ jsxs("div", { className: "flex items-baseline justify-between gap-3 text-[12px]", children: [
+          /* @__PURE__ */ jsx("span", { className: "font-bold text-ink", children: row.label }),
+          /* @__PURE__ */ jsx("span", { className: "font-extrabold text-slate-600", children: formatCedis(row.amount) })
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "mt-1 flex items-center gap-2", children: [
+          /* @__PURE__ */ jsx("div", { className: "h-2 flex-1 overflow-hidden rounded-full bg-slate-100", children: /* @__PURE__ */ jsx(
+            "div",
+            {
+              className: "h-full rounded-full bg-brand-700",
+              style: { width: `${max ? row.amount / max * 100 : 0}%` }
+            }
+          ) }),
+          /* @__PURE__ */ jsx("span", { className: "w-11 shrink-0 text-right text-[11px] font-bold text-slate-500", children: formatPercent(row.percentage) })
+        ] })
+      ] }, row.label)) }),
+      data.period?.groupBy === "term" && /* @__PURE__ */ jsx("p", { className: "mt-3 text-[11px] font-medium text-slate-500", children: "Grouped by calendar quarter, which is not the school’s academic term. Use the Term Collection report for terms." })
+    ] });
+  }
+  if (report === "class-collections" || report === "term") {
+    const rows2 = data.rows || [];
+    const windowed = report === "class-collections" && Boolean(data.period?.startDate || data.period?.endDate);
+    return /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
+      /* @__PURE__ */ jsx("div", { className: "grid grid-cols-2 gap-3 sm:grid-cols-4", children: [
+        { label: report === "term" ? "Students" : "Classes", value: formatCount(report === "term" ? s.studentCount : s.classCount) },
+        { label: "Expected", value: report === "term" ? s.expectedDisplay : s.totalExpectedDisplay },
+        { label: "Collected", value: report === "term" ? s.collectedToDateDisplay : s.totalCollectedDisplay },
+        { label: "Outstanding", value: report === "term" ? s.outstandingDisplay : s.totalBalanceDisplay }
+      ].map((tile) => /* @__PURE__ */ jsxs("div", { className: "rounded-xl bg-slate-50 p-3", children: [
+        /* @__PURE__ */ jsx("p", { className: "text-[10px] font-extrabold uppercase tracking-wider text-slate-500", children: tile.label }),
+        /* @__PURE__ */ jsx("p", { className: "mt-1 text-[15px] font-extrabold text-ink", children: tile.value ?? "—" })
+      ] }, tile.label)) }),
+      /* @__PURE__ */ jsx("div", { className: "overflow-x-auto", children: /* @__PURE__ */ jsxs("table", { className: "w-full text-left text-[12px]", children: [
+        /* @__PURE__ */ jsx("thead", { children: /* @__PURE__ */ jsxs("tr", { className: "border-b border-slate-100 text-[10px] uppercase tracking-wider text-slate-500", children: [
+          /* @__PURE__ */ jsx("th", { className: "py-2 font-extrabold", children: "Class" }),
+          /* @__PURE__ */ jsx("th", { className: "py-2 text-right font-extrabold", children: "Students" }),
+          /* @__PURE__ */ jsx("th", { className: "py-2 text-right font-extrabold", children: "Expected" }),
+          /* @__PURE__ */ jsx("th", { className: "py-2 text-right font-extrabold", children: windowed ? "Collected in window" : "Collected" }),
+          /* @__PURE__ */ jsx("th", { className: "py-2 text-right font-extrabold", children: "Balance" }),
+          /* @__PURE__ */ jsx("th", { className: "py-2 text-right font-extrabold", children: "Rate" })
+        ] }) }),
+        /* @__PURE__ */ jsx("tbody", { className: "divide-y divide-slate-100", children: rows2.map((row) => /* @__PURE__ */ jsxs("tr", { children: [
+          /* @__PURE__ */ jsx("td", { className: "py-2 font-bold text-ink", children: row.className }),
+          /* @__PURE__ */ jsx("td", { className: "py-2 text-right font-semibold text-slate-600", children: formatCount(row.studentCount) }),
+          /* @__PURE__ */ jsx("td", { className: "py-2 text-right font-semibold text-slate-600", children: formatCediWhole(row.expected) }),
+          /* @__PURE__ */ jsx("td", { className: "py-2 text-right font-semibold text-slate-600", children: formatCediWhole(row.collected) }),
+          /* @__PURE__ */ jsx("td", { className: "py-2 text-right font-bold text-ink", children: formatCediWhole(row.balance) }),
+          /* @__PURE__ */ jsx("td", { className: "py-2 text-right", children: /* @__PURE__ */ jsx(Rate, { value: row.collectionRate, expected: row.expected, className: "font-bold text-slate-600" }) })
+        ] }, row.className)) })
+      ] }) }),
+      windowed && /* @__PURE__ */ jsxs("p", { className: "flex items-start gap-2 text-[11px]/[16px] font-medium text-amber-700", children: [
+        /* @__PURE__ */ jsx(AlertTriangle, { className: "mt-0.5 h-3.5 w-3.5 shrink-0", "aria-hidden": "true" }),
+        /* @__PURE__ */ jsx("span", { children: "A date window is applied, so “collected in window” counts payments inside those dates while “expected” is still the lifetime total. The rate is therefore a window rate against a lifetime denominator and is not a true collection rate." })
+      ] })
+    ] });
+  }
+  if (report === "outstanding") {
+    const rows2 = data.rows || [];
+    const aged = rows2.some((row) => row.oldestDueDate);
+    return /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
+      /* @__PURE__ */ jsx("div", { className: "grid grid-cols-2 gap-3 sm:grid-cols-4", children: [
+        { label: "Debtors", value: formatCount(s.studentCount) },
+        { label: "Total outstanding", value: s.totalOutstandingDisplay },
+        { label: "Nothing paid", value: formatCount(s.fullyUnpaidCount) },
+        { label: "Part paid", value: formatCount(s.partiallyPaidCount) }
+      ].map((tile) => /* @__PURE__ */ jsxs("div", { className: "rounded-xl bg-slate-50 p-3", children: [
+        /* @__PURE__ */ jsx("p", { className: "text-[10px] font-extrabold uppercase tracking-wider text-slate-500", children: tile.label }),
+        /* @__PURE__ */ jsx("p", { className: "mt-1 text-[15px] font-extrabold text-ink", children: tile.value ?? "—" })
+      ] }, tile.label)) }),
+      /* @__PURE__ */ jsx("div", { className: "overflow-x-auto", children: /* @__PURE__ */ jsxs("table", { className: "w-full text-left text-[12px]", children: [
+        /* @__PURE__ */ jsx("thead", { children: /* @__PURE__ */ jsxs("tr", { className: "border-b border-slate-100 text-[10px] uppercase tracking-wider text-slate-500", children: [
+          /* @__PURE__ */ jsx("th", { className: "py-2 font-extrabold", children: "Student" }),
+          /* @__PURE__ */ jsx("th", { className: "py-2 font-extrabold", children: "Class" }),
+          /* @__PURE__ */ jsx("th", { className: "py-2 text-right font-extrabold", children: "Billed" }),
+          /* @__PURE__ */ jsx("th", { className: "py-2 text-right font-extrabold", children: "Paid" }),
+          /* @__PURE__ */ jsx("th", { className: "py-2 text-right font-extrabold", children: "Balance" }),
+          aged && /* @__PURE__ */ jsx("th", { className: "py-2 text-right font-extrabold", children: "Oldest due" }),
+          /* @__PURE__ */ jsx("th", { className: "py-2 font-extrabold", children: "Guardian" })
+        ] }) }),
+        /* @__PURE__ */ jsx("tbody", { className: "divide-y divide-slate-100", children: rows2.map((row) => /* @__PURE__ */ jsxs("tr", { children: [
+          /* @__PURE__ */ jsx("td", { className: "py-2 font-bold text-ink", children: row.studentName }),
+          /* @__PURE__ */ jsx("td", { className: "py-2 font-semibold text-slate-500", children: row.studentClass || "—" }),
+          /* @__PURE__ */ jsx("td", { className: "py-2 text-right font-semibold text-slate-600", children: formatCediWhole(row.totalOwed) }),
+          /* @__PURE__ */ jsx("td", { className: "py-2 text-right font-semibold text-slate-600", children: formatCediWhole(row.totalPaid) }),
+          /* @__PURE__ */ jsx("td", { className: "py-2 text-right font-extrabold text-ink", children: formatCediWhole(row.balance) }),
+          aged && /* @__PURE__ */ jsxs("td", { className: "py-2 text-right font-bold text-slate-600", children: [
+            row.oldestDueDate ? formatDate(row.oldestDueDate) : "—",
+            row.daysOutstanding != null && /* @__PURE__ */ jsxs("span", { className: "ml-1 text-[10px] text-slate-400", children: [
+              row.daysOutstanding,
+              "d"
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxs("td", { className: "py-2 font-semibold text-slate-500", children: [
+            row.primaryParentName || "—",
+            row.primaryParentPhone && /* @__PURE__ */ jsx("span", { className: "ml-1 font-mono text-[10px] text-slate-400", children: row.primaryParentPhone })
+          ] })
+        ] }, row._id)) })
+      ] }) })
+    ] });
+  }
+  if (report === "overdue") {
+    const rows2 = data.rows || [];
+    return /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
+      /* @__PURE__ */ jsx("div", { className: "grid grid-cols-2 gap-3 sm:grid-cols-4", children: [
+        { label: "Students overdue", value: formatCount(s.totalOverdue), tone: "text-ink" },
+        { label: "Amount overdue", value: s.totalOverdueAmountDisplay, tone: "text-ink" },
+        { label: "Critical (14d+)", value: formatCount(s.criticalCount), tone: "text-red-600" },
+        { label: "Average days", value: s.avgDaysOverdue, tone: "text-amber-600" }
+      ].map((tile) => /* @__PURE__ */ jsxs("div", { className: "rounded-xl bg-slate-50 p-3", children: [
+        /* @__PURE__ */ jsx("p", { className: "text-[10px] font-extrabold uppercase tracking-wider text-slate-500", children: tile.label }),
+        /* @__PURE__ */ jsx("p", { className: `mt-1 text-[15px] font-extrabold ${tile.tone}`, children: tile.value ?? "—" })
+      ] }, tile.label)) }),
+      /* @__PURE__ */ jsx("ul", { className: "divide-y divide-slate-100", children: rows2.map((row) => /* @__PURE__ */ jsxs("li", { className: "py-3", children: [
+        /* @__PURE__ */ jsxs("div", { className: "flex flex-wrap items-baseline justify-between gap-2", children: [
+          /* @__PURE__ */ jsxs("p", { className: "text-[13px] font-extrabold text-ink", children: [
+            row.studentName,
+            /* @__PURE__ */ jsx("span", { className: "ml-1.5 text-[11px] font-semibold text-slate-400", children: row.studentClass || "Unassigned" })
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-2", children: [
+            /* @__PURE__ */ jsxs(Badge, { tone: row.severity === "critical" ? "red" : "amber", children: [
+              formatCount(row.daysOverdue),
+              " days overdue"
+            ] }),
+            /* @__PURE__ */ jsx("span", { className: "text-[13px] font-extrabold text-ink", children: formatCedi(row.totalOverdueAmount) })
+          ] })
+        ] }),
+        row.installments?.length > 0 && /* @__PURE__ */ jsx("ul", { className: "mt-2 space-y-1", children: row.installments.map((inst) => /* @__PURE__ */ jsxs(
+          "li",
+          {
+            className: "flex flex-wrap items-center gap-x-3 text-[11px] font-medium text-slate-500",
+            children: [
+              /* @__PURE__ */ jsx("span", { className: "font-bold text-slate-600", children: `Tranche ${inst.installmentNumber}` }),
+              /* @__PURE__ */ jsxs("span", { children: [
+                "due ",
+                formatDate(inst.dueDate)
+              ] }),
+              /* @__PURE__ */ jsxs("span", { children: [
+                formatCedi(inst.outstanding),
+                " outstanding"
+              ] }),
+              inst.amountPaid > 0 && /* @__PURE__ */ jsxs("span", { className: "text-emerald-700", children: [
+                formatCedi(inst.amountPaid),
+                " paid"
+              ] })
+            ]
+          },
+          inst.installmentNumber
+        )) })
+      ] }, `${row.studentId}-${row.planId ?? row.planName}`)) })
+    ] });
+  }
+  if (report === "compliance") {
+    const buckets = [
+      { key: "completed", label: "Completed", tone: "green" },
+      { key: "onTrack", label: "On track", tone: "green" },
+      { key: "approachingDue", label: "Approaching due", tone: "amber" },
+      { key: "overdue", label: "Overdue", tone: "red" },
+      { key: "defaulted", label: "Defaulted", tone: "rose" },
+      { key: "pendingAcceptance", label: "Pending acceptance", tone: "slate" }
+    ];
+    const total = s.totalPlans || 0;
+    return /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
+      /* @__PURE__ */ jsxs("div", { children: [
+        /* @__PURE__ */ jsx("p", { className: "text-[10px] font-extrabold uppercase tracking-wider text-slate-500", children: "On-time tranche execution" }),
+        /* @__PURE__ */ jsxs("div", { className: "mt-1.5 flex items-baseline gap-2", children: [
+          /* @__PURE__ */ jsx("span", { className: "text-2xl font-extrabold text-ink", children: /* @__PURE__ */ jsx(Rate, { value: s.overallComplianceRate, expected: s.totalInstallments }) }),
+          /* @__PURE__ */ jsx("span", { className: "text-[12px] font-semibold text-slate-500", children: `${formatCount(s.paidOnTime)} of ${formatCount(s.totalInstallments)} tranches` })
+        ] })
+      ] }),
+      total > 0 && /* @__PURE__ */ jsxs("div", { children: [
+        /* @__PURE__ */ jsx("div", { className: "flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100", children: buckets.map(({ key, tone }) => {
+          const value = s[key] || 0;
+          if (!value) return null;
+          const colour = {
+            green: "bg-emerald-500",
+            amber: "bg-amber-500",
+            red: "bg-red-500",
+            rose: "bg-rose-500",
+            slate: "bg-slate-400"
+          }[tone];
+          return /* @__PURE__ */ jsx(
+            "div",
+            {
+              className: colour,
+              style: { width: `${value / total * 100}%` },
+              title: `${key}: ${value}`
+            },
+            key
+          );
+        }) }),
+        /* @__PURE__ */ jsx("div", { className: "mt-2.5 flex flex-wrap gap-x-4 gap-y-1", children: buckets.map(({ key, label, tone }) => /* @__PURE__ */ jsxs("span", { className: "flex items-center gap-1.5 text-[11px] font-bold text-slate-600", children: [
+          /* @__PURE__ */ jsx(
+            "span",
+            {
+              className: `h-2 w-2 rounded-full ${{ green: "bg-emerald-500", amber: "bg-amber-500", red: "bg-red-500", rose: "bg-rose-500", slate: "bg-slate-400" }[tone]}`
+            }
+          ),
+          label,
+          /* @__PURE__ */ jsx("span", { className: "text-slate-400", children: formatCount(s[key] || 0) })
+        ] }, key)) })
+      ] }),
+      /* @__PURE__ */ jsx("div", { className: "overflow-x-auto", children: /* @__PURE__ */ jsxs("table", { className: "w-full text-left text-[12px]", children: [
+        /* @__PURE__ */ jsx("thead", { children: /* @__PURE__ */ jsxs("tr", { className: "border-b border-slate-100 text-[10px] uppercase tracking-wider text-slate-500", children: [
+          /* @__PURE__ */ jsx("th", { className: "py-2 font-extrabold", children: "Plan" }),
+          /* @__PURE__ */ jsx("th", { className: "py-2 font-extrabold", children: "Student" }),
+          /* @__PURE__ */ jsx("th", { className: "py-2 text-right font-extrabold", children: "Tranches" }),
+          /* @__PURE__ */ jsx("th", { className: "py-2 text-right font-extrabold", children: "On time" }),
+          /* @__PURE__ */ jsx("th", { className: "py-2 text-right font-extrabold", children: "Rate" })
+        ] }) }),
+        /* @__PURE__ */ jsx("tbody", { className: "divide-y divide-slate-100", children: (data.rows || []).map((row) => /* @__PURE__ */ jsxs("tr", { children: [
+          /* @__PURE__ */ jsx("td", { className: "py-2 font-bold text-ink", children: row.planName }),
+          /* @__PURE__ */ jsxs("td", { className: "py-2 font-semibold text-slate-500", children: [
+            row.studentName,
+            row.studentClass ? ` · ${row.studentClass}` : ""
+          ] }),
+          /* @__PURE__ */ jsx("td", { className: "py-2 text-right font-semibold text-slate-600", children: formatCount(row.totalInstallments) }),
+          /* @__PURE__ */ jsx("td", { className: "py-2 text-right font-semibold text-slate-600", children: formatCount(row.installmentsPaidOnTime) }),
+          /* @__PURE__ */ jsx("td", { className: "py-2 text-right", children: /* @__PURE__ */ jsx(Rate, { value: row.complianceRate, expected: row.totalInstallments, className: "font-bold text-slate-600" }) })
+        ] }, row.planId)) })
+      ] }) }),
+      /* @__PURE__ */ jsx("p", { className: "text-[11px]/[16px] font-medium text-slate-500", children: "A plan is bucketed as overdue if any tranche is overdue, and as approaching due if its next pending tranche falls within three days. The bucket therefore changes between fetches without anything being edited." })
+    ] });
+  }
+  if (report === "parent-contacts") {
+    const rows2 = data.rows || [];
+    return /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
+      /* @__PURE__ */ jsx("div", { className: "grid grid-cols-2 gap-3 sm:grid-cols-4", children: [
+        { label: "Students", value: formatCount(s.studentCount) },
+        { label: "Contacts", value: formatCount(s.contactCount) },
+        { label: "Unique numbers", value: formatCount(s.uniquePhoneCount) },
+        { label: "Students owing", value: formatCount(s.studentsOwing) }
+      ].map((tile) => /* @__PURE__ */ jsxs("div", { className: "rounded-xl bg-slate-50 p-3", children: [
+        /* @__PURE__ */ jsx("p", { className: "text-[10px] font-extrabold uppercase tracking-wider text-slate-500", children: tile.label }),
+        /* @__PURE__ */ jsx("p", { className: "mt-1 text-[15px] font-extrabold text-ink", children: tile.value ?? "—" })
+      ] }, tile.label)) }),
+      /* @__PURE__ */ jsx("div", { className: "overflow-x-auto", children: /* @__PURE__ */ jsxs("table", { className: "w-full text-left text-[12px]", children: [
+        /* @__PURE__ */ jsx("thead", { children: /* @__PURE__ */ jsxs("tr", { className: "border-b border-slate-100 text-[10px] uppercase tracking-wider text-slate-500", children: [
+          /* @__PURE__ */ jsx("th", { className: "py-2 font-extrabold", children: "Student" }),
+          /* @__PURE__ */ jsx("th", { className: "py-2 font-extrabold", children: "Guardian" }),
+          /* @__PURE__ */ jsx("th", { className: "py-2 font-extrabold", children: "Phone" }),
+          /* @__PURE__ */ jsx("th", { className: "py-2 text-right font-extrabold", children: "Balance" })
+        ] }) }),
+        /* @__PURE__ */ jsx("tbody", { className: "divide-y divide-slate-100", children: rows2.map((row, index) => /* @__PURE__ */ jsxs("tr", { children: [
+          /* @__PURE__ */ jsxs("td", { className: "py-2 font-bold text-ink", children: [
+            row.studentName,
+            /* @__PURE__ */ jsx("span", { className: "ml-1.5 text-[11px] font-semibold text-slate-400", children: row.studentClass || "Unassigned" })
+          ] }),
+          /* @__PURE__ */ jsxs("td", { className: "py-2 font-semibold text-slate-600", children: [
+            row.parentName,
+            /* @__PURE__ */ jsx("span", { className: "ml-1.5 text-[11px] font-normal capitalize text-slate-400", children: row.relationship }),
+            row.isPrimary && /* @__PURE__ */ jsx(Badge, { tone: "blue", className: "ml-1.5", children: "Primary" })
+          ] }),
+          /* @__PURE__ */ jsx("td", { className: "py-2 font-mono text-[11px] text-slate-500", children: row.phone }),
+          /* @__PURE__ */ jsx("td", { className: "py-2 text-right font-extrabold text-ink", children: formatCediWhole(row.balance) })
+        ] }, `${row.studentRef}-${row.parentName}-${index}`)) })
+      ] }) }),
+      /* @__PURE__ */ jsxs("p", { className: "flex items-start gap-2 text-[11px]/[16px] font-medium text-slate-500", children: [
+        /* @__PURE__ */ jsx(ShieldCheck, { className: "mt-0.5 h-3.5 w-3.5 shrink-0", "aria-hidden": "true" }),
+        /* @__PURE__ */ jsx("span", { children: "Numbers are masked by the server and there is no endpoint that returns them unmasked, so this directory cannot be used to contact a guardian from here. Export it and use your own channel of record." })
+      ] })
+    ] });
+  }
+  const rows = data.rows || [];
+  return /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
+    /* @__PURE__ */ jsxs("div", { className: "grid grid-cols-2 gap-3 sm:grid-cols-3", children: [
+      /* @__PURE__ */ jsxs("div", { className: "rounded-xl bg-slate-50 p-3", children: [
+        /* @__PURE__ */ jsx("p", { className: "text-[10px] font-extrabold uppercase tracking-wider text-slate-500", children: "Collected" }),
+        /* @__PURE__ */ jsx("p", { className: "mt-1 text-[15px] font-extrabold text-ink", children: s.totalCollectedDisplay })
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "rounded-xl bg-slate-50 p-3", children: [
+        /* @__PURE__ */ jsx("p", { className: "text-[10px] font-extrabold uppercase tracking-wider text-slate-500", children: "Transactions on this page" }),
+        /* @__PURE__ */ jsx("p", { className: "mt-1 text-[15px] font-extrabold text-ink", children: formatCount(s.transactionCount) })
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "rounded-xl bg-slate-50 p-3", children: [
+        /* @__PURE__ */ jsx("p", { className: "text-[10px] font-extrabold uppercase tracking-wider text-slate-500", children: "Average payment" }),
+        /* @__PURE__ */ jsx("p", { className: "mt-1 text-[15px] font-extrabold text-ink", children: formatCedi(s.averagePayment) })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsx("p", { className: "text-[12px] font-semibold text-slate-500", children: `${formatCount(data.meta?.total ?? rows.length)} transactions matched this day` }),
+    /* @__PURE__ */ jsx("div", { className: "overflow-x-auto", children: /* @__PURE__ */ jsxs("table", { className: "w-full text-left text-[12px]", children: [
+      /* @__PURE__ */ jsx("thead", { children: /* @__PURE__ */ jsxs("tr", { className: "border-b border-slate-100 text-[10px] uppercase tracking-wider text-slate-500", children: [
+        /* @__PURE__ */ jsx("th", { className: "py-2 font-extrabold", children: "Receipt" }),
+        /* @__PURE__ */ jsx("th", { className: "py-2 font-extrabold", children: "Student" }),
+        /* @__PURE__ */ jsx("th", { className: "py-2 font-extrabold", children: "Method" }),
+        /* @__PURE__ */ jsx("th", { className: "py-2 text-right font-extrabold", children: "Amount" })
+      ] }) }),
+      /* @__PURE__ */ jsx("tbody", { className: "divide-y divide-slate-100", children: rows.map((row) => /* @__PURE__ */ jsxs("tr", { children: [
+        /* @__PURE__ */ jsx("td", { className: "py-2 font-mono text-[11px] text-slate-500", children: row.receiptNumber || "—" }),
+        /* @__PURE__ */ jsxs("td", { className: "py-2 font-bold text-ink", children: [
+          row.studentName,
+          row.studentClass ? /* @__PURE__ */ jsx("span", { className: "ml-1.5 text-[11px] font-semibold text-slate-400", children: row.studentClass }) : null
+        ] }),
+        /* @__PURE__ */ jsx("td", { className: "py-2 font-semibold capitalize text-slate-500", children: row.paymentMethod?.replace("_", " ") }),
+        /* @__PURE__ */ jsx("td", { className: "py-2 text-right font-extrabold text-ink", children: formatCedi(row.amount) })
+      ] }, row._id)) })
+    ] }) }),
+    data.byMethod?.length > 0 && /* @__PURE__ */ jsx("div", { className: "flex flex-wrap gap-2", children: data.byMethod.map((m) => /* @__PURE__ */ jsx(Badge, { tone: "slate", children: `${m.paymentMethod} · ${m.count} · ${formatCedis(m.amount)}` }, m.paymentMethod)) })
+  ] });
+};
+const Reports = () => {
+  const { user } = useAuth();
+  const toast = useToast();
+  const schoolId = user?.schoolId;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const category = searchParams.get("category") || "all";
+  const query = searchParams.get("q") || "";
+  const [results, setResults] = useState({});
+  const [busy, setBusy] = useState(null);
+  const [downloading, setDownloading] = useState(null);
+  const [openReport, setOpenReport] = useState(null);
+  const setCategory = (key) => {
+    const next = new URLSearchParams(searchParams);
+    if (key === "all") next.delete("category");
+    else next.set("category", key);
+    setSearchParams(next, { replace: true });
+  };
+  const setQuery = (value) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set("q", value);
+    else next.delete("q");
+    setSearchParams(next, { replace: true });
+  };
+  const buildParams = useCallback(
+    (report) => {
+      const params = {};
+      const silent = new Set(report.silentParams || []);
+      if (report.supports.includes("date")) {
+        params.date = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+      }
+      if (report.supports.includes("academicYear") && !silent.has("academicYear")) {
+        params.academicYear = user?.school?.academic?.currentYear || "";
+      }
+      if (report.supports.includes("term") && !silent.has("term")) {
+        params.term = user?.school?.academic?.currentTerm || "";
+      }
+      if (report.ageingNeedsMinAgeDays) {
+        params.minAgeDays = 1;
+      }
+      Object.keys(params).forEach((key) => {
+        if (!params[key]) delete params[key];
+      });
+      return params;
     },
-    note
-  )) })
+    [user]
+  );
+  const generate = useCallback(
+    async (report) => {
+      if (!schoolId || busy) return;
+      setBusy(report.key);
+      setOpenReport(report.key);
+      try {
+        const data = await runReport({
+          schoolId,
+          endpoint: report.endpoint,
+          params: buildParams(report)
+        });
+        setResults((current) => ({ ...current, [report.key]: data }));
+        if (openReport !== report.key) setOpenReport(report.key);
+      } catch (error) {
+        toast.error(error.message);
+        setResults((current) => ({ ...current, [report.key]: { error: error.message } }));
+      } finally {
+        setBusy(null);
+      }
+    },
+    [schoolId, busy, buildParams, openReport, toast]
+  );
+  const download = useCallback(
+    async (report, format) => {
+      setDownloading(`${report.key}:${format}`);
+      try {
+        const result = await downloadReport({
+          schoolId,
+          endpoint: report.endpoint,
+          format,
+          params: buildParams(report)
+        });
+        toast.success(`Downloaded ${result.filename}`);
+      } catch (error) {
+        toast.error(error.message);
+      } finally {
+        setDownloading(null);
+      }
+    },
+    [schoolId, buildParams, toast]
+  );
+  const visible = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    return REPORTS.filter((report) => {
+      if (category !== "all" && report.category !== category) return false;
+      if (!term) return true;
+      return [report.name, report.blurb, report.cadence].filter(Boolean).some((value) => value.toLowerCase().includes(term));
+    });
+  }, [category, query]);
+  const counts = useMemo(() => {
+    const byCategory = { collections: 0, arrears: 0, institutional: 0 };
+    REPORTS.forEach((report) => {
+      byCategory[report.category] += 1;
+    });
+    return { total: REPORTS.length, byCategory };
+  }, []);
+  const activeResult = openReport ? results[openReport] : null;
+  return /* @__PURE__ */ jsxs(Fragment, { children: [
+    /* @__PURE__ */ jsx(
+      PageHeader,
+      {
+        eyebrow: "Administration",
+        title: "Reports & Financial Auditing",
+        description: "Generate, schedule and export accredited school fee collections, reconciliation and audit reports.",
+        actions: /* @__PURE__ */ jsxs("span", { className: "inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-600", children: [
+          /* @__PURE__ */ jsx(ShieldCheck, { className: "h-4 w-4 text-brand-700", "aria-hidden": "true" }),
+          counts.total,
+          " reports available"
+        ] })
+      }
+    ),
+    /* @__PURE__ */ jsxs("div", { className: "mb-5 flex flex-wrap items-center gap-2", children: [
+      /* @__PURE__ */ jsx("div", { className: "flex flex-wrap gap-1.5", role: "tablist", "aria-label": "Report categories", children: REPORT_CATEGORIES.map((item) => {
+        const isActive = item.key === category;
+        const count = item.key === "all" ? counts.total : counts.byCategory[item.key];
+        return /* @__PURE__ */ jsxs(
+          "button",
+          {
+            type: "button",
+            role: "tab",
+            "aria-selected": isActive,
+            onClick: () => setCategory(item.key),
+            className: `rounded-xl px-3.5 py-2 text-[13px] font-bold transition-colors ${isActive ? "bg-brand-700 text-white shadow-lift" : "bg-white text-slate-600 hover:bg-slate-50"}`,
+            children: [
+              item.label,
+              /* @__PURE__ */ jsx("span", { className: isActive ? "ml-1.5 text-white/70" : "ml-1.5 text-slate-400", children: count })
+            ]
+          },
+          item.key
+        );
+      }) }),
+      /* @__PURE__ */ jsxs("div", { className: "relative ml-auto min-w-[200px] max-w-xs flex-1", children: [
+        /* @__PURE__ */ jsx("span", { className: "pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400", children: /* @__PURE__ */ jsx(Search, { className: "h-4 w-4", "aria-hidden": "true" }) }),
+        /* @__PURE__ */ jsx(
+          "input",
+          {
+            type: "search",
+            value: query,
+            onChange: (event) => setQuery(event.target.value),
+            placeholder: "Search reports…",
+            "aria-label": "Search reports",
+            className: "w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-[13px]/[18px] font-medium text-ink placeholder:font-normal placeholder:text-slate-500 focus:border-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/30"
+          }
+        )
+      ] })
+    ] }),
+    visible.length === 0 ? /* @__PURE__ */ jsxs("div", { className: "rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center", children: [
+      /* @__PURE__ */ jsxs("p", { className: "text-base font-extrabold text-ink", children: [
+        "No reports match “",
+        query,
+        "”"
+      ] }),
+      /* @__PURE__ */ jsx("p", { className: "mt-1 text-sm font-medium text-slate-500", children: "Try a different term, or clear the category filter." })
+    ] }) : /* @__PURE__ */ jsx("div", { className: "grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3", children: visible.map((report) => {
+      const result = results[report.key];
+      const isOpen = openReport === report.key;
+      const isBusy = busy === report.key;
+      return /* @__PURE__ */ jsxs(Card, { padding: "p-0", className: "flex flex-col", children: [
+        /* @__PURE__ */ jsxs("div", { className: "flex flex-1 flex-col p-5", children: [
+          /* @__PURE__ */ jsxs("div", { className: "flex items-start justify-between gap-3", children: [
+            /* @__PURE__ */ jsx("span", { className: "flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50 text-brand-700", children: report.category === "arrears" ? /* @__PURE__ */ jsx(AlertTriangle, { className: "h-4 w-4", "aria-hidden": "true" }) : report.category === "collections" ? /* @__PURE__ */ jsx(TrendingUp, { className: "h-4 w-4", "aria-hidden": "true" }) : /* @__PURE__ */ jsx(Users, { className: "h-4 w-4", "aria-hidden": "true" }) }),
+            /* @__PURE__ */ jsx(Badge, { tone: isOpen ? "brand" : "slate", children: report.cadence })
+          ] }),
+          /* @__PURE__ */ jsx("h3", { className: "mt-3.5 text-[15px] font-extrabold leading-snug text-ink", children: report.name }),
+          /* @__PURE__ */ jsx("p", { className: "mt-1.5 flex-1 text-[12px]/[18px] font-medium text-slate-500", children: report.blurb }),
+          result && !result.error && /* @__PURE__ */ jsxs("div", { className: "mt-3 flex flex-wrap gap-1.5", children: [
+            result.meta?.generatedAt && /* @__PURE__ */ jsx(Badge, { tone: "slate", icon: Clock, children: new Date(result.meta.generatedAt).toLocaleTimeString("en-GB", {
+              hour: "2-digit",
+              minute: "2-digit"
+            }) }),
+            result.summary?.totalCollectedDisplay && /* @__PURE__ */ jsx(Badge, { tone: "green", children: result.summary.totalCollectedDisplay }),
+            result.summary?.totalOutstandingDisplay && /* @__PURE__ */ jsx(Badge, { tone: "amber", children: result.summary.totalOutstandingDisplay })
+          ] }),
+          result?.error && /* @__PURE__ */ jsx("p", { className: "mt-3 rounded-lg bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-700", children: result.error })
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-2 border-t border-slate-100 p-4", children: [
+          /* @__PURE__ */ jsxs(
+            "button",
+            {
+              type: "button",
+              onClick: () => generate(report),
+              disabled: isBusy || !schoolId,
+              className: "inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-brand-700 px-3 py-2 text-[12px] font-extrabold text-white transition-colors hover:bg-brand-800 disabled:opacity-50",
+              children: [
+                isBusy ? /* @__PURE__ */ jsx(Loader2, { className: "h-3.5 w-3.5 animate-spin", "aria-hidden": "true" }) : /* @__PURE__ */ jsx(BarChart3, { className: "h-3.5 w-3.5", "aria-hidden": "true" }),
+                isBusy ? "Generating…" : "Generate now"
+              ]
+            }
+          ),
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              type: "button",
+              onClick: () => download(report, "csv"),
+              disabled: downloading?.startsWith(report.key) || !schoolId,
+              "aria-label": `Download ${report.name} as CSV`,
+              title: "Download CSV",
+              className: "rounded-xl border border-slate-200 px-2.5 py-2 text-slate-500 transition-colors hover:bg-slate-50 hover:text-ink disabled:opacity-50",
+              children: /* @__PURE__ */ jsx(Receipt, { className: "h-3.5 w-3.5", "aria-hidden": "true" })
+            }
+          ),
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              type: "button",
+              onClick: () => download(report, "excel"),
+              disabled: downloading?.startsWith(report.key) || !schoolId,
+              "aria-label": `Download ${report.name} as Excel`,
+              title: "Download Excel",
+              className: "rounded-xl border border-slate-200 px-2.5 py-2 text-slate-500 transition-colors hover:bg-slate-50 hover:text-ink disabled:opacity-50",
+              children: /* @__PURE__ */ jsx(FileSpreadsheet, { className: "h-3.5 w-3.5", "aria-hidden": "true" })
+            }
+          )
+        ] })
+      ] }, report.key);
+    }) }),
+    openReport && activeResult && !activeResult.error && /* @__PURE__ */ jsxs(Card, { className: "mt-5", children: [
+      /* @__PURE__ */ jsxs("div", { className: "flex flex-wrap items-start justify-between gap-3", children: [
+        /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
+          /* @__PURE__ */ jsx("h2", { className: "text-base font-extrabold text-ink", children: REPORTS.find((r) => r.key === openReport)?.name }),
+          /* @__PURE__ */ jsxs("p", { className: "mt-0.5 text-[12px]/[18px] font-medium text-slate-500", children: [
+            activeResult.school?.name,
+            activeResult.period?.month ? ` · ${activeResult.period.month}` : "",
+            activeResult.period?.academicYear ? ` · ${activeResult.period.academicYear}` : "",
+            activeResult.period?.class ? ` · ${activeResult.period.class}` : "",
+            ` · ${SECTIONS$1[activeResult.report] || ""}`
+          ] })
+        ] }),
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            type: "button",
+            onClick: () => setOpenReport(null),
+            "aria-label": "Close report",
+            className: "rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-ink",
+            children: /* @__PURE__ */ jsx(X, { className: "h-4 w-4", "aria-hidden": "true" })
+          }
+        )
+      ] }),
+      /* @__PURE__ */ jsx("div", { className: "mt-5", children: /* @__PURE__ */ jsx(ReportBody, { report: activeResult.report, data: activeResult }) })
+    ] }),
+    /* @__PURE__ */ jsxs("p", { className: "mt-5 flex items-start gap-2 text-[11px]/[16px] font-medium text-slate-500", children: [
+      /* @__PURE__ */ jsx(Info, { className: "mt-0.5 h-3.5 w-3.5 shrink-0", "aria-hidden": "true" }),
+      /* @__PURE__ */ jsxs("span", { children: [
+        "Reports are generated from live school data on demand — nothing is pre-computed and nothing is scheduled. PDF export is not available yet; CSV and Excel are. Figures are whole pesewas on the wire and are formatted to cedis here, so GH₵ 425,000 is 42,500,000 pesewas. Every figure is traceable in the",
+        " ",
+        /* @__PURE__ */ jsx(Link, { to: ROUTES.DASHBOARD_ACTIVITY, className: "font-bold text-brand-700 hover:underline", children: "audit trail" }),
+        "."
+      ] })
+    ] })
+  ] });
+};
+const listAuditLogs = async ({ schoolId, ...params } = {}) => {
+  try {
+    const { data } = await api.get(`/audit-logs/${schoolId}`, { params });
+    return {
+      entries: data.data || [],
+      meta: data.meta || { page: 1, perPage: 20, total: 0, totalPages: 0 }
+    };
+  } catch (error) {
+    throw toApiError(error, "Failed to load the audit trail.");
+  }
+};
+const exportAuditLogsCsv = async ({ schoolId, ...filters } = {}) => {
+  try {
+    const response = await api.get(`/audit-logs/${schoolId}/export`, {
+      params: filters,
+      responseType: "blob"
+    });
+    const disposition = response.headers?.["content-disposition"] || "";
+    const match = /filename="?([^"]+)"?/.exec(disposition);
+    const filename = match ? match[1] : `audit-log-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.csv`;
+    const href = URL.createObjectURL(response.data);
+    const anchor = document.createElement("a");
+    anchor.href = href;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 0);
+    return { filename };
+  } catch (error) {
+    throw toApiError(error, "Could not export the audit trail.");
+  }
+};
+const AUDIT_ACTIONS = [
+  "student.create",
+  "student.update",
+  "student.delete",
+  "payment.success",
+  "payment.failed",
+  "plan.create",
+  "plan.accept",
+  "plan.cancel",
+  "sms.send",
+  "school.update",
+  "user.login",
+  "user.invite",
+  "settings.update",
+  "markup.update",
+  "gateway_mode.update",
+  "whatsapp.send",
+  "whatsapp.bulk_send",
+  "whatsapp.template_create",
+  "webhook.received",
+  "sms.dlr_update",
+  "sms.bulk_send",
+  "sms.job_cancel",
+  "sms.template_create",
+  "sms.template_update",
+  "sms.template_delete",
+  "sms.credit_topup",
+  "sms.test_send",
+  "report.viewed"
+];
+const AUDIT_CATEGORY = {
+  finance: "Finance",
+  messaging: "Messaging",
+  academic: "Academic",
+  security: "Security"
+};
+const auditCategoryOf = (action = "") => {
+  const [domain, verb] = action.split(".");
+  if (action.startsWith("payment.") || action.startsWith("plan.") || action.startsWith("markup.")) {
+    return "finance";
+  }
+  if (action.startsWith("sms.") || action.startsWith("whatsapp.") || action.startsWith("webhook.")) {
+    return "messaging";
+  }
+  if (action.startsWith("student.")) return "academic";
+  if (domain === "user" || domain === "school" || domain === "settings" || domain === "gateway_mode") {
+    return "security";
+  }
+  return null;
+};
+const onlySet = (params) => Object.fromEntries(Object.entries(params).filter(([, value]) => value !== "" && value != null));
+const useAuditLogs = ({ schoolId, reloadKey = 0 } = {}) => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = useMemo(
+    () => ({
+      userId: searchParams.get("userId") || "",
+      action: searchParams.get("action") || "",
+      entity: searchParams.get("entity") || "",
+      entityId: searchParams.get("entityId") || "",
+      from: searchParams.get("from") || "",
+      to: searchParams.get("to") || "",
+      page: Number(searchParams.get("page")) || 1,
+      perPage: 50
+    }),
+    [searchParams]
+  );
+  const [state, setState] = useState({ entries: [], meta: null, loading: true, error: null });
+  useEffect(() => {
+    if (!schoolId) {
+      setState({ entries: [], meta: null, loading: false, error: null });
+      return void 0;
+    }
+    let active = true;
+    setState((current) => ({ ...current, loading: true, error: null }));
+    listAuditLogs({ schoolId, ...onlySet(filters) }).then((result) => {
+      if (!active) return;
+      setState({ entries: result.entries, meta: result.meta, loading: false, error: null });
+    }).catch((error) => {
+      if (!active) return;
+      setState({ entries: [], meta: null, loading: false, error });
+    });
+    return () => {
+      active = false;
+    };
+  }, [schoolId, filters, reloadKey]);
+  const setFilter = useCallback(
+    (patch, { resetPage = true } = {}) => {
+      const next = new URLSearchParams(searchParams);
+      Object.entries(patch).forEach(([key, value]) => {
+        if (value === "" || value === null || value === void 0) next.delete(key);
+        else next.set(key, String(value));
+      });
+      if (resetPage) next.delete("page");
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams]
+  );
+  const clearFilters = useCallback(() => {
+    setSearchParams(new URLSearchParams(), { replace: true });
+  }, [setSearchParams]);
+  const hasFilters = Boolean(
+    filters.userId || filters.action || filters.entity || filters.entityId || filters.from || filters.to
+  );
+  return { ...state, filters, setFilter, clearFilters, hasFilters };
+};
+const useAuditStats = (entries, meta) => useMemo(() => {
+  const counts = { finance: 0, messaging: 0, academic: 0, security: 0 };
+  entries.forEach((entry) => {
+    const category = auditCategoryOf(entry.action);
+    if (category) counts[category] += 1;
+  });
+  return {
+    totalOnRecord: meta?.total ?? 0,
+    onThisPage: entries.length,
+    byCategory: counts
+  };
+}, [entries, meta]);
+const useAuditExport = ({ schoolId, filters }) => {
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState(null);
+  const runExport = useCallback(async () => {
+    if (!schoolId || exporting) return null;
+    setExporting(true);
+    setError(null);
+    try {
+      const { page, perPage, ...rest } = filters;
+      return await exportAuditLogsCsv({ schoolId, ...onlySet(rest) });
+    } catch (exportError) {
+      setError(exportError);
+      return null;
+    } finally {
+      setExporting(false);
+    }
+  }, [schoolId, exporting, filters]);
+  return { runExport, exporting, error };
+};
+const humaniseAction = (action = "") => {
+  const [, verb] = action.split(".");
+  const phrase = (verb || action).replace(/_/g, " ");
+  return phrase.charAt(0).toUpperCase() + phrase.slice(1);
+};
+const CATEGORY_STYLE = {
+  finance: { dot: "bg-emerald-500", label: AUDIT_CATEGORY.finance },
+  messaging: { dot: "bg-amber-500", label: AUDIT_CATEGORY.messaging },
+  academic: { dot: "bg-blue-500", label: AUDIT_CATEGORY.academic },
+  security: { dot: "bg-rose-500", label: AUDIT_CATEGORY.security }
+};
+const formatStamp = (value) => {
+  if (!value) return "—";
+  const when = new Date(value);
+  if (Number.isNaN(when.getTime())) return "—";
+  const today2 = /* @__PURE__ */ new Date();
+  const sameDay = when.getFullYear() === today2.getFullYear() && when.getMonth() === today2.getMonth() && when.getDate() === today2.getDate();
+  const time = when.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return sameDay ? `Today · ${time}` : `${when.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} · ${time}`;
+};
+const MetaChips = ({ meta }) => {
+  const chips = [];
+  if (!meta || typeof meta !== "object") return null;
+  if (meta.description) chips.push({ tone: "slate", text: String(meta.description) });
+  if (meta.emailSent === false) {
+    chips.push({ tone: "red", text: `Email not delivered${meta.failureReason ? ` — ${meta.failureReason}` : ""}` });
+  }
+  if (meta.isResend) chips.push({ tone: "amber", text: "Re-sent" });
+  if (meta.recipients) chips.push({ tone: "slate", text: `${meta.recipients} recipients` });
+  if (meta.delivered) chips.push({ tone: "slate", text: `${meta.delivered} delivered` });
+  const described = new Set(chips.flatMap((chip) => chip.text.split(/[:—]/).map((s) => s.trim())));
+  Object.entries(meta).filter(([key, value]) => {
+    if (["description", "failureReason", "emailSent", "isResend"].includes(key)) return false;
+    if (value === null || value === void 0 || typeof value === "object") return false;
+    return !described.has(String(value));
+  }).slice(0, 4).forEach(([key, value]) => chips.push({ tone: "slate", text: `${key}: ${value}` }));
+  if (!chips.length) return null;
+  return /* @__PURE__ */ jsx("div", { className: "mt-2 flex flex-wrap gap-1.5", children: chips.map((chip) => /* @__PURE__ */ jsx(Badge, { tone: chip.tone, children: chip.text }, chip.text)) });
+};
+const ActivityLog = () => {
+  const { user } = useAuth();
+  const toast = useToast();
+  const schoolId = user?.schoolId;
+  const [reloadKey, setReloadKey] = useState(0);
+  const { entries, meta, loading, error, filters, setFilter, clearFilters, hasFilters } = useAuditLogs({
+    schoolId,
+    reloadKey
+  });
+  const stats = useAuditStats(entries, meta);
+  const { runExport, exporting } = useAuditExport({ schoolId, filters });
+  const reload = () => setReloadKey((key) => key + 1);
+  const handleExport = async () => {
+    const result = await runExport();
+    if (result) toast.success(`Exported ${result.filename}`);
+    else toast.error("Could not export the audit trail. Check the filters and try again.");
+  };
+  const totalPages = meta?.totalPages ?? 1;
+  const currentPage = meta?.page ?? 1;
+  const tiles = useMemo(
+    () => [
+      {
+        label: "Audited events on record",
+        value: stats.totalOnRecord,
+        detail: "Whole log, unpaginated",
+        icon: ScrollText,
+        tone: "text-ink"
+      },
+      {
+        label: "Security & permissions",
+        value: stats.byCategory.security || 0,
+        detail: `of the ${stats.onThisPage} on this page`,
+        icon: ShieldCheck,
+        tone: "text-rose-600"
+      },
+      {
+        label: "Messaging events",
+        value: stats.byCategory.messaging || 0,
+        detail: `of the ${stats.onThisPage} on this page`,
+        icon: Clock,
+        tone: "text-amber-600"
+      },
+      {
+        label: "Flagged",
+        value: null,
+        detail: "No tamper-evidence model",
+        icon: AlertTriangle,
+        tone: "text-slate-400"
+      }
+    ],
+    [stats]
+  );
+  return /* @__PURE__ */ jsxs(Fragment, { children: [
+    /* @__PURE__ */ jsx(
+      PageHeader,
+      {
+        eyebrow: "Administration",
+        title: "Activity Log & Audit Trail",
+        description: "Immutable, timestamped record of every financial transaction, student modification and administrative action.",
+        actions: /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-2", children: [
+          /* @__PURE__ */ jsxs(
+            "button",
+            {
+              type: "button",
+              onClick: reload,
+              disabled: loading,
+              className: "inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50",
+              children: [
+                /* @__PURE__ */ jsx(RefreshCw, { className: `h-4 w-4 ${loading ? "animate-spin" : ""}`, "aria-hidden": "true" }),
+                "Refresh"
+              ]
+            }
+          ),
+          /* @__PURE__ */ jsxs(
+            "button",
+            {
+              type: "button",
+              onClick: handleExport,
+              disabled: exporting || !schoolId,
+              className: "inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:opacity-50",
+              children: [
+                /* @__PURE__ */ jsx(Download, { className: "h-4 w-4", "aria-hidden": "true" }),
+                exporting ? "Exporting…" : "Export CSV"
+              ]
+            }
+          )
+        ] })
+      }
+    ),
+    /* @__PURE__ */ jsx("div", { className: "mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4", children: tiles.map((tile) => /* @__PURE__ */ jsx(Card, { padding: "p-4", children: /* @__PURE__ */ jsxs("div", { className: "flex items-start justify-between gap-2", children: [
+      /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
+        /* @__PURE__ */ jsx("p", { className: "truncate text-[11px] font-extrabold uppercase tracking-wider text-slate-500", children: tile.label }),
+        /* @__PURE__ */ jsx("p", { className: `mt-1.5 text-2xl font-extrabold tracking-tight ${tile.tone}`, children: loading ? "—" : tile.value === null ? "—" : tile.value }),
+        /* @__PURE__ */ jsx("p", { className: "mt-0.5 truncate text-[10px] font-semibold text-slate-400", children: tile.detail })
+      ] }),
+      /* @__PURE__ */ jsx(tile.icon, { className: "h-5 w-5 shrink-0 text-slate-300", "aria-hidden": "true" })
+    ] }) }, tile.label)) }),
+    /* @__PURE__ */ jsxs(Card, { padding: "p-0", className: "overflow-hidden", children: [
+      /* @__PURE__ */ jsxs("div", { className: "flex flex-wrap items-center gap-3 border-b border-slate-100 p-4", children: [
+        /* @__PURE__ */ jsxs("div", { className: "relative min-w-[180px] flex-1", children: [
+          /* @__PURE__ */ jsx("span", { className: "pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400", children: /* @__PURE__ */ jsx(Search, { className: "h-4 w-4", "aria-hidden": "true" }) }),
+          /* @__PURE__ */ jsx(
+            "input",
+            {
+              type: "text",
+              value: filters.entity,
+              onChange: (event) => setFilter({ entity: event.target.value }),
+              placeholder: "Filter by record type (Student, Payment, User…)",
+              "aria-label": "Filter by record type",
+              className: "w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-[13px]/[18px] font-medium text-ink placeholder:font-normal placeholder:text-slate-500 focus:border-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/30"
+            }
+          )
+        ] }),
+        /* @__PURE__ */ jsxs(
+          "select",
+          {
+            value: filters.action,
+            onChange: (event) => setFilter({ action: event.target.value }),
+            "aria-label": "Filter by action",
+            className: "cursor-pointer rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-[13px]/[18px] font-medium text-ink focus:border-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/30",
+            children: [
+              /* @__PURE__ */ jsx("option", { value: "", children: "All actions" }),
+              AUDIT_ACTIONS.map((action) => /* @__PURE__ */ jsx("option", { value: action, children: action }, action))
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-1.5", children: [
+          /* @__PURE__ */ jsx("label", { htmlFor: "audit-from", className: "text-[11px] font-bold text-slate-500", children: "From" }),
+          /* @__PURE__ */ jsx(
+            "input",
+            {
+              id: "audit-from",
+              type: "date",
+              value: filters.from ? filters.from.slice(0, 10) : "",
+              onChange: (event) => setFilter({ from: event.target.value }),
+              className: "rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[12px] font-medium text-ink focus:border-brand-700 focus:outline-none"
+            }
+          ),
+          /* @__PURE__ */ jsx("label", { htmlFor: "audit-to", className: "text-[11px] font-bold text-slate-500", children: "to" }),
+          /* @__PURE__ */ jsx(
+            "input",
+            {
+              id: "audit-to",
+              type: "date",
+              value: filters.to ? filters.to.slice(0, 10) : "",
+              onChange: (event) => setFilter({ to: event.target.value }),
+              className: "rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[12px] font-medium text-ink focus:border-brand-700 focus:outline-none"
+            }
+          )
+        ] }),
+        hasFilters && /* @__PURE__ */ jsxs(
+          "button",
+          {
+            type: "button",
+            onClick: clearFilters,
+            className: "inline-flex items-center gap-1 rounded-lg px-3 py-2 text-[13px] font-bold text-slate-500 transition-colors hover:bg-slate-50 hover:text-ink",
+            children: [
+              /* @__PURE__ */ jsx(Filter, { className: "h-3.5 w-3.5", "aria-hidden": "true" }),
+              "Clear"
+            ]
+          }
+        )
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "flex flex-wrap items-center gap-4 border-b border-slate-100 bg-slate-50/60 px-4 py-2", children: [
+        /* @__PURE__ */ jsx("span", { className: "text-[11px] font-extrabold uppercase tracking-wider text-slate-500", children: "Ledger stream" }),
+        Object.entries(CATEGORY_STYLE).map(([key, style]) => /* @__PURE__ */ jsxs("span", { className: "flex items-center gap-1.5 text-[11px] font-bold text-slate-600", children: [
+          /* @__PURE__ */ jsx("span", { className: `h-2 w-2 rounded-full ${style.dot}`, "aria-hidden": "true" }),
+          style.label
+        ] }, key)),
+        /* @__PURE__ */ jsxs("span", { className: "ml-auto text-[11px] font-medium text-slate-500", children: [
+          "Newest first · ",
+          meta?.total ?? 0,
+          " entries"
+        ] })
+      ] }),
+      error && /* @__PURE__ */ jsx("div", { className: "m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-semibold text-red-700", children: error.message }),
+      loading && /* @__PURE__ */ jsx("div", { className: "px-4 py-16 text-center text-sm font-semibold text-slate-500", children: "Loading the ledger…" }),
+      !loading && !error && entries.length === 0 && /* @__PURE__ */ jsx("div", { className: "p-6", children: /* @__PURE__ */ jsx(
+        EmptyState,
+        {
+          icon: ScrollText,
+          title: hasFilters ? "No entries match these filters" : "No activity recorded yet",
+          description: hasFilters ? "Widen the date range or clear the filters. The export button applies the same filters, so it would return the same empty set." : "Every payment, student record change and administrative action will appear here as it happens.",
+          action: hasFilters ? /* @__PURE__ */ jsx(
+            "button",
+            {
+              type: "button",
+              onClick: clearFilters,
+              className: "rounded-lg px-3 py-2 text-[13px] font-bold text-brand-700 transition-colors hover:bg-brand-50",
+              children: "Clear filters"
+            }
+          ) : null
+        }
+      ) }),
+      !loading && !error && entries.length > 0 && /* @__PURE__ */ jsx("ul", { className: "divide-y divide-slate-100", children: entries.map((entry) => {
+        const category = auditCategoryOf(entry.action);
+        const style = CATEGORY_STYLE[category];
+        const actor = entry.userId;
+        return /* @__PURE__ */ jsxs("li", { className: "flex gap-3 px-4 py-3.5 hover:bg-slate-50/50", children: [
+          /* @__PURE__ */ jsx(
+            "span",
+            {
+              className: `mt-1.5 h-2 w-2 shrink-0 rounded-full ${style ? style.dot : "bg-slate-300"}`,
+              "aria-label": style ? style.label : "Uncategorised",
+              title: style ? style.label : "Uncategorised"
+            }
+          ),
+          /* @__PURE__ */ jsxs("div", { className: "min-w-0 flex-1", children: [
+            /* @__PURE__ */ jsxs("div", { className: "flex flex-wrap items-baseline gap-x-2 gap-y-1", children: [
+              /* @__PURE__ */ jsx("span", { className: "text-[13px] font-extrabold text-ink", children: humaniseAction(entry.action) }),
+              /* @__PURE__ */ jsx("span", { className: "rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-600", children: entry.action }),
+              /* @__PURE__ */ jsx("span", { className: "text-[11px] font-medium text-slate-400", children: formatStamp(entry.createdAt) })
+            ] }),
+            /* @__PURE__ */ jsxs("div", { className: "mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] font-medium text-slate-600", children: [
+              /* @__PURE__ */ jsxs("span", { className: "inline-flex items-center gap-1.5", children: [
+                /* @__PURE__ */ jsx(User, { className: "h-3.5 w-3.5 text-slate-400", "aria-hidden": "true" }),
+                actor?.name || "System",
+                actor?.role ? /* @__PURE__ */ jsxs("span", { className: "text-slate-400", children: [
+                  "(",
+                  actor.role,
+                  ")"
+                ] }) : null
+              ] }),
+              entry.entity && /* @__PURE__ */ jsxs("span", { className: "inline-flex items-center gap-1", children: [
+                /* @__PURE__ */ jsx(ArrowRight, { className: "h-3 w-3 text-slate-300", "aria-hidden": "true" }),
+                entry.entity,
+                entry.entityId ? /* @__PURE__ */ jsx("span", { className: "font-mono text-[10px] text-slate-400", children: String(entry.entityId).slice(-8) }) : null
+              ] }),
+              entry.ip && /* @__PURE__ */ jsx("span", { className: "font-mono text-[11px] text-slate-400", children: entry.ip })
+            ] }),
+            /* @__PURE__ */ jsx(MetaChips, { meta: entry.meta })
+          ] })
+        ] }, entry._id);
+      }) }),
+      meta && meta.total > 0 && /* @__PURE__ */ jsxs("div", { className: "flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3", children: [
+        /* @__PURE__ */ jsxs("p", { className: "text-[12px] font-medium text-slate-500", children: [
+          "Showing ",
+          (meta.page - 1) * meta.perPage + 1,
+          "–",
+          Math.min(meta.page * meta.perPage, meta.total),
+          " of ",
+          meta.total
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-2", children: [
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              type: "button",
+              onClick: () => setFilter({ page: currentPage - 1 }, { resetPage: false }),
+              disabled: currentPage <= 1 || loading,
+              className: "rounded-lg px-3 py-1.5 text-[13px] font-bold text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-40",
+              children: "Previous"
+            }
+          ),
+          /* @__PURE__ */ jsxs("span", { className: "text-[12px] font-bold text-slate-700", children: [
+            "Page ",
+            currentPage,
+            " of ",
+            totalPages
+          ] }),
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              type: "button",
+              onClick: () => setFilter({ page: currentPage + 1 }, { resetPage: false }),
+              disabled: currentPage >= totalPages || loading,
+              className: "rounded-lg px-3 py-1.5 text-[13px] font-bold text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-40",
+              children: "Next"
+            }
+          )
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxs("p", { className: "mt-4 flex items-start gap-2 text-[11px]/[16px] font-medium text-slate-500", children: [
+      /* @__PURE__ */ jsx(ShieldCheck, { className: "mt-0.5 h-3.5 w-3.5 shrink-0", "aria-hidden": "true" }),
+      /* @__PURE__ */ jsx("span", { children: "Read-only by design. This module has no create, update or delete endpoint — a log its own product can edit is not evidence of anything. Entries are timestamped on write and are never edited afterwards, but the system does not yet compute a tamper-evident chain, so there is no integrity certificate to verify against." })
+    ] })
+  ] });
+};
+const InviteTeamMemberDialog = ({ open, onClose, onInvite, busy = false, schoolName }) => {
+  const [form, setForm] = useState({ name: "", email: "", role: "teacher", position: "", phone: "" });
+  const [customPosition, setCustomPosition] = useState("");
+  const [errors, setErrors] = useState({});
+  const [serverError, setServerError] = useState(null);
+  const roleOptions = SIGNUP_ROLES;
+  const update = (field) => (event) => {
+    const { value } = event.target;
+    setForm((current) => ({ ...current, [field]: value }));
+    setErrors((current) => ({ ...current, [field]: void 0 }));
+  };
+  const validate = () => {
+    const next = {};
+    if (form.name.trim().length < 2) next.name = "Enter their full name.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) next.email = "Enter a valid email address.";
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setServerError(null);
+    if (!validate()) return;
+    const result = await onInvite({
+      name: form.name.trim(),
+      email: form.email.trim().toLowerCase(),
+      role: form.role,
+      // `OTHER_POSITION` is a sentinel that is never stored; the free text beside
+      // it is what gets persisted, matching `User.position`'s unconstrained shape.
+      position: form.position === OTHER_POSITION ? customPosition.trim() : form.position,
+      phone: form.phone.trim() || void 0
+    });
+    if (!result?.ok) {
+      setServerError(result?.error?.message || "Could not send that invitation.");
+      return;
+    }
+    onClose();
+  };
+  const handleClose = () => {
+    setForm({ name: "", email: "", role: "teacher", position: "", phone: "" });
+    setCustomPosition("");
+    setErrors({});
+    setServerError(null);
+    onClose();
+  };
+  const ready = form.name.trim().length >= 2 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
+  return /* @__PURE__ */ jsx(
+    Modal,
+    {
+      open,
+      onClose: handleClose,
+      title: "Invite a team member",
+      description: schoolName ? `They will be added to ${schoolName}.` : "They will be added to your school.",
+      footer: /* @__PURE__ */ jsxs(Fragment, { children: [
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            type: "button",
+            onClick: handleClose,
+            disabled: busy,
+            className: "rounded-lg px-4 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50",
+            children: "Cancel"
+          }
+        ),
+        /* @__PURE__ */ jsxs(
+          "button",
+          {
+            type: "submit",
+            form: "invite-team-member-form",
+            disabled: busy || !ready,
+            className: "inline-flex items-center gap-2 rounded-lg bg-brand-700 px-4 py-2 text-sm font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50",
+            children: [
+              /* @__PURE__ */ jsx(UserPlus, { className: "h-4 w-4", "aria-hidden": "true" }),
+              busy ? "Sending…" : "Send invitation"
+            ]
+          }
+        )
+      ] }),
+      children: /* @__PURE__ */ jsxs("form", { id: "invite-team-member-form", onSubmit: handleSubmit, noValidate: true, className: "space-y-4", children: [
+        serverError && /* @__PURE__ */ jsx(FormAlert, { tone: "error", children: serverError }),
+        /* @__PURE__ */ jsx(
+          Field,
+          {
+            label: "Full name",
+            required: true,
+            icon: UserRound,
+            autoComplete: "off",
+            placeholder: "e.g. Rev. B. Quaye",
+            value: form.name,
+            onChange: update("name"),
+            error: errors.name
+          }
+        ),
+        /* @__PURE__ */ jsx(
+          Field,
+          {
+            label: "Email address",
+            required: true,
+            type: "email",
+            icon: AtSign,
+            autoComplete: "off",
+            placeholder: "e.g. b.quaye@prampramschool.edu.gh",
+            hint: "Where the credentials are sent",
+            value: form.email,
+            onChange: update("email"),
+            error: errors.email
+          }
+        ),
+        /* @__PURE__ */ jsxs("div", { className: "grid grid-cols-1 gap-4 sm:grid-cols-2", children: [
+          /* @__PURE__ */ jsx(SelectField, { label: "Role", value: form.role, onChange: update("role"), children: roleOptions.map((option) => /* @__PURE__ */ jsx("option", { value: option.value, children: option.label }, option.value)) }),
+          /* @__PURE__ */ jsxs(
+            SelectField,
+            {
+              label: "Position",
+              value: form.position,
+              onChange: update("position"),
+              hint: "Optional",
+              children: [
+                /* @__PURE__ */ jsx("option", { value: "", children: "Not specified" }),
+                POSITIONS.map((option) => /* @__PURE__ */ jsx("option", { value: option.value, children: option.label }, option.value))
+              ]
+            }
+          )
+        ] }),
+        form.position === OTHER_POSITION ? /* @__PURE__ */ jsx(
+          Field,
+          {
+            label: "Job title",
+            autoComplete: "off",
+            placeholder: "e.g. Assistant Bursar",
+            value: customPosition,
+            onChange: (event) => setCustomPosition(event.target.value)
+          }
+        ) : /* @__PURE__ */ jsx(
+          Field,
+          {
+            label: "Phone number",
+            type: "tel",
+            autoComplete: "off",
+            placeholder: "+233 24 000 0000",
+            hint: "Optional",
+            value: form.phone,
+            onChange: update("phone")
+          }
+        ),
+        /* @__PURE__ */ jsx("div", { className: "rounded-xl border border-brand-200 bg-brand-50/60 p-4", children: /* @__PURE__ */ jsxs("div", { className: "flex items-start gap-3", children: [
+          /* @__PURE__ */ jsx("span", { className: "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-brand-700", children: /* @__PURE__ */ jsx(KeyRound, { className: "h-4 w-4", "aria-hidden": "true" }) }),
+          /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
+            /* @__PURE__ */ jsx("p", { className: "text-[13px] font-extrabold text-brand-900", children: "What happens next" }),
+            /* @__PURE__ */ jsx("p", { className: "mt-1 text-[12px]/[17px] font-medium leading-relaxed text-brand-800", children: "We create their account and generate a temporary password from your school ID, then email both to the address above — along with your name, so they know who invited them. They change the password after signing in." })
+          ] })
+        ] }) }),
+        /* @__PURE__ */ jsxs("p", { className: "flex items-start gap-2 text-[11px]/[16px] font-medium text-slate-500", children: [
+          /* @__PURE__ */ jsx(Info, { className: "mt-0.5 h-3.5 w-3.5 shrink-0", "aria-hidden": "true" }),
+          /* @__PURE__ */ jsx("span", { children: "Only you and the recipient will ever see the temporary password. If the email does not arrive, re-send it from the team list — re-sending replaces the password." })
+        ] })
+      ] })
+    }
+  );
+};
+const useUsers = (reloadKey = 0) => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = useMemo(
+    () => ({
+      role: searchParams.get("role") || "",
+      status: searchParams.get("status") || "",
+      page: Number(searchParams.get("page")) || 1,
+      limit: 50
+    }),
+    [searchParams]
+  );
+  const [state, setState] = useState({ rows: [], pagination: null, loading: true, error: null });
+  useEffect(() => {
+    let active = true;
+    setState((current) => ({ ...current, loading: true, error: null }));
+    listUsers({ page: filters.page, limit: filters.limit, role: filters.role, status: filters.status }).then((result) => {
+      if (!active) return;
+      setState({
+        rows: result.users,
+        pagination: result.pagination,
+        loading: false,
+        error: null
+      });
+    }).catch((error) => {
+      if (!active) return;
+      setState({ rows: [], pagination: null, loading: false, error });
+    });
+    return () => {
+      active = false;
+    };
+  }, [filters, reloadKey]);
+  const setFilter = useCallback(
+    (patch, { resetPage = true } = {}) => {
+      const next = new URLSearchParams(searchParams);
+      Object.entries(patch).forEach(([key, value]) => {
+        if (value === "" || value === null || value === void 0) next.delete(key);
+        else next.set(key, String(value));
+      });
+      if (resetPage) next.delete("page");
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams]
+  );
+  const clearFilters = useCallback(() => {
+    setSearchParams(new URLSearchParams(), { replace: true });
+  }, [setSearchParams]);
+  const hasFilters = Boolean(filters.role || filters.status);
+  return { ...state, filters, setFilter, clearFilters, hasFilters };
+};
+const useFilteredUsers = (rows, search) => {
+  const term = search.trim().toLowerCase();
+  return useMemo(() => {
+    if (!term) return rows;
+    return rows.filter(
+      (row) => [row.name, row.email, row.position].filter(Boolean).some((value) => String(value).toLowerCase().includes(term))
+    );
+  }, [rows, term]);
+};
+const useUserActions = ({ onDone } = {}) => {
+  const [busyKey, setBusyKey] = useState(null);
+  const run = useCallback(
+    async (key, operation) => {
+      setBusyKey(key);
+      try {
+        const result = await operation();
+        onDone?.();
+        return { ok: true, ...result };
+      } catch (error) {
+        return { ok: false, error };
+      } finally {
+        setBusyKey(null);
+      }
+    },
+    [onDone]
+  );
+  const invite = useCallback(
+    (payload) => run("invite", () => inviteUser(payload)),
+    [run]
+  );
+  const resend = useCallback((userId) => run(`resend:${userId}`, () => resendUserInvite(userId)), [run]);
+  const changeRole = useCallback(
+    (userId, role) => run(`role:${userId}`, () => updateUserRole(userId, role).then((user) => ({ user }))),
+    [run]
+  );
+  const remove = useCallback((userId) => run(`remove:${userId}`, () => removeUser(userId)), [run]);
+  return {
+    invite,
+    resend,
+    changeRole,
+    remove,
+    busyKey,
+    /** True while the matching operation for `key` is in flight. */
+    isBusy: (key) => busyKey === key
+  };
+};
+const STATUS_BADGE = {
+  active: { tone: "green", label: "Active", icon: CheckCircle2 },
+  invited: { tone: "amber", label: "Awaiting sign-in", icon: Clock },
+  suspended: { tone: "red", label: "Suspended", icon: AlertTriangle },
+  deactivated: { tone: "slate", label: "Deactivated", icon: AlertTriangle }
+};
+const ROLE_LABEL = Object.fromEntries(SIGNUP_ROLES.map((r) => [r.value, r.label]));
+const initialsOf = (name = "") => name.trim().split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase() || "?";
+const relativeTime = (value) => {
+  if (!value) return "—";
+  const then = new Date(value);
+  if (Number.isNaN(then.getTime())) return "—";
+  const seconds = Math.round((Date.now() - then.getTime()) / 1e3);
+  if (seconds < 60) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hr${hours === 1 ? "" : "s"} ago`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
+  return then.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+};
+const UserManagement = () => {
+  const { user } = useAuth();
+  const toast = useToast();
+  const [reloadKey, setReloadKey] = useState(0);
+  const [search, setSearch] = useState("");
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [pendingRemoval, setPendingRemoval] = useState(null);
+  const { rows, loading, error, filters, setFilter, hasFilters } = useUsers(reloadKey);
+  const visibleUsers = useFilteredUsers(rows, search);
+  const refresh = useCallback(() => setReloadKey((key) => key + 1), []);
+  const actions = useUserActions({ onDone: refresh });
+  const counts = useMemo(
+    () => ({
+      total: rows.length,
+      invited: rows.filter((row) => row.status === "invited").length,
+      active: rows.filter((row) => row.status === "active").length,
+      // An account still running on a password its administrator knows. Worth
+      // surfacing because it is the one access risk this module can see.
+      mustChange: rows.filter((row) => row.mustChangePassword).length
+    }),
+    [rows]
+  );
+  const handleInvite = async (payload) => {
+    const result = await actions.invite(payload);
+    if (!result.ok) return result;
+    if (result.emailSent) {
+      toast.success(`Invitation sent to ${payload.email}`);
+    } else {
+      toast.warning(
+        `${payload.name} was added, but the invitation email could not be sent. Re-send it from the list.`
+      );
+    }
+    return result;
+  };
+  const handleResend = async (row) => {
+    const result = await actions.resend(row._id);
+    if (!result.ok) {
+      toast.error(result.error?.message || "Could not re-send that invitation.");
+      return;
+    }
+    if (result.emailSent) {
+      toast.success(`Invitation re-sent to ${row.email}. The previous password no longer works.`);
+    } else {
+      toast.warning("The invitation still could not be sent. Check the address and try again.");
+    }
+  };
+  const handleRoleChange = async (row, role) => {
+    if (role === row.role) return;
+    const result = await actions.changeRole(row._id, role);
+    if (result.ok) toast.success(`${row.name} is now a ${ROLE_LABEL[role] || role}.`);
+    else toast.error(result.error?.message || "Could not change that role.");
+  };
+  const handleRemove = async () => {
+    const row = pendingRemoval;
+    if (!row) return;
+    const result = await actions.remove(row._id);
+    setPendingRemoval(null);
+    if (result.ok) toast.success(`${row.name} was removed from the team.`);
+    else toast.error(result.error?.message || "Could not remove that user.");
+  };
+  const isSelf = (row) => String(row._id) === String(user?._id);
+  const tiles = [
+    { label: "Team members", value: counts.total, icon: Users, tone: "text-ink" },
+    { label: "Active", value: counts.active, icon: CheckCircle2, tone: "text-emerald-600" },
+    { label: "Awaiting sign-in", value: counts.invited, icon: Clock, tone: "text-amber-600" },
+    {
+      label: "Still on default password",
+      value: counts.mustChange,
+      icon: ShieldCheck,
+      tone: "text-brand-700"
+    }
+  ];
+  return /* @__PURE__ */ jsxs(Fragment, { children: [
+    /* @__PURE__ */ jsx(
+      PageHeader,
+      {
+        eyebrow: "Administration",
+        title: "User Management",
+        description: "Invite colleagues, manage what each person can do, and see who has actually signed in.",
+        actions: /* @__PURE__ */ jsxs(
+          "button",
+          {
+            type: "button",
+            onClick: () => setInviteOpen(true),
+            className: "inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800",
+            children: [
+              /* @__PURE__ */ jsx(UserPlus, { className: "h-4 w-4", "aria-hidden": "true" }),
+              "Invite team member"
+            ]
+          }
+        )
+      }
+    ),
+    /* @__PURE__ */ jsx("div", { className: "mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4", children: tiles.map((tile) => /* @__PURE__ */ jsx(Card, { padding: "p-4", children: /* @__PURE__ */ jsxs("div", { className: "flex items-start justify-between gap-2", children: [
+      /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
+        /* @__PURE__ */ jsx("p", { className: "truncate text-[11px] font-extrabold uppercase tracking-wider text-slate-500", children: tile.label }),
+        /* @__PURE__ */ jsx("p", { className: `mt-1.5 text-2xl font-extrabold tracking-tight ${tile.tone}`, children: loading ? "—" : tile.value })
+      ] }),
+      /* @__PURE__ */ jsx(tile.icon, { className: "h-5 w-5 shrink-0 text-slate-300", "aria-hidden": "true" })
+    ] }) }, tile.label)) }),
+    /* @__PURE__ */ jsxs(Card, { padding: "p-0", className: "overflow-hidden", children: [
+      /* @__PURE__ */ jsxs("div", { className: "flex flex-wrap items-center gap-3 border-b border-slate-100 p-4", children: [
+        /* @__PURE__ */ jsxs("div", { className: "relative min-w-[200px] flex-1", children: [
+          /* @__PURE__ */ jsx("span", { className: "pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400", children: /* @__PURE__ */ jsx(Search, { className: "h-4 w-4", "aria-hidden": "true" }) }),
+          /* @__PURE__ */ jsx(
+            "input",
+            {
+              type: "search",
+              value: search,
+              onChange: (event) => setSearch(event.target.value),
+              placeholder: "Search by name, email or position…",
+              "aria-label": "Search team members",
+              className: "w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-[13px]/[18px] font-medium text-ink placeholder:font-normal placeholder:text-slate-500 focus:border-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/30"
+            }
+          )
+        ] }),
+        /* @__PURE__ */ jsxs(
+          "select",
+          {
+            value: filters.role,
+            onChange: (event) => setFilter({ role: event.target.value }),
+            "aria-label": "Filter by role",
+            className: "cursor-pointer rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-[13px]/[18px] font-medium text-ink focus:border-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/30",
+            children: [
+              /* @__PURE__ */ jsx("option", { value: "", children: "All roles" }),
+              USER_ROLES.filter((role) => role !== "super_admin").map((role) => /* @__PURE__ */ jsx("option", { value: role, children: ROLE_LABEL[role] || role }, role))
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsxs(
+          "select",
+          {
+            value: filters.status,
+            onChange: (event) => setFilter({ status: event.target.value }),
+            "aria-label": "Filter by status",
+            className: "cursor-pointer rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-[13px]/[18px] font-medium text-ink focus:border-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/30",
+            children: [
+              /* @__PURE__ */ jsx("option", { value: "", children: "All statuses" }),
+              /* @__PURE__ */ jsx("option", { value: "active", children: "Active" }),
+              /* @__PURE__ */ jsx("option", { value: "invited", children: "Awaiting sign-in" }),
+              /* @__PURE__ */ jsx("option", { value: "suspended", children: "Suspended" })
+            ]
+          }
+        ),
+        (hasFilters || search) && /* @__PURE__ */ jsx(
+          "button",
+          {
+            type: "button",
+            onClick: () => {
+              setSearch("");
+              setFilter({ role: "", status: "" });
+            },
+            className: "rounded-lg px-3 py-2 text-[13px] font-bold text-slate-500 transition-colors hover:bg-slate-50 hover:text-ink",
+            children: "Clear"
+          }
+        )
+      ] }),
+      error && /* @__PURE__ */ jsx("div", { className: "m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-semibold text-red-700", children: error.message }),
+      loading && /* @__PURE__ */ jsx("div", { className: "px-4 py-16 text-center text-sm font-semibold text-slate-500", children: "Loading your team…" }),
+      !loading && !error && rows.length === 0 && /* @__PURE__ */ jsx("div", { className: "p-6", children: /* @__PURE__ */ jsx(
+        EmptyState,
+        {
+          icon: UserCog,
+          title: "No team members yet",
+          description: "You are the only account on this school. Invite a bursar, a teacher or a headteacher to give them access.",
+          action: /* @__PURE__ */ jsxs(
+            "button",
+            {
+              type: "button",
+              onClick: () => setInviteOpen(true),
+              className: "inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800",
+              children: [
+                /* @__PURE__ */ jsx(UserPlus, { className: "h-4 w-4", "aria-hidden": "true" }),
+                "Invite team member"
+              ]
+            }
+          )
+        }
+      ) }),
+      !loading && !error && rows.length > 0 && visibleUsers.length === 0 && /* @__PURE__ */ jsxs("div", { className: "px-4 py-16 text-center text-sm font-semibold text-slate-500", children: [
+        "No team members match “",
+        search,
+        "”."
+      ] }),
+      !loading && !error && visibleUsers.length > 0 && /* @__PURE__ */ jsx("div", { className: "overflow-x-auto", children: /* @__PURE__ */ jsxs("table", { className: "w-full border-collapse text-left", children: [
+        /* @__PURE__ */ jsx("thead", { children: /* @__PURE__ */ jsxs("tr", { className: "border-b border-slate-100 bg-slate-50/60", children: [
+          /* @__PURE__ */ jsx("th", { className: "px-4 py-3 text-[11px] font-extrabold uppercase tracking-wider text-slate-500", children: "Member" }),
+          /* @__PURE__ */ jsx("th", { className: "px-4 py-3 text-[11px] font-extrabold uppercase tracking-wider text-slate-500", children: "Role" }),
+          /* @__PURE__ */ jsx("th", { className: "px-4 py-3 text-[11px] font-extrabold uppercase tracking-wider text-slate-500", children: "Status" }),
+          /* @__PURE__ */ jsx("th", { className: "px-4 py-3 text-[11px] font-extrabold uppercase tracking-wider text-slate-500", children: "Last active" }),
+          /* @__PURE__ */ jsx("th", { className: "px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-slate-500", children: "Actions" })
+        ] }) }),
+        /* @__PURE__ */ jsx("tbody", { children: visibleUsers.map((row) => {
+          const status = STATUS_BADGE[row.status] || STATUS_BADGE.deactivated;
+          const StatusIcon = status.icon;
+          return /* @__PURE__ */ jsxs("tr", { className: "border-b border-slate-100 last:border-0 hover:bg-slate-50/50", children: [
+            /* @__PURE__ */ jsx("td", { className: "px-4 py-3", children: /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-3", children: [
+              /* @__PURE__ */ jsx("span", { className: "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-700 text-[12px] font-extrabold text-white", children: initialsOf(row.name) }),
+              /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
+                /* @__PURE__ */ jsxs("p", { className: "flex items-center gap-1.5 truncate text-[13px] font-extrabold text-ink", children: [
+                  row.name,
+                  isSelf(row) && /* @__PURE__ */ jsx("span", { className: "shrink-0 text-[10px] font-bold text-slate-400", children: "You" })
+                ] }),
+                /* @__PURE__ */ jsxs("p", { className: "truncate text-[12px] font-medium text-slate-500", children: [
+                  row.email,
+                  row.position ? ` · ${row.position}` : ""
+                ] })
+              ] })
+            ] }) }),
+            /* @__PURE__ */ jsx("td", { className: "px-4 py-3", children: /* @__PURE__ */ jsx(
+              "select",
+              {
+                value: row.role,
+                onChange: (event) => handleRoleChange(row, event.target.value),
+                disabled: actions.isBusy(`role:${row._id}`) || isSelf(row),
+                "aria-label": `Role for ${row.name}`,
+                className: "cursor-pointer rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[12px] font-bold text-ink focus:border-brand-700 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60",
+                children: USER_ROLES.filter((role) => role !== "super_admin").map((role) => /* @__PURE__ */ jsx("option", { value: role, children: ROLE_LABEL[role] || role }, role))
+              }
+            ) }),
+            /* @__PURE__ */ jsx("td", { className: "px-4 py-3", children: /* @__PURE__ */ jsxs("div", { className: "flex flex-col items-start gap-1", children: [
+              /* @__PURE__ */ jsx(Badge, { tone: status.tone, icon: StatusIcon, children: status.label }),
+              row.mustChangePassword && row.status === "active" && /* @__PURE__ */ jsx("span", { className: "text-[10px] font-bold text-brand-700", children: "Default password" }),
+              row.status === "invited" && !row.inviteEmailSentAt && /* @__PURE__ */ jsx("span", { className: "text-[10px] font-bold text-red-600", children: "Email not delivered" })
+            ] }) }),
+            /* @__PURE__ */ jsx("td", { className: "px-4 py-3 text-[12px] font-medium text-slate-500", children: relativeTime(row.lastLoginAt) }),
+            /* @__PURE__ */ jsx("td", { className: "px-4 py-3", children: /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-end gap-1", children: [
+              row.status === "invited" && /* @__PURE__ */ jsx(
+                "button",
+                {
+                  type: "button",
+                  onClick: () => handleResend(row),
+                  disabled: actions.isBusy(`resend:${row._id}`),
+                  title: "Re-send the invitation and replace the password",
+                  "aria-label": `Re-send invitation to ${row.name}`,
+                  className: "rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-ink disabled:opacity-50",
+                  children: /* @__PURE__ */ jsx(
+                    RefreshCw,
+                    {
+                      className: `h-4 w-4 ${actions.isBusy(`resend:${row._id}`) ? "animate-spin" : ""}`,
+                      "aria-hidden": "true"
+                    }
+                  )
+                }
+              ),
+              !isSelf(row) && /* @__PURE__ */ jsx(
+                "button",
+                {
+                  type: "button",
+                  onClick: () => setPendingRemoval(row),
+                  "aria-label": `Remove ${row.name}`,
+                  title: "Remove from team",
+                  className: "rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600",
+                  children: /* @__PURE__ */ jsx(Trash2, { className: "h-4 w-4", "aria-hidden": "true" })
+                }
+              )
+            ] }) })
+          ] }, row._id);
+        }) })
+      ] }) })
+    ] }),
+    /* @__PURE__ */ jsx(
+      InviteTeamMemberDialog,
+      {
+        open: inviteOpen,
+        onClose: () => setInviteOpen(false),
+        onInvite: handleInvite,
+        busy: actions.isBusy("invite")
+      }
+    ),
+    pendingRemoval && /* @__PURE__ */ jsxs("div", { className: "fixed inset-0 z-[90] flex items-center justify-center p-4", children: [
+      /* @__PURE__ */ jsx(
+        "div",
+        {
+          className: "absolute inset-0 bg-ink/55 backdrop-blur-sm",
+          onClick: () => setPendingRemoval(null),
+          "aria-hidden": "true"
+        }
+      ),
+      /* @__PURE__ */ jsxs(
+        "div",
+        {
+          role: "dialog",
+          "aria-modal": "true",
+          "aria-label": "Confirm removal",
+          className: "relative w-full max-w-md rounded-2xl bg-white p-6 shadow-soft",
+          children: [
+            /* @__PURE__ */ jsxs("div", { className: "flex items-start gap-3", children: [
+              /* @__PURE__ */ jsx("span", { className: "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600", children: /* @__PURE__ */ jsx(AlertTriangle, { className: "h-5 w-5", "aria-hidden": "true" }) }),
+              /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
+                /* @__PURE__ */ jsxs("h2", { className: "text-base font-extrabold text-ink", children: [
+                  "Remove ",
+                  pendingRemoval.name,
+                  "?"
+                ] }),
+                /* @__PURE__ */ jsx("p", { className: "mt-1.5 text-[13px]/[19px] font-medium text-slate-600", children: "They will lose access immediately and cannot sign in again. Their history is kept for the audit trail, but the email address stays reserved — so re-inviting them needs a restore rather than a new invitation." })
+              ] })
+            ] }),
+            /* @__PURE__ */ jsxs("div", { className: "mt-5 flex justify-end gap-2", children: [
+              /* @__PURE__ */ jsx(
+                "button",
+                {
+                  type: "button",
+                  onClick: () => setPendingRemoval(null),
+                  disabled: actions.isBusy(`remove:${pendingRemoval._id}`),
+                  className: "rounded-lg px-4 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50",
+                  children: "Cancel"
+                }
+              ),
+              /* @__PURE__ */ jsxs(
+                "button",
+                {
+                  type: "button",
+                  onClick: handleRemove,
+                  disabled: actions.isBusy(`remove:${pendingRemoval._id}`),
+                  className: "inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-extrabold text-white transition-colors hover:bg-red-700 disabled:opacity-50",
+                  children: [
+                    /* @__PURE__ */ jsx(Trash2, { className: "h-4 w-4", "aria-hidden": "true" }),
+                    actions.isBusy(`remove:${pendingRemoval._id}`) ? "Removing…" : "Remove member"
+                  ]
+                }
+              )
+            ] })
+          ]
+        }
+      )
+    ] })
+  ] });
+};
+const getSettings = async (schoolId) => {
+  try {
+    const { data } = await api.get(`/settings/${schoolId}`);
+    return data.data || {};
+  } catch (error) {
+    throw toApiError(error, "Could not load your school settings.");
+  }
+};
+const updateProfile = async (schoolId, patch) => {
+  try {
+    const { data } = await api.put(`/schools/${schoolId}`, patch);
+    return data.data || data.school || {};
+  } catch (error) {
+    throw toApiError(error, "Could not save the school profile.");
+  }
+};
+const updateGeneral = async (schoolId, patch) => {
+  try {
+    const { data } = await api.put(`/settings/${schoolId}`, patch);
+    return data.data || {};
+  } catch (error) {
+    throw toApiError(error, "Could not save those settings.");
+  }
+};
+const updateAcademicYear = async (schoolId, payload) => {
+  try {
+    const { data } = await api.put(`/settings/${schoolId}/academic-year`, payload);
+    return data.data || {};
+  } catch (error) {
+    throw toApiError(error, "Could not set the academic year and term.");
+  }
+};
+const updateNotifications = async (schoolId, prefs) => {
+  try {
+    const { data } = await api.put(`/settings/${schoolId}/notifications`, prefs);
+    return data.data || {};
+  } catch (error) {
+    throw toApiError(error, "Could not save notification preferences.");
+  }
+};
+const getBilling = async (schoolId) => {
+  try {
+    const { data } = await api.get(`/settings/${schoolId}/billing`);
+    return data.data || {};
+  } catch (error) {
+    throw toApiError(error, "Could not load billing information.");
+  }
+};
+const SCHOOL_TYPES = [
+  { value: "public", label: "Public Basic & JHS" },
+  { value: "private", label: "Private Basic & JHS (Co-educational)" },
+  { value: "international", label: "International" },
+  { value: "mission", label: "Mission / Church-based" },
+  { value: "charter", label: "Charter" }
+];
+const GHANA_REGIONS = [
+  "Ahafo",
+  "Ashanti",
+  "Bono",
+  "Bono East",
+  "Central",
+  "Eastern",
+  "Greater Accra",
+  "North East",
+  "Northern",
+  "Oti",
+  "Savannah",
+  "Upper East",
+  "Upper West",
+  "Volta",
+  "Western",
+  "Western North"
+];
+const ACADEMIC_TERMS = ["Term 1", "Term 2", "Term 3"];
+const GRADING_SYSTEMS = ["WAEC", "IB", "Cambridge", "Custom"];
+const SECTIONS = [
+  {
+    id: "profile",
+    label: "School Profile",
+    blurb: "Legal name, classification, address and branding.",
+    icon: Building2,
+    writable: true
+  },
+  {
+    id: "payment",
+    label: "Payment Gateway",
+    blurb: "MoMo collection mode, platform markup and enabled networks.",
+    icon: CreditCard,
+    writable: false,
+    reason: "Read-only. The gateway mode, platform markup and network switches are returned by the API but no endpoint writes them yet — they are platform-level configuration, not school-level."
+  },
+  {
+    id: "sms",
+    label: "SMS & Sender ID",
+    blurb: "Messaging provider, registered sender ID and credit balance.",
+    icon: Smartphone,
+    writable: false,
+    reason: "Read-only. Provider and sender ID are served by the API but nothing writes them from Settings; the balance changes as messages are sent."
+  },
+  {
+    id: "academic",
+    label: "Academic Calendar",
+    blurb: "Current year, active term, class list and grading system.",
+    icon: CalendarClock,
+    writable: true
+  },
+  {
+    id: "notifications",
+    label: "Notification Preferences",
+    blurb: "What the school is told about, and over which channel.",
+    icon: Bell,
+    writable: true
+  },
+  {
+    id: "billing",
+    label: "Fees & Billing Structure",
+    blurb: "Subscription plan, usage this period and the next invoice.",
+    icon: Receipt,
+    writable: false,
+    reason: "Read-only. Subscription changes are made through billing, not from Settings. Invoices are not yet issued by this system — the API returns an empty list."
+  },
+  {
+    id: "security",
+    label: "Security & Compliance",
+    blurb: "Who can sign in, and what has been done.",
+    icon: ShieldCheck,
+    writable: false,
+    reason: "Nothing to configure here. Roles and access live in their own module, and the record of who did what lives in the Activity Log."
+  }
+];
+const ReadOnlyNotice = ({ reason }) => /* @__PURE__ */ jsxs("div", { className: "mb-4 flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3", children: [
+  /* @__PURE__ */ jsx(Lock, { className: "mt-0.5 h-4 w-4 shrink-0 text-slate-400", "aria-hidden": "true" }),
+  /* @__PURE__ */ jsxs("p", { className: "text-[12px]/[18px] font-medium text-slate-600", children: [
+    /* @__PURE__ */ jsx("span", { className: "font-extrabold text-slate-700", children: "Read-only." }),
+    " ",
+    reason
+  ] })
 ] });
-const Reports = () => /* @__PURE__ */ jsx(
-  ModuleScaffold,
-  {
-    title: "Reports",
-    description: "Where the money came from, who has not paid, and how the term is tracking.",
-    action: /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx(Download, { className: "h-4 w-4" }),
-      "Export"
-    ] }),
-    sections: [
-      {
-        title: "Daily collections",
-        description: "What came in today, by method.",
-        endpoint: "GET /reports/daily/:schoolId",
-        icon: TrendingUp
-      },
-      {
-        title: "Term summary",
-        description: "Expected against collected for a whole term.",
-        endpoint: "GET /reports/term/:schoolId",
-        icon: BarChart3
-      },
-      {
-        title: "Outstanding balances",
-        description: "Who still owes, and by how much. The report that drives reminders.",
-        endpoint: "GET /reports/outstanding/:schoolId",
-        icon: PieChart
-      },
-      {
-        title: "Overdue only",
-        description: "The same list filtered to past the due date.",
-        endpoint: "GET /reports/overdue/:schoolId",
-        icon: TrendingUp
-      },
-      {
-        title: "Payment methods",
-        description: "The split across MTN, Telecel and AirtelTigo.",
-        endpoint: "GET /reports/payment-methods/:schoolId",
-        icon: PieChart
-      },
-      {
-        title: "Class collections",
-        description: "Collection rate per class, for a headteacher’s review.",
-        endpoint: "GET /reports/class-collections/:schoolId",
-        icon: BarChart3
-      },
-      {
-        title: "Installment compliance",
-        description: "How many families are current against the agreed schedule.",
-        endpoint: "GET /reports/compliance/:schoolId",
-        icon: TrendingUp
-      },
-      {
-        title: "Headteacher monthly",
-        description: "The month-end summary a school signs off internally.",
-        endpoint: "GET /reports/headmaster-monthly/:schoolId",
-        icon: Printer
-      },
-      {
-        title: "Parent contacts",
-        description: "Exportable contact list, for the school’s own records.",
-        endpoint: "GET /reports/parent-contacts/:schoolId",
-        icon: Download
+const DetailRow = ({ label, children, hint }) => /* @__PURE__ */ jsxs("div", { className: "border-b border-slate-100 py-2.5 last:border-0", children: [
+  /* @__PURE__ */ jsx("p", { className: "text-[11px] font-extrabold uppercase tracking-wider text-slate-500", children: label }),
+  /* @__PURE__ */ jsx("div", { className: "mt-1 text-[13px]/[19px] font-semibold text-ink", children }),
+  hint && /* @__PURE__ */ jsx("p", { className: "mt-0.5 text-[11px] font-medium text-slate-400", children: hint })
+] });
+const Settings = () => {
+  const { user } = useAuth();
+  const toast = useToast();
+  const schoolId = user?.schoolId;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const active = searchParams.get("section") || "profile";
+  const [settings, setSettings] = useState(null);
+  const [billing, setBilling] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState(null);
+  const section = SECTIONS.find((s) => s.id === active) || SECTIONS[0];
+  const [profile, setProfile] = useState({});
+  const [academic, setAcademic] = useState({});
+  const [notifications, setNotifications] = useState({});
+  const load = useCallback(async () => {
+    if (!schoolId) {
+      setLoading(false);
+      setLoadError(
+        new Error("Your account is not linked to a school yet, so there are no settings to show.")
+      );
+      return;
+    }
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [nextSettings, nextBilling] = await Promise.all([
+        getSettings(schoolId),
+        getBilling(schoolId).catch(() => null)
+      ]);
+      setSettings(nextSettings);
+      setBilling(nextBilling);
+      setProfile({
+        name: nextSettings.profile?.name || "",
+        type: nextSettings.profile?.type || "",
+        motto: nextSettings.profile?.motto || "",
+        yearFounded: nextSettings.profile?.yearFounded ?? "",
+        phone: nextSettings.profile?.phone || "",
+        email: nextSettings.profile?.email || "",
+        website: nextSettings.profile?.website || "",
+        address: nextSettings.profile?.address || "",
+        city: nextSettings.profile?.city || "",
+        region: nextSettings.profile?.region || "",
+        gpsAddress: nextSettings.profile?.gpsAddress || ""
+      });
+      setAcademic({
+        currentYear: nextSettings.academic?.currentYear || "",
+        currentTerm: nextSettings.academic?.currentTerm || "",
+        termsPerYear: nextSettings.academic?.termsPerYear ?? 3,
+        classes: (nextSettings.academic?.classes || []).join(", "),
+        gradingSystem: nextSettings.academic?.gradingSystem || "WAEC"
+      });
+      setNotifications({
+        email: nextSettings.notifications?.email !== false,
+        sms: nextSettings.notifications?.sms !== false,
+        inApp: nextSettings.notifications?.inApp !== false
+      });
+    } catch (error) {
+      setLoadError(error);
+    } finally {
+      setLoading(false);
+    }
+  }, [schoolId]);
+  useEffect(() => {
+    load();
+  }, [load]);
+  const selectSection = (id) => {
+    const next = new URLSearchParams(searchParams);
+    if (id === "profile") next.delete("section");
+    else next.set("section", id);
+    setSearchParams(next, { replace: true });
+    setErrors({});
+    setFormError(null);
+  };
+  const diff = (current, original) => {
+    const patch = {};
+    Object.entries(current).forEach(([key, value]) => {
+      if (value !== original[key]) patch[key] = value;
+    });
+    return patch;
+  };
+  const saveProfile = async () => {
+    const original = {
+      name: settings?.profile?.name || "",
+      type: settings?.profile?.type || "",
+      motto: settings?.profile?.motto || "",
+      yearFounded: settings?.profile?.yearFounded ?? "",
+      phone: settings?.profile?.phone || "",
+      email: settings?.profile?.email || "",
+      website: settings?.profile?.website || "",
+      address: settings?.profile?.address || "",
+      city: settings?.profile?.city || "",
+      region: settings?.profile?.region || "",
+      gpsAddress: settings?.profile?.gpsAddress || ""
+    };
+    const nextErrors = {};
+    if (profile.name.trim().length < 2) nextErrors.name = "Enter the school’s legal name.";
+    if (profile.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profile.email)) {
+      nextErrors.email = "Enter a valid email address.";
+    }
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
+    const patch = diff(profile, original);
+    if (!Object.keys(patch).length) {
+      toast.info("Nothing to save — no changes were made.");
+      return;
+    }
+    setSaving(true);
+    setFormError(null);
+    try {
+      await updateProfile(schoolId, patch);
+      toast.success("School profile saved.");
+      await load();
+    } catch (error) {
+      setFormError(error.message);
+      toast.error(error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const saveAcademic = async () => {
+    const nextErrors = {};
+    if (!/^\d{4}\/\d{4}$/.test(academic.currentYear)) {
+      nextErrors.currentYear = "Use the form 2025/2026 — the second year must be the first plus one.";
+    } else {
+      const [start] = academic.currentYear.split("/");
+      if (Number(academic.currentYear.split("/")[1]) !== Number(start) + 1) {
+        nextErrors.currentYear = "The two years must be consecutive, e.g. 2025/2026.";
       }
-    ],
-    notes: [
-      "Every report takes an academic year and term, which live in Settings. Reports are therefore scoped by the school’s current setting unless the caller overrides it.",
-      "Amounts are pesewas integers on the wire. Formatting to cedis belongs in one shared helper, or the same figure will read GH₵ 0.01 and GH₵ 100 in two reports."
-    ]
+    }
+    if (!ACADEMIC_TERMS.includes(academic.currentTerm)) {
+      nextErrors.currentTerm = "Choose Term 1, 2 or 3.";
+    }
+    if (!academic.classes.trim()) {
+      nextErrors.classes = "List at least one class — the roster and every report filter read this.";
+    }
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
+    const confirmed = window.confirm(
+      `Set the school to ${academic.currentYear}, ${academic.currentTerm}?
+
+Every report, payment plan and fee deadline is measured against this. Bills already issued for the previous term are not moved by this change.`
+    );
+    if (!confirmed) return;
+    const classes = academic.classes.split(",").map((value) => value.trim()).filter(Boolean);
+    setSaving(true);
+    setFormError(null);
+    try {
+      await updateAcademicYear(schoolId, {
+        currentYear: academic.currentYear,
+        currentTerm: academic.currentTerm,
+        termsPerYear: Number(academic.termsPerYear) || 3
+      });
+      await updateGeneral(schoolId, {
+        classes,
+        gradingSystem: academic.gradingSystem,
+        termsPerYear: Number(academic.termsPerYear) || 3
+      });
+      toast.success("Academic calendar saved.");
+      await load();
+    } catch (error) {
+      setFormError(error.message);
+      toast.error(error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const saveNotifications = async () => {
+    setSaving(true);
+    setFormError(null);
+    try {
+      await updateNotifications(schoolId, notifications);
+      toast.success("Notification preferences saved.");
+      await load();
+    } catch (error) {
+      setFormError(error.message);
+      toast.error(error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const lastModified = useMemo(() => {
+    if (!settings?.profile) return null;
+    return null;
+  }, [settings]);
+  if (loading) {
+    return /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsx(PageHeader, { eyebrow: "Administration", title: "Settings & Institution Profile" }),
+      /* @__PURE__ */ jsx("div", { className: "rounded-2xl border border-slate-100 bg-white p-6", children: /* @__PURE__ */ jsxs("div", { className: "animate-pulse space-y-4", children: [
+        /* @__PURE__ */ jsx("div", { className: "h-6 w-1/3 rounded bg-slate-200/70" }),
+        /* @__PURE__ */ jsx("div", { className: "h-4 w-2/3 rounded bg-slate-200/70" }),
+        /* @__PURE__ */ jsx("div", { className: "h-32 rounded bg-slate-200/70" })
+      ] }) })
+    ] });
   }
-);
-const ActivityLog = () => /* @__PURE__ */ jsx(
-  ModuleScaffold,
-  {
-    title: "Activity Log",
-    description: "Who changed what, in your school, and when they did it.",
-    action: /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx(Filter, { className: "h-4 w-4" }),
-      "Filter"
-    ] }),
-    sections: [
+  return /* @__PURE__ */ jsxs(Fragment, { children: [
+    /* @__PURE__ */ jsx(
+      PageHeader,
       {
-        title: "School activity",
-        description: "Every change across the school, newest first, with filters on actor and date.",
-        endpoint: "GET /audit-logs/:schoolId",
-        icon: ScrollText
-      },
-      {
-        title: "One user’s activity",
-        description: "Everything a single member of staff has done.",
-        endpoint: "GET /audit-logs/user/:userId",
-        icon: User
-      },
-      {
-        title: "Export",
-        description: "The filtered list as CSV, for an external review.",
-        endpoint: "GET /audit-logs/:schoolId/export",
-        icon: Download
+        eyebrow: "Administration",
+        title: "Settings & Institution Profile",
+        description: "Manage school credentials, the academic calendar, notification preferences and subscription."
       }
-    ],
-    notes: [
-      "Read-only by design. This module gets no create, update or delete; a log the product can edit is not evidence of anything.",
-      "The export must honour the filters on screen. An export that silently returns the unfiltered log is worse than no export, because it looks like a complete answer.",
-      "Entries reference a user and an entity, so the log is the natural place to link back to the student or payment it concerns — as a route into that record, not a copy of its details."
-    ]
-  }
-);
-const Settings = () => /* @__PURE__ */ jsx(
-  ModuleScaffold,
-  {
-    title: "Settings",
-    description: "Your school, your academic year, your paystack and your subscription.",
-    action: /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx(Save, { className: "h-4 w-4" }),
-      "Save changes"
-    ] }),
-    sections: [
-      {
-        title: "School profile",
-        description: "Name, classification, region, logo and contact details.",
-        endpoint: "GET /settings/:schoolId",
-        icon: Building2
-      },
-      {
-        title: "Academic year and term",
-        description: "Sets the period every report, plan and deadline is measured against.",
-        endpoint: "PUT /settings/:schoolId/academic-year",
-        icon: CalendarClock
-      },
-      {
-        title: "Notification preferences",
-        description: "What the school is told about, and how often.",
-        endpoint: "PUT /settings/:schoolId/notifications",
-        icon: Bell
-      },
-      {
-        title: "Paystack",
-        description: "The MoMo account or merchant credentials payments are collected into.",
-        endpoint: "PUT /settings/:schoolId",
-        icon: CreditCard
-      },
-      {
-        title: "Subscription and billing",
-        description: "Current plan and what it costs. Read-only; changed through billing.",
-        endpoint: "GET /settings/:schoolId/billing",
-        icon: Receipt
-      }
-    ],
-    notes: [
-      "Credentials must never be echoed back into a form field. Read them masked, and write only when the school actually changes them.",
-      "Changing the academic year re-bases every report and due date in the system, so it needs confirming rather than a quiet save.",
-      "This is the module that owns the staff list and roles, so invitations and permission changes belong here as their own section."
-    ]
-  }
-);
+    ),
+    loadError && /* @__PURE__ */ jsx("div", { className: "mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold text-amber-800", children: loadError.message }),
+    /* @__PURE__ */ jsxs("div", { className: "flex flex-col gap-5 lg:flex-row", children: [
+      /* @__PURE__ */ jsx(
+        "nav",
+        {
+          "aria-label": "Settings sections",
+          className: "shrink-0 lg:w-[260px]",
+          children: /* @__PURE__ */ jsx("ul", { className: "flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0", children: SECTIONS.map((item) => {
+            const isActive = item.id === section.id;
+            return /* @__PURE__ */ jsx("li", { className: "shrink-0 lg:shrink", children: /* @__PURE__ */ jsxs(
+              "button",
+              {
+                type: "button",
+                onClick: () => selectSection(item.id),
+                "aria-current": isActive ? "page" : void 0,
+                className: `flex w-full items-center gap-2.5 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-[13px] font-bold transition-colors ${isActive ? "bg-brand-700 text-white shadow-lift" : "bg-white text-slate-600 hover:bg-slate-50"}`,
+                children: [
+                  /* @__PURE__ */ jsx(item.icon, { className: "h-4 w-4 shrink-0", "aria-hidden": "true" }),
+                  /* @__PURE__ */ jsx("span", { className: "min-w-0 flex-1 truncate", children: item.label }),
+                  !item.writable && /* @__PURE__ */ jsx(
+                    Lock,
+                    {
+                      className: `h-3 w-3 shrink-0 ${isActive ? "text-white/70" : "text-slate-300"}`,
+                      "aria-label": "Read-only section"
+                    }
+                  )
+                ]
+              }
+            ) }, item.id);
+          }) })
+        }
+      ),
+      /* @__PURE__ */ jsxs("div", { className: "min-w-0 flex-1 space-y-5", children: [
+        !section.writable && /* @__PURE__ */ jsx(ReadOnlyNotice, { reason: section.reason }),
+        formError && /* @__PURE__ */ jsx(FormAlert, { tone: "error", children: formError }),
+        section.id === "profile" && settings && /* @__PURE__ */ jsx(Fragment, { children: /* @__PURE__ */ jsxs(Card, { children: [
+          /* @__PURE__ */ jsx("h2", { className: "text-base font-extrabold text-ink", children: section.label }),
+          /* @__PURE__ */ jsx("p", { className: "mt-0.5 text-[13px] font-medium text-slate-500", children: section.blurb }),
+          /* @__PURE__ */ jsxs("div", { className: "mt-5 flex flex-wrap items-center gap-5 rounded-xl bg-slate-50 p-4", children: [
+            settings.profile.logo ? /* @__PURE__ */ jsx(
+              "img",
+              {
+                src: settings.profile.logo,
+                alt: "School logo",
+                className: "h-16 w-16 rounded-xl border border-slate-200 bg-white object-contain p-1"
+              }
+            ) : /* @__PURE__ */ jsx("span", { className: "flex h-16 w-16 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white text-slate-300", children: /* @__PURE__ */ jsx(School, { className: "h-7 w-7", "aria-hidden": "true" }) }),
+            /* @__PURE__ */ jsxs("div", { className: "min-w-0 flex-1", children: [
+              /* @__PURE__ */ jsx("p", { className: "text-[13px] font-extrabold text-ink", children: "Logo & digital stamp" }),
+              /* @__PURE__ */ jsxs("p", { className: "mt-0.5 text-[12px]/[17px] font-medium text-slate-500", children: [
+                "Printed on parent payment receipts and SMS headers.",
+                settings.profile.stamp ? " A digital stamp is on file." : " No digital stamp is on file."
+              ] })
+            ] }),
+            user?.role === "super_admin" ? /* @__PURE__ */ jsx(Badge, { tone: "blue", children: "Uploads require platform admin" }) : /* @__PURE__ */ jsx(Badge, { tone: "slate", children: "Read-only for school admins" })
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2", children: [
+            /* @__PURE__ */ jsx(
+              Field,
+              {
+                label: "School legal name",
+                required: true,
+                value: profile.name,
+                onChange: (e) => setProfile({ ...profile, name: e.target.value }),
+                error: errors.name
+              }
+            ),
+            /* @__PURE__ */ jsx(
+              SelectField,
+              {
+                label: "School type / tier",
+                value: profile.type,
+                onChange: (e) => setProfile({ ...profile, type: e.target.value }),
+                children: SCHOOL_TYPES.map((option) => /* @__PURE__ */ jsx("option", { value: option.value, children: option.label }, option.value))
+              }
+            ),
+            /* @__PURE__ */ jsx(
+              Field,
+              {
+                label: "Official institutional email",
+                type: "email",
+                value: profile.email,
+                onChange: (e) => setProfile({ ...profile, email: e.target.value }),
+                error: errors.email
+              }
+            ),
+            /* @__PURE__ */ jsx(
+              Field,
+              {
+                label: "Institutional phone number",
+                type: "tel",
+                value: profile.phone,
+                onChange: (e) => setProfile({ ...profile, phone: e.target.value }),
+                hint: "Ghana format — 024xxxxxxx or 23324xxxxxxx"
+              }
+            ),
+            /* @__PURE__ */ jsx("div", { className: "sm:col-span-2", children: /* @__PURE__ */ jsx(
+              Field,
+              {
+                label: "Physical campus address",
+                value: profile.address,
+                onChange: (e) => setProfile({ ...profile, address: e.target.value })
+              }
+            ) }),
+            /* @__PURE__ */ jsx(
+              Field,
+              {
+                label: "City",
+                value: profile.city,
+                onChange: (e) => setProfile({ ...profile, city: e.target.value })
+              }
+            ),
+            /* @__PURE__ */ jsxs(
+              SelectField,
+              {
+                label: "Region",
+                value: profile.region,
+                onChange: (e) => setProfile({ ...profile, region: e.target.value }),
+                children: [
+                  /* @__PURE__ */ jsx("option", { value: "", children: "Select a region" }),
+                  GHANA_REGIONS.map((region) => /* @__PURE__ */ jsx("option", { value: region, children: region }, region))
+                ]
+              }
+            ),
+            /* @__PURE__ */ jsx(
+              Field,
+              {
+                label: "Digital address (GhanaPost GPS)",
+                value: profile.gpsAddress,
+                onChange: (e) => setProfile({ ...profile, gpsAddress: e.target.value }),
+                hint: "Geo-verified code, e.g. GA-492-1082"
+              }
+            ),
+            /* @__PURE__ */ jsx(
+              Field,
+              {
+                label: "Website URL",
+                type: "url",
+                value: profile.website,
+                onChange: (e) => setProfile({ ...profile, website: e.target.value }),
+                hint: "Optional"
+              }
+            ),
+            /* @__PURE__ */ jsx("div", { className: "sm:col-span-2", children: /* @__PURE__ */ jsx(
+              Field,
+              {
+                label: "School motto",
+                value: profile.motto,
+                onChange: (e) => setProfile({ ...profile, motto: e.target.value }),
+                hint: "Optional"
+              }
+            ) }),
+            /* @__PURE__ */ jsx(
+              Field,
+              {
+                label: "Year founded",
+                type: "number",
+                value: profile.yearFounded,
+                onChange: (e) => setProfile({ ...profile, yearFounded: e.target.value }),
+                hint: "Optional"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsx("div", { className: "mt-5 flex justify-end", children: /* @__PURE__ */ jsxs(
+            "button",
+            {
+              type: "button",
+              onClick: saveProfile,
+              disabled: saving,
+              className: "inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:opacity-50",
+              children: [
+                /* @__PURE__ */ jsx(Save, { className: "h-4 w-4", "aria-hidden": "true" }),
+                saving ? "Saving…" : "Save profile"
+              ]
+            }
+          ) })
+        ] }) }),
+        section.id === "payment" && settings && /* @__PURE__ */ jsxs(Card, { children: [
+          /* @__PURE__ */ jsx("h2", { className: "text-base font-extrabold text-ink", children: section.label }),
+          /* @__PURE__ */ jsx("p", { className: "mt-0.5 text-[13px] font-medium text-slate-500", children: section.blurb }),
+          /* @__PURE__ */ jsxs("div", { className: "mt-4", children: [
+            /* @__PURE__ */ jsx(DetailRow, { label: "Collection gateway", children: settings.payment?.gatewayMode || "hubtel" }),
+            /* @__PURE__ */ jsxs(DetailRow, { label: "Platform markup", children: [
+              `${settings.payment?.platformMarkupPercent ?? 0}%`,
+              /* @__PURE__ */ jsx("span", { className: "ml-1 text-[11px] font-medium text-slate-400", children: "on each collection" })
+            ] }),
+            /* @__PURE__ */ jsx(DetailRow, { label: "Networks enabled", children: /* @__PURE__ */ jsx("span", { className: "flex flex-wrap gap-1.5", children: Object.entries(settings.payment?.networksEnabled || {}).map(([network, enabled]) => /* @__PURE__ */ jsxs(Badge, { tone: enabled ? "green" : "slate", children: [
+              network,
+              enabled ? "" : " (off)"
+            ] }, network)) }) })
+          ] }),
+          /* @__PURE__ */ jsxs("p", { className: "mt-4 flex items-start gap-2 text-[11px]/[16px] font-medium text-slate-500", children: [
+            /* @__PURE__ */ jsx(Lock, { className: "mt-0.5 h-3.5 w-3.5 shrink-0", "aria-hidden": "true" }),
+            /* @__PURE__ */ jsx("span", { children: "Paystack credentials are never returned by this endpoint and are never shown in a form field. They are write-only: a school sets them through the credential flow, and from then on only a masked confirmation is visible." })
+          ] })
+        ] }),
+        section.id === "sms" && settings && /* @__PURE__ */ jsxs(Card, { children: [
+          /* @__PURE__ */ jsx("h2", { className: "text-base font-extrabold text-ink", children: section.label }),
+          /* @__PURE__ */ jsx("p", { className: "mt-0.5 text-[13px] font-medium text-slate-500", children: section.blurb }),
+          /* @__PURE__ */ jsxs("div", { className: "mt-4", children: [
+            /* @__PURE__ */ jsx(DetailRow, { label: "Provider", children: settings.sms?.provider || "hubtel" }),
+            /* @__PURE__ */ jsx(DetailRow, { label: "Registered sender ID", children: settings.sms?.senderId ? /* @__PURE__ */ jsx("span", { className: "font-mono", children: settings.sms.senderId }) : /* @__PURE__ */ jsx("span", { className: "text-slate-400", children: "Not registered" }) }),
+            /* @__PURE__ */ jsx(DetailRow, { label: "Credit balance", children: `${(settings.sms?.balance ?? 0).toLocaleString("en-GB")} credits` })
+          ] })
+        ] }),
+        section.id === "academic" && /* @__PURE__ */ jsxs(Card, { children: [
+          /* @__PURE__ */ jsx("h2", { className: "text-base font-extrabold text-ink", children: section.label }),
+          /* @__PURE__ */ jsx("p", { className: "mt-0.5 text-[13px] font-medium text-slate-500", children: section.blurb }),
+          /* @__PURE__ */ jsxs("div", { className: "mt-4 inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1", children: [
+            /* @__PURE__ */ jsx(CheckCircle2, { className: "h-3.5 w-3.5 text-amber-700", "aria-hidden": "true" }),
+            /* @__PURE__ */ jsxs("span", { className: "text-[11px] font-extrabold text-amber-800", children: [
+              academic.currentYear || "No year set",
+              " · ",
+              academic.currentTerm || "No term set"
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3", children: [
+            /* @__PURE__ */ jsx(
+              Field,
+              {
+                label: "Current academic year",
+                required: true,
+                placeholder: "2025/2026",
+                value: academic.currentYear,
+                onChange: (e) => setAcademic({ ...academic, currentYear: e.target.value }),
+                error: errors.currentYear,
+                hint: "Two consecutive years"
+              }
+            ),
+            /* @__PURE__ */ jsx(
+              SelectField,
+              {
+                label: "Active academic term",
+                required: true,
+                value: academic.currentTerm,
+                onChange: (e) => setAcademic({ ...academic, currentTerm: e.target.value }),
+                error: errors.currentTerm,
+                children: ACADEMIC_TERMS.map((term) => /* @__PURE__ */ jsx("option", { value: term, children: term }, term))
+              }
+            ),
+            /* @__PURE__ */ jsx(
+              Field,
+              {
+                label: "Terms per year",
+                type: "number",
+                min: "1",
+                max: "4",
+                value: academic.termsPerYear,
+                onChange: (e) => setAcademic({ ...academic, termsPerYear: e.target.value })
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2", children: [
+            /* @__PURE__ */ jsx(
+              Field,
+              {
+                label: "Classes",
+                required: true,
+                value: academic.classes,
+                onChange: (e) => setAcademic({ ...academic, classes: e.target.value }),
+                error: errors.classes,
+                hint: "Comma-separated. The roster and every report filter read this list."
+              }
+            ),
+            /* @__PURE__ */ jsx(
+              SelectField,
+              {
+                label: "Grading system",
+                value: academic.gradingSystem,
+                onChange: (e) => setAcademic({ ...academic, gradingSystem: e.target.value }),
+                children: GRADING_SYSTEMS.map((system) => /* @__PURE__ */ jsx("option", { value: system, children: system }, system))
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "mt-4 flex items-start gap-2 rounded-xl bg-amber-50 px-4 py-3", children: [
+            /* @__PURE__ */ jsx(Info, { className: "mt-0.5 h-4 w-4 shrink-0 text-amber-600", "aria-hidden": "true" }),
+            /* @__PURE__ */ jsx("p", { className: "text-[12px]/[18px] font-medium text-amber-900", children: "Changing the term re-bases every report, payment plan and fee deadline in the system. Bills already issued for the previous term are not moved. You will be asked to confirm." })
+          ] }),
+          /* @__PURE__ */ jsx("div", { className: "mt-5 flex justify-end", children: /* @__PURE__ */ jsxs(
+            "button",
+            {
+              type: "button",
+              onClick: saveAcademic,
+              disabled: saving,
+              className: "inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:opacity-50",
+              children: [
+                /* @__PURE__ */ jsx(Save, { className: "h-4 w-4", "aria-hidden": "true" }),
+                saving ? "Saving…" : "Save academic calendar"
+              ]
+            }
+          ) })
+        ] }),
+        section.id === "notifications" && /* @__PURE__ */ jsxs(Card, { children: [
+          /* @__PURE__ */ jsx("h2", { className: "text-base font-extrabold text-ink", children: section.label }),
+          /* @__PURE__ */ jsx("p", { className: "mt-0.5 text-[13px] font-medium text-slate-500", children: section.blurb }),
+          /* @__PURE__ */ jsx("div", { className: "mt-5 space-y-3", children: [
+            { key: "email", label: "Email notifications", hint: "Collections, arrears and system notices." },
+            { key: "sms", label: "SMS notifications", hint: "Charged against your credit balance." },
+            { key: "inApp", label: "In-app notifications", hint: "The bell in the dashboard header." }
+          ].map((pref) => /* @__PURE__ */ jsxs(
+            "label",
+            {
+              className: "flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-slate-200 p-4 hover:bg-slate-50",
+              children: [
+                /* @__PURE__ */ jsxs("span", { className: "min-w-0", children: [
+                  /* @__PURE__ */ jsx("span", { className: "block text-[13px] font-extrabold text-ink", children: pref.label }),
+                  /* @__PURE__ */ jsx("span", { className: "mt-0.5 block text-[12px]/[17px] font-medium text-slate-500", children: pref.hint })
+                ] }),
+                /* @__PURE__ */ jsx(
+                  "input",
+                  {
+                    type: "checkbox",
+                    checked: notifications[pref.key],
+                    onChange: (event) => setNotifications({ ...notifications, [pref.key]: event.target.checked }),
+                    className: "mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-slate-300 text-brand-700 focus:ring-brand-700"
+                  }
+                )
+              ]
+            },
+            pref.key
+          )) }),
+          /* @__PURE__ */ jsx("div", { className: "mt-5 flex justify-end", children: /* @__PURE__ */ jsxs(
+            "button",
+            {
+              type: "button",
+              onClick: saveNotifications,
+              disabled: saving,
+              className: "inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:opacity-50",
+              children: [
+                /* @__PURE__ */ jsx(Save, { className: "h-4 w-4", "aria-hidden": "true" }),
+                saving ? "Saving…" : "Save preferences"
+              ]
+            }
+          ) })
+        ] }),
+        section.id === "billing" && /* @__PURE__ */ jsxs(Card, { children: [
+          /* @__PURE__ */ jsx("h2", { className: "text-base font-extrabold text-ink", children: section.label }),
+          /* @__PURE__ */ jsx("p", { className: "mt-0.5 text-[13px] font-medium text-slate-500", children: section.blurb }),
+          !billing ? /* @__PURE__ */ jsx("p", { className: "mt-4 text-[13px] font-medium text-slate-500", children: "Billing is unavailable." }) : /* @__PURE__ */ jsxs("div", { className: "mt-4", children: [
+            /* @__PURE__ */ jsxs(DetailRow, { label: "Plan", children: [
+              /* @__PURE__ */ jsx("span", { className: "capitalize", children: billing.subscription?.plan }),
+              /* @__PURE__ */ jsx(Badge, { tone: billing.subscription?.status === "active" ? "green" : "amber", className: "ml-2", children: billing.subscription?.status })
+            ] }),
+            /* @__PURE__ */ jsxs(DetailRow, { label: "Monthly fee", children: [
+              billing.subscription?.monthlyFee ?? 0,
+              " pesewas"
+            ] }),
+            /* @__PURE__ */ jsx(DetailRow, { label: "Current period", children: billing.subscription?.currentPeriodStart ? `${new Date(billing.subscription.currentPeriodStart).toLocaleDateString("en-GB")} – ${new Date(
+              billing.subscription.currentPeriodEnd
+            ).toLocaleDateString("en-GB")}` : "Not set" }),
+            /* @__PURE__ */ jsx(DetailRow, { label: "Enrolled students", children: billing.usage?.studentsThisTerm ?? 0 }),
+            /* @__PURE__ */ jsx(DetailRow, { label: "SMS sent this month", children: `${(billing.usage?.smsSentThisMonth ?? 0).toLocaleString("en-GB")} of ${(billing.usage?.smsCreditsRemaining ?? 0).toLocaleString("en-GB")} credits remaining` }),
+            /* @__PURE__ */ jsx(DetailRow, { label: "Next invoice", children: billing.nextInvoice?.dueDate ? `${billing.nextInvoice.amount} pesewas, due ${new Date(
+              billing.nextInvoice.dueDate
+            ).toLocaleDateString("en-GB")}` : "No invoice scheduled" })
+          ] }),
+          /* @__PURE__ */ jsx("div", { className: "mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3", children: /* @__PURE__ */ jsxs("p", { className: "text-[12px]/[18px] font-medium text-slate-500", children: [
+            /* @__PURE__ */ jsx("span", { className: "font-extrabold text-slate-700", children: "Invoice history is not available." }),
+            " ",
+            "This system does not issue invoices yet — the API returns an empty list, so there is nothing to show. Storage usage is likewise reported as zero because no figure is collected."
+          ] }) })
+        ] }),
+        section.id === "security" && /* @__PURE__ */ jsxs(Card, { children: [
+          /* @__PURE__ */ jsx("h2", { className: "text-base font-extrabold text-ink", children: section.label }),
+          /* @__PURE__ */ jsx("p", { className: "mt-0.5 text-[13px] font-medium text-slate-500", children: section.blurb }),
+          /* @__PURE__ */ jsxs("div", { className: "mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2", children: [
+            /* @__PURE__ */ jsx(
+              Link,
+              {
+                to: ROUTES.DASHBOARD_USERS,
+                className: "rounded-xl border border-slate-200 p-4 transition-colors hover:border-brand-300 hover:bg-brand-50/40",
+                children: /* @__PURE__ */ jsxs("div", { className: "flex items-start gap-3", children: [
+                  /* @__PURE__ */ jsx(ShieldCheck, { className: "mt-0.5 h-4 w-4 shrink-0 text-brand-700", "aria-hidden": "true" }),
+                  /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
+                    /* @__PURE__ */ jsx("p", { className: "text-[13px] font-extrabold text-ink", children: "Team & permissions" }),
+                    /* @__PURE__ */ jsx("p", { className: "mt-0.5 text-[12px]/[17px] font-medium text-slate-500", children: "Who can sign in to this school, what each role can do, and who is still on a default password." })
+                  ] })
+                ] })
+              }
+            ),
+            /* @__PURE__ */ jsx(
+              Link,
+              {
+                to: ROUTES.DASHBOARD_ACTIVITY,
+                className: "rounded-xl border border-slate-200 p-4 transition-colors hover:border-brand-300 hover:bg-brand-50/40",
+                children: /* @__PURE__ */ jsxs("div", { className: "flex items-start gap-3", children: [
+                  /* @__PURE__ */ jsx(CheckCircle2, { className: "mt-0.5 h-4 w-4 shrink-0 text-brand-700", "aria-hidden": "true" }),
+                  /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
+                    /* @__PURE__ */ jsx("p", { className: "text-[13px] font-extrabold text-ink", children: "Audit trail" }),
+                    /* @__PURE__ */ jsx("p", { className: "mt-0.5 text-[12px]/[17px] font-medium text-slate-500", children: "Every administrative action taken on this school, filterable by actor, action and date, and exportable as CSV." })
+                  ] })
+                ] })
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsxs("p", { className: "mt-5 flex items-start gap-2 text-[11px]/[16px] font-medium text-slate-500", children: [
+            /* @__PURE__ */ jsx(Info, { className: "mt-0.5 h-3.5 w-3.5 shrink-0", "aria-hidden": "true" }),
+            /* @__PURE__ */ jsx("span", { children: "Session and password controls live on each person’s own account, and password resets are done by request rather than by an administrator — so no administrator can read or set a colleague’s current password." })
+          ] })
+        ] }),
+        lastModified && /* @__PURE__ */ jsxs("p", { className: "text-[11px] font-medium text-slate-400", children: [
+          "Last modified ",
+          lastModified
+        ] })
+      ] })
+    ] })
+  ] });
+};
 const BalanceCard = ({ student }) => {
   const balance = student.balance || 0;
   const settled = balance <= 0;
@@ -14404,6 +16696,7 @@ const at = (path) => /* @__PURE__ */ jsx(MemoryRouter, { initialEntries: [path],
   /* @__PURE__ */ jsx(Route, { path: "sms-reminders", element: /* @__PURE__ */ jsx(SmsReminders, {}) }),
   /* @__PURE__ */ jsx(Route, { path: "reports", element: /* @__PURE__ */ jsx(Reports, {}) }),
   /* @__PURE__ */ jsx(Route, { path: "activity-log", element: /* @__PURE__ */ jsx(ActivityLog, {}) }),
+  /* @__PURE__ */ jsx(Route, { path: "user-management", element: /* @__PURE__ */ jsx(UserManagement, {}) }),
   /* @__PURE__ */ jsx(Route, { path: "settings", element: /* @__PURE__ */ jsx(Settings, {}) })
 ] }) }) }) }) });
 const renderRoute = (path) => {
@@ -14423,6 +16716,7 @@ const MODULES = [
   "SMS Reminders",
   "Reports",
   "Activity Log",
+  "User Management",
   "Settings"
 ];
 const currentInRail = (html) => {
@@ -14443,11 +16737,11 @@ await check("the shell mounts at /dashboard", () => {
   if (!has(html, 'aria-label="Dashboard modules"')) throw new Error("the module rail is missing");
   return "skip link and rail present";
 });
-await check("all eight modules are in the rail", () => {
+await check("all nine modules are in the rail", () => {
   const html = renderRoute("/dashboard");
   const missing = MODULES.filter((label) => !has(html, `>${label}<`));
   if (missing.length) throw new Error(`missing from the rail: ${missing.join(", ")}`);
-  return "8 of 8";
+  return "9 of 9";
 });
 await check("the shell replaces the marketing chrome", () => {
   const html = renderRoute("/dashboard");
@@ -14473,6 +16767,7 @@ await check("exactly one rail entry is marked current, on every route", () => {
     ["/dashboard/sms-reminders", "SMS Reminders"],
     ["/dashboard/reports", "Reports"],
     ["/dashboard/activity-log", "Activity Log"],
+    ["/dashboard/user-management", "User Management"],
     ["/dashboard/settings", "Settings"]
   ];
   routes.forEach(([path, expected]) => {
@@ -14481,7 +16776,7 @@ await check("exactly one rail entry is marked current, on every route", () => {
     if (count !== 1) throw new Error(`${path} marked ${count} rail entries current, expected 1`);
     if (label !== expected) throw new Error(`${path} marked "${label}" current, expected "${expected}"`);
   });
-  return "8 routes, one correct entry each";
+  return "9 routes, one correct entry each";
 });
 await check("every module page renders its own content", () => {
   const pages = [
@@ -14502,22 +16797,32 @@ await check("every module page renders its own content", () => {
     // server — it is the default tab's first control — so it is the honest thing
     // to assert.
     ["/dashboard/sms-reminders", "Select Audience"],
-    ["/dashboard/reports", "Outstanding balances"],
+    // `&amp;`, not `&`: `renderToString` escapes the ampersand, so a needle
+    // written as prose fails against correct markup. This also changed from the
+    // scaffold's lowercase section title to the real card's name.
+    ["/dashboard/reports", "Outstanding Balances &amp; Arrears Ledger"],
     ["/dashboard/activity-log", "Read-only by design"],
-    ["/dashboard/settings", "Academic year and term"]
+    // The needle is the roster's own primary action. Asserting the module's title
+    // would pass even if the table never rendered, which is the failure a route
+    // check is supposed to catch.
+    ["/dashboard/user-management", "Invite team member"]
   ];
   pages.forEach(([path, needle]) => {
     const html = renderRoute(path);
     if (!has(html, needle)) throw new Error(`${path} did not render "${needle}"`);
   });
-  return "7 module pages rendered";
+  return "8 module pages rendered";
 });
-await check("Settings is hidden from non-admin roles in the rail", () => {
+await check("Settings and User Management are hidden from non-admin roles in the rail", () => {
   const teacher = visibleDashboardNav("teacher").flatMap((g) => g.items.map((i) => i.label));
   const admin = visibleDashboardNav("school_admin").flatMap((g) => g.items.map((i) => i.label));
-  if (teacher.includes("Settings")) throw new Error("a teacher can see Settings");
-  if (!admin.includes("Settings")) throw new Error("a school admin cannot see Settings");
-  return "teacher 7, school admin 8";
+  for (const hidden of ["Settings", "User Management"]) {
+    if (teacher.includes(hidden)) throw new Error(`a teacher can see ${hidden}`);
+    if (!admin.includes(hidden)) throw new Error(`a school admin cannot see ${hidden}`);
+  }
+  if (teacher.length !== 7) throw new Error(`teacher rail has ${teacher.length} entries, expected 7`);
+  if (admin.length !== 9) throw new Error(`admin rail has ${admin.length} entries, expected 9`);
+  return "teacher 7, school admin 9";
 });
 await check("the Payments KPI band aggregates the summary, never the visible rows", () => {
   const html = renderToString(
@@ -14883,6 +17188,96 @@ await check("FormField is only ever imported by name", async () => {
     throw new Error(`default-imported SelectField (which is Field) in: ${offenders.join(", ")}`);
   }
   return "no default imports of SelectField";
+});
+await check("Settings shows a skeleton on the server, not a flash of empty fields", () => {
+  const html = renderRoute("/dashboard/settings");
+  if (!has(html, "animate-pulse")) {
+    throw new Error("Settings did not render a loading skeleton on its first frame");
+  }
+  if (has(html, "Save profile")) {
+    throw new Error("Settings rendered its save controls before any settings had loaded");
+  }
+  return "skeleton on the first paint, no editable fields";
+});
+await check("every Settings section declares whether it is writable", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync(
+    new URL("../../src/pages/dashboard/Settings.jsx", import.meta.url),
+    "utf8"
+  );
+  for (const label of [
+    "School Profile",
+    "Payment Gateway",
+    "SMS & Sender ID",
+    "Academic Calendar",
+    "Notification Preferences",
+    "Fees & Billing Structure",
+    "Security & Compliance"
+  ]) {
+    if (!source.includes(`label: '${label}'`)) {
+      throw new Error(`the Settings rail is missing the "${label}" section`);
+    }
+  }
+  const readOnly = source.match(/writable: false,\s*\n\s*reason:/g) || [];
+  if (readOnly.length < 3) {
+    throw new Error(`${readOnly.length} read-only sections carry a reason; expected at least 3`);
+  }
+  return "7 sections, 3 read-only and each with a stated reason";
+});
+await check("the Reports catalogue never offers PDF", async () => {
+  const { REPORTS: REPORTS2 } = await import("./assets/reports-BuNrROki.js").then((n) => n.c);
+  if (REPORTS2.length !== 9) throw new Error(`expected 9 reports, the catalogue has ${REPORTS2.length}`);
+  const withPdf = REPORTS2.filter((r) => (r.formats || []).includes("pdf"));
+  if (withPdf.length) {
+    throw new Error(`PDF offered on: ${withPdf.map((r) => r.key).join(", ")}`);
+  }
+  const withoutExport = REPORTS2.filter((r) => !(r.formats || []).length);
+  if (withoutExport.length) {
+    throw new Error(`no export format on: ${withoutExport.map((r) => r.key).join(", ")}`);
+  }
+  return `9 reports, ${REPORTS2.length} with CSV/XLSX, none with PDF`;
+});
+await check("the Reports grid renders its catalogue", () => {
+  const html = renderRoute("/dashboard/reports");
+  ["All Reports", "Collections &amp; Revenue", "Compliance &amp; Arrears"].forEach((needle) => {
+    if (!has(html, needle)) throw new Error(`the Reports grid is missing the "${needle}" tab`);
+  });
+  if (!has(html, "Daily Collection Summary")) {
+    throw new Error("the Reports grid did not render a report card");
+  }
+  return "category tabs and report cards";
+});
+await check("the invite dialog explains what the recipient gets", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync(
+    new URL("../../src/components/user-management/InviteTeamMemberDialog.jsx", import.meta.url),
+    "utf8"
+  );
+  for (const needle of ["Full name", "Email address"]) {
+    if (!source.includes(needle)) throw new Error(`the invite dialog has no "${needle}" field`);
+  }
+  if (!source.includes("What happens next")) {
+    throw new Error("the dialog does not explain what the recipient will be emailed");
+  }
+  for (const needle of ["temporary password", "your name, so they know who invited"]) {
+    if (!source.includes(needle)) {
+      throw new Error(`the dialog does not mention "${needle}"`);
+    }
+  }
+  if (/name=["']password["']|type=["']password["']/.test(source)) {
+    throw new Error("the invite dialog offers a password field; the password is server-generated");
+  }
+  return "two required fields, and the delivery explained up front";
+});
+await check("a school_admin sees User Management in the rail of the page itself", () => {
+  const html = renderRoute("/dashboard/user-management");
+  if (!has(html, 'aria-current="page"')) {
+    throw new Error("no rail entry is marked current on /dashboard/user-management");
+  }
+  if (!has(html, "Search by name, email or position")) {
+    throw new Error("the roster did not render its search box");
+  }
+  return "route and rail agree";
 });
 await check("the pay page renders its own shell, not the marketing chrome", () => {
   const html = renderToString(/* @__PURE__ */ jsx(PayPageHarness, {}));

@@ -21,6 +21,7 @@ export const ROUTES = {
   DASHBOARD_SMS: '/dashboard/sms-reminders',
   DASHBOARD_REPORTS: '/dashboard/reports',
   DASHBOARD_ACTIVITY: '/dashboard/activity-log',
+  DASHBOARD_USERS: '/dashboard/user-management',
   DASHBOARD_SETTINGS: '/dashboard/settings',
   ONBOARDING: '/onboarding',
 };
@@ -205,6 +206,20 @@ export const DASHBOARD_NAV = [
     id: 'administration',
     label: 'Administration',
     items: [
+      {
+        to: ROUTES.DASHBOARD_USERS,
+        label: 'User Management',
+        icon: 'UserCog',
+        // Same audience as Settings, and for a sharper reason. Inviting a
+        // colleague mints a credential and names them to a third party, so it is
+        // an administrative act with an audit trail — not something a teacher or
+        // a bursar should be able to do for their colleagues. Hiding the module
+        // keeps the rail honest about who administers what; the server's
+        // `authorize('super_admin', 'school_admin')` remains the boundary, and
+        // this must never be the thing that enforces it.
+        roles: ['super_admin', 'school_admin'],
+        description: 'Invite colleagues, manage roles and review who has access.',
+      },
       {
         to: ROUTES.DASHBOARD_SETTINGS,
         label: 'Settings',
