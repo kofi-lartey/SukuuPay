@@ -908,6 +908,94 @@ await check('a school_admin sees User Management in the rail of the page itself'
   return 'route and rail agree';
 });
 
+// ── Dialog containment on a phone ────────────────────────────────────────────
+
+await check('the dialog pins its header and footer outside the scroll area', async () => {
+  // A source assertion, for the same reason as the invite dialog: `Modal` portals
+  // to `document.body` and this runner stubs `document` with plain objects, so no
+  // portal can render here.
+  //
+  // The contract is the whole point. The panel is a flex *column* that clips, the
+  // body is the only scroller, and the header and footer are `shrink-0`. When the
+  // scroll sat on the panel instead, a tall form pushed the submit button ~500px
+  // below the fold of a container whose page behind was `overflow: hidden` — so on
+  // a phone the dialog had no visible title, close button or save button at all.
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(
+    new URL('../../src/components/common/Modal.jsx', import.meta.url),
+    'utf8'
+  );
+
+  if (/max-h-\[\d+vh\][^"']*overflow-y-auto/.test(source)) {
+    throw new Error('Modal scrolls the whole panel again — the footer will scroll out of reach');
+  }
+  if (!/flex max-h-\[\d+vh\][^"']*flex-col/.test(source)) {
+    throw new Error('the Modal panel is not a flex column');
+  }
+  // The scroll has to land on the children wrapper.
+  if (!/flex-1 overflow-y-auto/.test(source)) {
+    throw new Error('the Modal body is not the scroll container');
+  }
+
+  const shrinkZero = (source.match(/shrink-0/g) || []).length;
+  if (shrinkZero < 2) {
+    throw new Error(`only ${shrinkZero} shrink-0 elements; the header and footer both need one`);
+  }
+
+  return 'header and footer pinned, body scrolls';
+});
+
+await check('the Manual Payment dialog truncates its student identity lines', async () => {
+  // The one line in this dialog that lacked the truncation its sibling above it
+  // had. A real code is `SCH-<SLUG>-<CLASS>-<YEAR>-<N>` and it sits beside a
+  // `shrink-0` balance column, so an untruncated code wraps and drags the balance
+  // out of alignment — which defeats the only purpose of the card above it.
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(
+    new URL('../../src/components/dashboard/RecordManualPaymentDialog.jsx', import.meta.url),
+    'utf8'
+  );
+
+  // Two sites: the summary card's `{student.…}` and the result row's `{s.…}`.
+  const identityLines = source.match(/(?:student|s)\.studentId\} · \{(?:student|s)\.studentClass\}/g) || [];
+  if (identityLines.length !== 2) {
+    throw new Error(`expected 2 student-identity lines, found ${identityLines.length}`);
+  }
+
+  // Each must sit on an element that also carries `truncate`.
+  const untruncated = source.match(
+    /<p(?![^>]*truncate)[^>]*>\s*\{(?:student|s)\.studentId\}/g
+  );
+  if (untruncated) {
+    throw new Error(`student-identity line is not truncated: ${untruncated[0]}`);
+  }
+  if (!/block truncate text-\[11px\][^"]*"[^>]*>\s*\{s\.studentId\}/s.test(source)) {
+    throw new Error('the search-result identity line lost its truncate');
+  }
+
+  return 'both identity lines truncate';
+});
+
+await check('the Overview header actions do not pin themselves against wrapping', async () => {
+  // `shrink-0` and `flex-wrap` in the same class list contradict each other: wrap
+  // exists so the row can save horizontal space, and `shrink-0` forbids the row
+  // from ever getting narrower than its widest child, so the wrap can never fire.
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(
+    new URL('../../src/pages/dashboard/Overview.jsx', import.meta.url),
+    'utf8'
+  );
+
+  if (/shrink-0[^"']*flex-wrap/.test(source) || /flex-wrap[^"']*shrink-0/.test(source)) {
+    throw new Error('the action row keeps both flex-wrap and shrink-0');
+  }
+  // Mobile stacks the actions full-width instead of relying on wrap to save space.
+  if (!/w-full flex-col gap-2 sm:w-auto sm:flex-row/.test(source)) {
+    throw new Error('the action row does not go full width on mobile');
+  }
+  return 'stacked full width below sm, inline above';
+});
+
 // ── The parent-facing pay page ───────────────────────────────────────────────
 //
 // Rendered on its own, and as part of the app, because it is the one surface a

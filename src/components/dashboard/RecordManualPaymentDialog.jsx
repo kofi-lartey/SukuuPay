@@ -153,7 +153,15 @@ const RecordManualPaymentDialog = ({ open, onClose, onRecorded }) => {
             <div className="flex items-start justify-between gap-3 rounded-xl bg-brand-50 px-4 py-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-extrabold text-ink">{student.studentName}</p>
-                <p className="text-[12px] font-semibold text-slate-500">
+                {/* `truncate` is load-bearing, and the line above already had it.
+                    A real student code is `SCH-<SLUG>-<CLASS>-<YEAR>-<N>`, which
+                    is 20+ characters, and it sits beside a `shrink-0` balance
+                    column in a `min-w-0` box. Without the truncation this line
+                    wraps to two or three rows on a 320px screen and drags the
+                    balance down with it, so the two figures stop being
+                    comparable at a glance — which is the one thing this card
+                    exists to do. */}
+                <p className="truncate text-[12px] font-semibold text-slate-500">
                   {student.studentId} · {student.studentClass}
                 </p>
               </div>
@@ -216,7 +224,11 @@ const RecordManualPaymentDialog = ({ open, onClose, onRecorded }) => {
                       <span className="block truncate text-[13px] font-extrabold text-ink">
                         {s.studentName}
                       </span>
-                      <span className="block text-[11px] font-semibold text-slate-500">
+                      {/* Same truncation contract as the summary card above.
+                          This one matters more: there are up to eight results
+                          stacked, so one wrapping code makes the whole list
+                          ragged and the balances stop lining up. */}
+                      <span className="block truncate text-[11px] font-semibold text-slate-500">
                         {s.studentId} · {s.studentClass}
                       </span>
                     </span>

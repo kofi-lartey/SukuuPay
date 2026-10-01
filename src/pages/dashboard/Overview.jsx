@@ -112,16 +112,21 @@ const Overview = () => {
           working button and an unreachable one still cannot record a payment
           against numbers that were never stored.
         */}
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <button
             type="button"
             onClick={onExport}
             disabled={isFallback}
             title={isFallback ? 'Available once the dashboard can reach the API' : 'Export this term’s figures'}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-extrabold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-extrabold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
           >
             <Download className="h-4 w-4" aria-hidden="true" />
-            Export Financial Report (CSV/PDF)
+            Export Financial Report
+            {/* The formats move to the tooltip on mobile rather than sitting in
+                the label. This button was the widest thing in the header — it set
+                the min-content width of the whole action row — and the extra nine
+                characters bought nothing on a 320px screen. */}
+            <span className="hidden sm:inline">(CSV/PDF)</span>
           </button>
 
           <button
@@ -133,7 +138,7 @@ const Overview = () => {
                 ? 'Available once the dashboard can reach the API'
                 : 'Record a cash, cheque or bank transfer payment'
             }
-            className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-[13px] font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-[13px] font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Record Manual Payment

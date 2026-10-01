@@ -53,9 +53,25 @@ const Modal = ({ open, onClose, title, description, children, footer, size = 'md
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`relative w-full ${widths[size]} max-h-[92vh] overflow-y-auto rounded-t-2xl bg-white shadow-soft outline-none sm:rounded-2xl`}
+        // A flex COLUMN with the scroll on the body, not on the panel.
+        //
+        // It used to be the reverse: `overflow-y-auto` on the panel itself, so the
+        // header and the footer scrolled away with the content. On a phone that is
+        // not a cosmetic problem. `max-h-[92vh]` on a 568px-tall screen leaves
+        // ~520px, a long form is ~740px, and `document.body { overflow: hidden }`
+        // above means the page behind cannot be scrolled to reach anything either.
+        // A bursar tapping "Record Manual Payment" on a 320px phone got a sheet
+        // with no visible title, no visible close button and no visible submit
+        // button — the form simply looked broken, because the only control they
+        // needed was 500px below the fold of a container they had not been told
+        // scrolls.
+        //
+        // `shrink-0` on the header and footer is load-bearing for the same reason:
+        // without it they are the first things a flex column shrinks, which would
+        // re-introduce the same disappearing controls at a smaller scale.
+        className={`relative flex max-h-[92vh] w-full flex-col overflow-hidden ${widths[size]} rounded-t-2xl bg-white shadow-soft outline-none sm:rounded-2xl`}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6">
           <div className="min-w-0">
             <h2 className="text-base font-extrabold tracking-tight text-ink">{title}</h2>
             {description && (
@@ -72,10 +88,16 @@ const Modal = ({ open, onClose, title, description, children, footer, size = 'md
           </button>
         </div>
 
-        <div className="px-5 py-5 sm:px-6">{children}</div>
+        {/*
+          `overscroll-contain` stops the scroll chaining that turns a short sheet
+          into a rubber-band on the page behind it once the body reaches its end.
+          The backdrop is `absolute inset-0`, so without this the drag pulls the
+          whole dialog down with it.
+        */}
+        <div className="overscroll-contain flex-1 overflow-y-auto px-5 py-5 sm:px-6">{children}</div>
 
         {footer && (
-          <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+          <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
             {footer}
           </div>
         )}

@@ -1636,9 +1636,9 @@ const Modal = ({ open, onClose, title, description, children, footer, size = "md
           role: "dialog",
           "aria-modal": "true",
           "aria-label": title,
-          className: `relative w-full ${widths[size]} max-h-[92vh] overflow-y-auto rounded-t-2xl bg-white shadow-soft outline-none sm:rounded-2xl`,
+          className: `relative flex max-h-[92vh] w-full flex-col overflow-hidden ${widths[size]} rounded-t-2xl bg-white shadow-soft outline-none sm:rounded-2xl`,
           children: [
-            /* @__PURE__ */ jsxs("div", { className: "flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6", children: [
+            /* @__PURE__ */ jsxs("div", { className: "flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6", children: [
               /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
                 /* @__PURE__ */ jsx("h2", { className: "text-base font-extrabold tracking-tight text-ink", children: title }),
                 description && /* @__PURE__ */ jsx("p", { className: "mt-1 text-[13px] font-medium leading-snug text-slate-500", children: description })
@@ -1654,8 +1654,8 @@ const Modal = ({ open, onClose, title, description, children, footer, size = "md
                 }
               )
             ] }),
-            /* @__PURE__ */ jsx("div", { className: "px-5 py-5 sm:px-6", children }),
-            footer && /* @__PURE__ */ jsx("div", { className: "flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-4 sm:flex-row sm:justify-end sm:px-6", children: footer })
+            /* @__PURE__ */ jsx("div", { className: "overscroll-contain flex-1 overflow-y-auto px-5 py-5 sm:px-6", children }),
+            footer && /* @__PURE__ */ jsx("div", { className: "flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-4 sm:flex-row sm:justify-end sm:px-6", children: footer })
           ]
         }
       )
@@ -2008,7 +2008,7 @@ const RecordManualPaymentDialog = ({ open, onClose, onRecorded }) => {
           /* @__PURE__ */ jsxs("div", { className: "flex items-start justify-between gap-3 rounded-xl bg-brand-50 px-4 py-3", children: [
             /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
               /* @__PURE__ */ jsx("p", { className: "truncate text-sm font-extrabold text-ink", children: student.studentName }),
-              /* @__PURE__ */ jsxs("p", { className: "text-[12px] font-semibold text-slate-500", children: [
+              /* @__PURE__ */ jsxs("p", { className: "truncate text-[12px] font-semibold text-slate-500", children: [
                 student.studentId,
                 " · ",
                 student.studentClass
@@ -2067,7 +2067,7 @@ const RecordManualPaymentDialog = ({ open, onClose, onRecorded }) => {
               children: [
                 /* @__PURE__ */ jsxs("span", { className: "min-w-0", children: [
                   /* @__PURE__ */ jsx("span", { className: "block truncate text-[13px] font-extrabold text-ink", children: s.studentName }),
-                  /* @__PURE__ */ jsxs("span", { className: "block text-[11px] font-semibold text-slate-500", children: [
+                  /* @__PURE__ */ jsxs("span", { className: "block truncate text-[11px] font-semibold text-slate-500", children: [
                     s.studentId,
                     " · ",
                     s.studentClass
@@ -3543,7 +3543,7 @@ const Overview = () => {
         /* @__PURE__ */ jsx("h1", { className: "mt-1.5 text-2xl font-extrabold tracking-tight text-ink sm:text-3xl", children: "Dashboard Overview" }),
         subtitle && /* @__PURE__ */ jsx("p", { className: "mt-1 text-[13px] font-semibold text-slate-500", children: subtitle })
       ] }),
-      /* @__PURE__ */ jsxs("div", { className: "flex shrink-0 flex-wrap items-center gap-2", children: [
+      /* @__PURE__ */ jsxs("div", { className: "flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center", children: [
         /* @__PURE__ */ jsxs(
           "button",
           {
@@ -3551,10 +3551,11 @@ const Overview = () => {
             onClick: onExport,
             disabled: isFallback,
             title: isFallback ? "Available once the dashboard can reach the API" : "Export this term’s figures",
-            className: "inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-extrabold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300",
+            className: "inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-extrabold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300",
             children: [
               /* @__PURE__ */ jsx(Download, { className: "h-4 w-4", "aria-hidden": "true" }),
-              "Export Financial Report (CSV/PDF)"
+              "Export Financial Report",
+              /* @__PURE__ */ jsx("span", { className: "hidden sm:inline", children: "(CSV/PDF)" })
             ]
           }
         ),
@@ -3565,7 +3566,7 @@ const Overview = () => {
             onClick: () => setRecording(true),
             disabled: isFallback,
             title: isFallback ? "Available once the dashboard can reach the API" : "Record a cash, cheque or bank transfer payment",
-            className: "inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-[13px] font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none",
+            className: "inline-flex items-center justify-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-[13px] font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none",
             children: [
               /* @__PURE__ */ jsx(Plus, { className: "h-4 w-4", "aria-hidden": "true" }),
               "Record Manual Payment"
@@ -17278,6 +17279,62 @@ await check("a school_admin sees User Management in the rail of the page itself"
     throw new Error("the roster did not render its search box");
   }
   return "route and rail agree";
+});
+await check("the dialog pins its header and footer outside the scroll area", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync(
+    new URL("../../src/components/common/Modal.jsx", import.meta.url),
+    "utf8"
+  );
+  if (/max-h-\[\d+vh\][^"']*overflow-y-auto/.test(source)) {
+    throw new Error("Modal scrolls the whole panel again — the footer will scroll out of reach");
+  }
+  if (!/flex max-h-\[\d+vh\][^"']*flex-col/.test(source)) {
+    throw new Error("the Modal panel is not a flex column");
+  }
+  if (!/flex-1 overflow-y-auto/.test(source)) {
+    throw new Error("the Modal body is not the scroll container");
+  }
+  const shrinkZero = (source.match(/shrink-0/g) || []).length;
+  if (shrinkZero < 2) {
+    throw new Error(`only ${shrinkZero} shrink-0 elements; the header and footer both need one`);
+  }
+  return "header and footer pinned, body scrolls";
+});
+await check("the Manual Payment dialog truncates its student identity lines", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync(
+    new URL("../../src/components/dashboard/RecordManualPaymentDialog.jsx", import.meta.url),
+    "utf8"
+  );
+  const identityLines = source.match(/(?:student|s)\.studentId\} · \{(?:student|s)\.studentClass\}/g) || [];
+  if (identityLines.length !== 2) {
+    throw new Error(`expected 2 student-identity lines, found ${identityLines.length}`);
+  }
+  const untruncated = source.match(
+    /<p(?![^>]*truncate)[^>]*>\s*\{(?:student|s)\.studentId\}/g
+  );
+  if (untruncated) {
+    throw new Error(`student-identity line is not truncated: ${untruncated[0]}`);
+  }
+  if (!/block truncate text-\[11px\][^"]*"[^>]*>\s*\{s\.studentId\}/s.test(source)) {
+    throw new Error("the search-result identity line lost its truncate");
+  }
+  return "both identity lines truncate";
+});
+await check("the Overview header actions do not pin themselves against wrapping", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync(
+    new URL("../../src/pages/dashboard/Overview.jsx", import.meta.url),
+    "utf8"
+  );
+  if (/shrink-0[^"']*flex-wrap/.test(source) || /flex-wrap[^"']*shrink-0/.test(source)) {
+    throw new Error("the action row keeps both flex-wrap and shrink-0");
+  }
+  if (!/w-full flex-col gap-2 sm:w-auto sm:flex-row/.test(source)) {
+    throw new Error("the action row does not go full width on mobile");
+  }
+  return "stacked full width below sm, inline above";
 });
 await check("the pay page renders its own shell, not the marketing chrome", () => {
   const html = renderToString(/* @__PURE__ */ jsx(PayPageHarness, {}));
