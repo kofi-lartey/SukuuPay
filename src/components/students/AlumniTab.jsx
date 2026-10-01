@@ -5,6 +5,7 @@ import Badge from '../dashboard/ui/Badge';
 import EmptyState from '../dashboard/EmptyState';
 import { SelectField } from '../common/FormField';
 import { listAlumni } from '../../services/students';
+import StudentAvatar from './StudentAvatar';
 import { formatCedi, formatCount } from '../../utils/format';
 import { formatGhanaPhone } from '../../utils/ghanaPhone';
 
@@ -153,15 +154,18 @@ const AlumniTab = ({ schoolId }) => {
                       const guardian = (alumnus.parents || []).find((p) => p.isPrimary);
                       return (
                         <tr key={alumnus._id} className="border-t border-slate-100">
-                          <th scope="row" className="px-5 py-3 font-normal">
-                            <span className="block text-[13px] font-extrabold text-ink">
-                              {alumnus.studentName}
-                            </span>
-                            <span className="block text-[11px] font-semibold text-slate-500">
-                              {alumnus.studentId}
-                              {guardian?.phone ? ` · ${formatGhanaPhone(guardian.phone)}` : ''}
-                            </span>
-                          </th>
+                      <th scope="row" className="flex items-center gap-3 px-5 py-3 font-normal">
+                        <StudentAvatar student={alumnus} size="sm" />
+                        <span className="min-w-0">
+                          <span className="block text-[13px] font-extrabold text-ink">
+                            {alumnus.studentName}
+                          </span>
+                          <span className="block text-[11px] font-semibold text-slate-500">
+                            {alumnus.studentId}
+                            {guardian?.phone ? ` · ${formatGhanaPhone(guardian.phone)}` : ''}
+                          </span>
+                        </span>
+                      </th>
                           <td className="whitespace-nowrap px-5 py-3 text-[13px] font-semibold text-slate-600">
                             {alumnus.graduationDate
                               ? new Date(alumnus.graduationDate).toLocaleDateString('en-GB')

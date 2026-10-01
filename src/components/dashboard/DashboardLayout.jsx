@@ -4,6 +4,7 @@ import DashboardSidebar from './DashboardSidebar';
 import DashboardTopbar from './DashboardTopbar';
 import { useAuth } from '../../context/AuthContext';
 import { useDashboardOverview } from '../../hooks/useDashboardOverview';
+import { getSmsCredit } from '../../services/dashboard';
 
 /**
  * The management-system app shell.
@@ -62,7 +63,41 @@ const DashboardLayout = () => {
     [school, data]
   );
   const term = data?.term;
-  const smsCredit = null;
+
+  // The SMS credit pill.
+  //
+  // It was hardcoded to `null` because there was no school-scoped balance route
+  // to read: the only one that existed, `GET /admin/sms-balance`, is super-admin
+  // only and reports the *platform's* master credit, so showing it on a school's
+  // header would have put a number belonging to nobody in particular next to that
+  // school's name. `GET /sms/credits/:schoolId` is school-scoped and readable by
+  // a bursar, so the pill can be real.
+  //
+  // Fetched here rather than in the topbar because the topbar is rendered on
+  // every dashboard module, and a pill that re-requested the balance on every
+  // navigation would be a request per page change for a figure that changes
+  // twice a term. A failure leaves it null, which hides the pill — the previous
+  // behaviour, and the right one: no balance is better than a wrong one.
+  const [smsCredit, setSmsCredit] = useState(null);
+  const schoolId = user?.schoolId;
+
+  useEffect(() => {
+    if (!schoolId) {
+      setSmsCredit(null);
+      return undefined;
+    }
+    let active = true;
+    getSmsCredit(schoolId)
+      .then((result) => {
+        if (active) setSmsCredit(result);
+      })
+      .catch(() => {
+        if (active) setSmsCredit(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [schoolId, pathname]);
 
   // Navigating with the drawer open must close it, or it hangs over the module
   // the user just asked for. Mirrors the marketing navbar's drawer.

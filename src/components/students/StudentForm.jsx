@@ -5,6 +5,9 @@ import PhoneInput from '../common/PhoneInput';
 import Button from '../common/Button';
 import { isValidGhanaPhone } from '../common/PhoneInput';
 import { createStudent, updateStudent } from '../../services/students';
+import { uploadStudentPhoto } from '../../services/upload';
+import useToast from '../../hooks/useToast';
+import StudentPhotoField from './StudentPhotoField';
 
 const emptyDraft = (classes) => ({
   studentName: '',
@@ -40,11 +43,17 @@ const StudentForm = ({ open, onClose, onSaved, classes = [], student = null }) =
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState(null);
   const [saving, setSaving] = useState(false);
+  const { warning } = useToast();
+  // The chosen photo on a *create*, held until the student has an id. On edit
+  // the photo field uploads immediately, because the endpoint addresses the
+  // student by id and the id already exists.
+  const [pendingPhoto, setPendingPhoto] = useState(null);
 
   useEffect(() => {
     if (!open) return;
     setErrors({});
     setFormError(null);
+    setPendingPhoto(null);
 
     if (student) {
       setDraft({
@@ -161,8 +170,32 @@ const StudentForm = ({ open, onClose, onSaved, classes = [], student = null }) =
       const saved = isEdit
         ? await updateStudent(student._id || student.id, payload)
         : await createStudent(payload);
+
+      // The photo is uploaded *after* the create call, because the upload
+      // endpoint attaches an image to an existing student by id.
+      //
+      // A photo failure does not fail the save, and the form closes either
+      // way. Keeping it open on a photo error would be actively dangerous:
+      // the student already exists, so pressing Save again would create a
+      // second, duplicate student. The problem is surfaced as a warning
+      // instead, and the photo can be retried from the student's profile.
+      let photoError = null;
+      if (pendingPhoto && saved?._id) {
+        try {
+          await uploadStudentPhoto(pendingPhoto, saved._id);
+        } catch (uploadErr) {
+          photoError = uploadErr.message || 'the photo could not be uploaded';
+        }
+      }
+
       onSaved(saved, isEdit);
       onClose();
+
+      if (photoError) {
+        warning(
+          `${saved.studentName || 'The student'} was saved, but ${photoError}. Open the student to retry the photo.`
+        );
+      }
     } catch (error) {
       setFormError(error.message);
     } finally {
@@ -192,6 +225,16 @@ const StudentForm = ({ open, onClose, onSaved, classes = [], student = null }) =
 
         <div className="space-y-5 px-6 py-5">
           {formError && <FormAlert>{formError}</FormAlert>}
+
+          {/* First, not last: the photo is the one field a bursar adding a new
+              student almost always has to hand to somebody to fetch, so it is
+              the field they come looking for. Buried under the guardians it
+              would be found days later. */}
+          <StudentPhotoField
+            student={student}
+            pendingFile={pendingPhoto}
+            onPendingFile={setPendingPhoto}
+          />
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field

@@ -44,6 +44,59 @@ export const APP_URL = 'https://sukuupay.netlify.app';
 /** Single source of truth for the copyright year across every page. */
 export const APP_YEAR = 2025;
 
+// ── Academic lifecycle enums ────────────────────────────────────────────────
+//
+// These mirror `REPEAT_REASON_ENUM`, `GRADUATION_TYPE_ENUM`, `HONORS_ENUM`,
+// `TRANSFER_REASON_ENUM` and `INSTITUTION_TYPE_ENUM` in
+// `Backend/src/validations/student.validation.js`. The *values* are the wire
+// format — those Joi schemas reject anything else with a 422 — so the labels
+// are ours to word but the values are not ours to choose. A list that drifts
+// from the server does not fail loudly on the way in; it 422s on submit,
+// after the user has already filled the form, so the two must be changed
+// together.
+
+export const REPEAT_REASONS = [
+  { value: 'ACADEMIC', label: 'Academic remediation' },
+  { value: 'ATTENDANCE', label: 'Attendance shortfall' },
+  { value: 'MEDICAL', label: 'Medical' },
+  { value: 'PARENTAL_REQUEST', label: 'Parental request' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+export const GRADUATION_TYPES = [
+  { value: 'STANDARD', label: 'Standard' },
+  { value: 'EARLY', label: 'Early graduation' },
+  { value: 'HONORARY', label: 'Honorary' },
+  { value: 'DEFERRED', label: 'Deferred' },
+];
+
+export const HONORS_LEVELS = [
+  { value: 'NONE', label: 'No honors' },
+  { value: 'HONORS', label: 'Honors' },
+  { value: 'HIGH_HONORS', label: 'High Honors' },
+  { value: 'HIGHEST_HONORS', label: 'Highest Honors' },
+];
+
+export const TRANSFER_REASONS = [
+  { value: 'RELOCATION', label: 'Family relocation' },
+  { value: 'ACADEMIC', label: 'Academic transfer' },
+  { value: 'FINANCIAL', label: 'Financial' },
+  { value: 'PERSONAL', label: 'Personal' },
+  { value: 'EXPULSION', label: 'Expulsion' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+export const INSTITUTION_TYPES = [
+  { value: 'PUBLIC_SCHOOL', label: 'Public school' },
+  { value: 'PRIVATE_SCHOOL', label: 'Private school' },
+  { value: 'INTERNATIONAL_SCHOOL', label: 'International school' },
+  { value: 'HOMESCHOOL', label: 'Homeschool' },
+  { value: 'VOCATIONAL', label: 'Vocational school' },
+  { value: 'COLLEGE_UNIVERSITY', label: 'College / University' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+
 /**
  * The one and only navigation definition. `Navbar` renders this; nothing else
  * should hardcode a marketing link, otherwise the header and footer drift.

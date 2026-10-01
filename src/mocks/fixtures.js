@@ -56,9 +56,68 @@ export const CLASS_SETS = {
 /** Momo network prefixes — the second digit identifies the network in Ghana. */
 const MOMO_PREFIX = { mtn: '024', telecel: '022', airteltigo: '027' };
 
-/** Generates a syntactically valid Ghanaian MSISDN for the given network. */
+/**
+ * Generates a syntactically valid Ghanaian MSISDN for the given network.
+ *
+ * A Ghanaian mobile number is **ten** digits: `0`, then the two-digit operator
+ * code, then seven subscriber digits. The range below is therefore 1,000,000 to
+ * 9,999,999.
+ *
+ * It was previously eight digits, which produced eleven-digit numbers — and every
+ * one of them was rejected by `GHANA_PHONE`, this mock's own MSISDN validator, so
+ * the mock seeded a roster whose phone numbers its own validation refused. That
+ * was invisible until the SMS module started checking the same field, at which
+ * point an entire school of 500 students resolved to zero recipients and the
+ * audience picker showed "nobody owes anything" against a roster that owes
+ * thousands of cedis. A fixture the validator rejects is a fixture that lies.
+ *
+ * The `rng` draw count is unchanged, so every seeded balance, class and deadline
+ * is byte-identical to before — only the digits in the phone numbers differ.
+ */
 export const ghanaPhone = (rng, network = 'mtn') =>
-  `${MOMO_PREFIX[network] || '024'}${String(intBetween(rng, 10000000, 99999999))}`;
+  `${MOMO_PREFIX[network] || '024'}${String(intBetween(rng, 1000000, 9999999))}`;
+
+/**
+ * A synthetic portrait, as an inline SVG data URI.
+ *
+ * Deliberately a data URI rather than a fake remote URL: a `res.cloudinary.com`
+ * URL that does not resolve exercises `StudentAvatar`'s `onError` fallback and
+ * nothing else, so every fixture student would render a monogram and the photo
+ * branch would never run in development at all. An inline SVG always renders,
+ * needs no network, and keeps the mock self-contained.
+ *
+ * Roughly 60% of students get one, so the roster shows a realistic mix — some
+ * with a photo, some without — which is the only state in which both the photo
+ * and the fallback path are visible at once.
+ */
+const AVATAR_TINTS = [
+  ['#d1fae5', '#047857'],
+  ['#dbeafe', '#1d4ed8'],
+  ['#fee2e2', '#b91c1c'],
+  ['#fef3c7', '#b45309'],
+  ['#ede9fe', '#6d28d9'],
+  ['#ccfbf1', '#0f766e'],
+];
+
+export const fixtureAvatar = (rng, gender = 'male') => {
+  const [bg, ink] = AVATAR_TINTS[intBetween(rng, 0, AVATAR_TINTS.length - 1)];
+  // Hair differs between the two silhouettes so the fixtures do not read as a
+  // single repeated stamp.
+  const hair =
+    gender === 'female'
+      ? '<path d="M22 30c0-11 6-18 14-18s14 7 14 18c0 3-1 6-2 8-1-9-5-14-12-14s-11 5-12 14c-1-2-2-5-2-8z" fill="' + ink + '" opacity="0.85"/>'
+      : '<path d="M23 28c0-9 5-15 13-15s13 6 13 15v3H23z" fill="' + ink + '" opacity="0.85"/>';
+
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72">` +
+    `<rect width="72" height="72" fill="${bg}"/>` +
+    hair +
+    `<circle cx="36" cy="32" r="12" fill="${ink}" opacity="0.9"/>` +
+    `<path d="M12 72c0-13 11-22 24-22s24 9 24 22z" fill="${ink}" opacity="0.9"/>` +
+    `</svg>`;
+
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+};
 
 export const CITY_BY_REGION = {
   'Greater Accra': ['Accra', 'Tema', 'Cantonments', 'Osu', 'Madina', 'Legon'],
@@ -184,7 +243,7 @@ export const buildStudents = (schoolId, count, { seed = 7, classes, academicYear
       studentName: `${firstName} ${lastName}`,
       studentClass: pick(rng, classList),
       gender,
-      studentImage: null,
+      studentImage: rng() < 0.6 ? fixtureAvatar(rng, gender) : null,
       schoolId,
       status: 'active',
       totalOwed,
@@ -293,6 +352,141 @@ export const buildAlumni = (
       record.balance = record.totalOwed - record.totalPaid;
       out.push(record);
     }
+  });
+
+  return out;
+};
+
+/**
+ * Installment plans, derived from the students they belong to.
+ *
+ * **Derived, not authored, and that is the whole point.** A plan's money is its
+ * student's `balance`, its class filter is the student's class, and its
+ * search-by-parent is the student's parent. If the mock authored plans as their
+ * own list, the compliance dashboard would show "Total Active Plans 176 ·
+ * GH₵ 148,200 committed" beside a roster of 500 students whose balances sum to
+ * something else entirely — and every figure on the screen would be a
+ * coincidence. Generating from the roster makes the two agree by construction, so
+ * a tester can check the dashboard's arithmetic against the Students tab.
+ *
+ * The status mix is chosen to exercise every branch of the service's classifier:
+ * most families current, a tranche due within the 3-day "approaching" window, a
+ * tranche already slipped, a couple still awaiting the parent's ACCEPT, and one
+ * completed plan. A fixture with only on-track plans renders a bar that is all
+ * one colour and tests nothing.
+ *
+ * `createdAt` is spread backwards through the term so the compliance list's
+ * default `sortBy: endDate` has something to order.
+ */
+export const buildPaymentPlans = (
+  schoolId,
+  students,
+  { seed = 17, term = 'Term 2', academicYear } = {}
+) => {
+  const rng = makeRng(seed);
+  const out = [];
+
+  const owing = students.filter((s) => (s.balance || 0) > 0 && s.status === 'active');
+  const now = Date.now();
+
+  owing.forEach((student, index) => {
+    // Roughly half the families who owe have agreed to a schedule. Every one
+    // would, in a real school, so the remainder stands in for the families a
+    // bursar has not got to — and it means the dashboard's "active plans" count
+    // is genuinely a subset of the owing list rather than a copy of it.
+    if (rng() > 0.55) return;
+
+    const count = pick(rng, [2, 3, 3, 4, 6]);
+    const total = student.balance;
+
+    // `base` with the remainder on the last tranche: a byte-for-byte mirror of
+    // `splitAmount` in `Backend/src/utils/planHelpers.js`, and the create screen's
+    // projection must agree with it to the pesewa.
+    const base = Math.floor(total / count);
+    const amounts = Array.from({ length: count }, () => base);
+    amounts[count - 1] = total - base * (count - 1);
+
+    const roll = rng();
+    const shape =
+      roll < 0.81 ? 'on_track' : roll < 0.94 ? 'approaching' : roll < 0.98 ? 'overdue' : 'awaiting';
+
+    // Where the first tranche falls decides the shape. `on_track` starts far
+    // enough out that nothing is near due; `approaching` starts inside the
+    // 3-day window; `overdue` starts far enough back that the first tranche has
+    // already slipped.
+    const firstDueOffsetDays =
+      shape === 'on_track'
+        ? intBetween(rng, 20, 75)
+        : shape === 'approaching'
+          ? intBetween(rng, 0, 2)
+          : shape === 'overdue'
+            ? -intBetween(rng, 3, 40)
+            : intBetween(rng, 10, 40);
+
+    const stepDays = pick(rng, [7, 14, 30, 30]);
+    const planStatus = shape === 'awaiting' ? 'pending_acceptance' : 'active';
+
+    // How many leading tranches have been paid. Zero for overdue (a family in
+    // default has not paid the one that slipped) and 1+ otherwise, so the
+    // progress bar has a spread to render.
+    const paidCount =
+      shape === 'on_track' ? intBetween(rng, 0, Math.max(0, count - 1)) : shape === 'overdue' ? 0 : 0;
+
+    let cumulative = 0;
+    const installments = amounts.map((amount, trancheIndex) => {
+      cumulative += amount;
+      const due = new Date(now + (firstDueOffsetDays + trancheIndex * stepDays) * 86400000);
+      const isPaid = trancheIndex < paidCount;
+      const hasSlipped = !isPaid && due.getTime() < now;
+
+      return {
+        installmentNumber: trancheIndex + 1,
+        amount,
+        dueDate: due.toISOString(),
+        status: isPaid ? 'paid' : hasSlipped ? 'overdue' : 'pending',
+        amountPaid: isPaid ? amount : 0,
+        paidAt: isPaid ? due.toISOString() : null,
+        paymentIds: [],
+        reminderSentAt: null,
+        overdueNotifiedAt: hasSlipped ? due.toISOString() : null,
+        notes: '',
+      };
+    });
+
+    const installmentsPaid = installments.filter((i) => i.status === 'paid').length;
+    const totalPaid = installments.reduce((sum, i) => sum + i.amountPaid, 0);
+
+    out.push({
+      _id: objectId(seed * 1000 + index),
+      studentId: student._id,
+      schoolId,
+      planName: `${count}-Month Plan`,
+      totalAmount: total,
+      numberOfInstallments: count,
+      interval: stepDays === 7 ? 'weekly' : stepDays === 14 ? 'biweekly' : 'monthly',
+      installments,
+      planStatus,
+      acceptanceToken: 'ACCEPT',
+      startDate: installments[0].dueDate,
+      endDate: installments[installments.length - 1].dueDate,
+      adminNotes: '',
+      term,
+      academicYear: academicYear || '',
+      installmentsPaid,
+      installmentsRemaining: installments.length - installmentsPaid,
+      amountPaid: totalPaid,
+      totalRemaining: total - totalPaid,
+      progressPercent: Math.round((installmentsPaid / count) * 100),
+      lastOverdueCheckAt: new Date().toISOString(),
+      acceptedAt: planStatus === 'active' ? new Date(now - 30 * 86400000).toISOString() : null,
+      acceptedVia: planStatus === 'active' ? 'sms' : null,
+      cancelledAt: null,
+      cancelledBy: null,
+      cancellationReason: '',
+      deletedAt: null,
+      createdAt: new Date(now - intBetween(rng, 5, 70) * 86400000).toISOString(),
+      updatedAt: new Date(now - intBetween(rng, 0, 5) * 86400000).toISOString(),
+    });
   });
 
   return out;

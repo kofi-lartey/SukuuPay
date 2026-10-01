@@ -15,7 +15,7 @@ import MomoPreviewCard from '../../components/onboarding/MomoPreviewCard';
 import useOnboardingProgress from '../../hooks/useOnboardingProgress';
 import useToast from '../../hooks/useToast';
 import { listStudents } from '../../services/students';
-import { sendBulk } from '../../services/sms';
+import { sendBulkSms } from '../../services/sms';
 import { useAuth } from '../../context/AuthContext';
 import { ROUTES } from '../../utils/constants';
 
@@ -170,10 +170,22 @@ const Step4SendReminder = () => {
 
     setSending(true);
     try {
-      const outcome = await sendBulk(schoolId, { owingOnly: true, template: TEMPLATE }, TEMPLATE);
+      // The same `POST /sms/bulk` the SMS Reminders module uses, so onboarding
+      // does not get a second send path with none of the queueing, rate limiting
+      // or refunding. `all_owing` is the rule this step has always meant by
+      // "owingOnly" — every parent with a balance above zero.
+      const result = await sendBulkSms({
+        schoolId,
+        audience: { type: 'all_owing', minBalance: 1 },
+        body: TEMPLATE,
+        category: 'fee_reminder',
+      });
       setConfirmOpen(false);
+      const recipients = result?.job?.recipients ?? 0;
       await finish(
-        outcome?.sent != null ? `Sent ${outcome.sent} reminders to parents.` : 'Reminders sent.'
+        recipients
+          ? `Queued ${recipients} reminder${recipients === 1 ? '' : 's'} to parents.`
+          : 'Setup complete.'
       );
     } catch (error) {
       setConfirmOpen(false);

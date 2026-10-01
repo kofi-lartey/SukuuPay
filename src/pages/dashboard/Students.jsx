@@ -9,10 +9,14 @@ import StudentTable from '../../components/students/StudentTable';
 import BulkActionBar from '../../components/students/BulkActionBar';
 import StudentProfileDrawer from '../../components/students/StudentProfileDrawer';
 import StudentForm from '../../components/students/StudentForm';
+import { PHOTO_CHANGED_EVENT } from '../../components/students/StudentPhotoField';
 import ClassListEditor from '../../components/students/ClassListEditor';
 import ImportTab from '../../components/students/ImportTab';
 import AlumniTab from '../../components/students/AlumniTab';
 import CohortsTab from '../../components/students/CohortsTab';
+import PromotionsTab from '../../components/students/promotions/PromotionsTab';
+import IdCardPrintStudio from '../../components/students/idcards/IdCardPrintStudio';
+import TransferOutDialog from '../../components/students/promotions/TransferOutDialog';
 import useToast from '../../hooks/useToast';
 import { useStudents, useStudentStats, useRosterSelection } from '../../hooks/useStudents';
 import { useAuth } from '../../context/AuthContext';
@@ -24,12 +28,15 @@ import {
   bulkUpdateStudents,
   exportStudents,
   regeneratePayLink,
+  transferOut,
 } from '../../services/students';
 import { ROUTES } from '../../utils/constants';
 import { formatCount } from '../../utils/format';
 
 const TABS = [
   { value: 'roster', label: 'Roster' },
+  { value: 'id-cards', label: 'ID Cards' },
+  { value: 'promotions', label: 'Promotions' },
   { value: 'import', label: 'Import' },
   { value: 'alumni', label: 'Alumni' },
   { value: 'cohorts', label: 'Cohorts' },
@@ -70,6 +77,9 @@ const Students = () => {
   const [editing, setEditing] = useState(null);
   const [creating, setCreating] = useState(false);
   const [editingClasses, setEditingClasses] = useState(false);
+  // The student the transfer-out dialog is open for. Held here rather than
+  // inside the dialog so the row action and the dialog are wired once.
+  const [transferringOut, setTransferringOut] = useState(null);
   // Set when the class list was reached *via* Add New Student, so saving classes
   // continues straight into the form the user was actually trying to open.
   const [addAfterClasses, setAddAfterClasses] = useState(false);
@@ -108,6 +118,18 @@ const Students = () => {
 
   /** The single invalidation point every mutation funnels through. */
   const refresh = useCallback(() => setReloadKey((key) => key + 1), []);
+
+  /**
+   * A photo upload writes `Student.studentImage` directly, bypassing this page's
+   * mutation flow — it happens inside the form's photo field, on its own timer.
+   * Without this the roster keeps showing the monogram of a student who now has
+   * a face until something unrelated happens to refetch.
+   */
+  useEffect(() => {
+    const onPhotoChanged = () => refresh();
+    window.addEventListener(PHOTO_CHANGED_EVENT, onPhotoChanged);
+    return () => window.removeEventListener(PHOTO_CHANGED_EVENT, onPhotoChanged);
+  }, [refresh]);
 
   /**
    * A class save has to land in local state immediately rather than waiting for
@@ -260,6 +282,14 @@ const Students = () => {
     [success, selection, refresh]
   );
 
+  const onTransferOut = async (payload) => {
+    const student = transferringOut;
+    await transferOut(student._id || student.id, payload);
+    success(`${student.studentName} transferred out to ${payload.destinationInstitution}`);
+    setTransferringOut(null);
+    refresh();
+  };
+
   const onBulkError = (err) => {
     // `details` carries the refusal list for an outstanding-balance archive.
     const refused = err?.details?.errors?.length;
@@ -271,6 +301,56 @@ const Students = () => {
     }
     errorToast(err?.message || 'That bulk action could not be completed.');
   };
+
+  if (tab === 'id-cards') {
+    return (
+      <>
+        <PageHeader
+          eyebrow="Students"
+          title="ID card print studio"
+          description="Print-ready CR80 student cards, generated from your school's own record."
+        />
+        <ModuleTabs items={TABS} value={tab} onChange={setTab} ariaLabel="Students sections" />
+        <IdCardPrintStudio schoolId={user?.schoolId} school={school} classes={classes} />
+      </>
+    );
+  }
+
+  if (tab === 'promotions') {
+    // The school has not arrived yet, so `classes` is still empty. Rendering
+    // the tab now would show "this school has no classes" — a confident,
+    // wrong statement that a loading state would have avoided, and one a bursar
+    // could act on. Wait for the school before saying anything about it.
+    if (!school && !schoolError) {
+      return (
+        <>
+          <PageHeader
+            eyebrow="Students"
+            title="Promotions & Graduation"
+            description="Move every class to the next one, hold individual students back, and graduate the final-year cohort."
+          />
+          <ModuleTabs items={TABS} value={tab} onChange={setTab} ariaLabel="Students sections" />
+          <div className="h-64 animate-pulse rounded-2xl bg-slate-200/60" aria-busy="true" />
+        </>
+      );
+    }
+
+    return (
+      <>
+        <PageHeader
+          eyebrow="Students"
+          title="Promotions & Graduation"
+          description="Move every class to the next one, hold individual students back, and graduate the final-year cohort."
+        />
+        <ModuleTabs items={TABS} value={tab} onChange={setTab} ariaLabel="Students sections" />
+        <PromotionsTab
+          schoolId={user?.schoolId}
+          classes={classes}
+          onRosterChanged={refresh}
+        />
+      </>
+    );
+  }
 
   if (tab === 'import') {
     return (
@@ -398,6 +478,7 @@ const Students = () => {
         onClearFilters={clearFilters}
         onMessage={onMessage}
         onRegeneratePayLink={onRegeneratePayLink}
+        onTransferOut={setTransferringOut}
       />
 
       <BulkActionBar selection={selection} onDone={bulkHandlers} onError={onBulkError} />
@@ -429,6 +510,13 @@ const Students = () => {
         classes={classes}
         onClose={() => setEditing(null)}
         onSaved={onSaved}
+      />
+
+      <TransferOutDialog
+        open={Boolean(transferringOut)}
+        student={transferringOut}
+        onClose={() => setTransferringOut(null)}
+        onConfirm={onTransferOut}
       />
     </>
   );

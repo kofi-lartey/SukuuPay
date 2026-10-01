@@ -1,7 +1,7 @@
-﻿/**
+/**
  * Mock route handlers.
  *
- * Each handler mirrors the corresponding Express route in Backend/src — same
+ * Each handler mirrors the corresponding Express route in Backend/src � same
  * path, same status codes, same error codes, and the same validation rules.
  * That fidelity is the point: if the wizard's client-side validation lets
  * something through, the mock rejects it for the same reason the real API
@@ -27,6 +27,14 @@ import {
 import { getScenario } from './scenarios';
 import { buildStudents, CITY_BY_REGION, ghanaPhone, makeRng, objectId, slugify, token } from './fixtures';
 import { getScenarioId } from './db';
+
+// The schedule maths, imported rather than reimplemented. This is the *fourth*
+// place the split-and-step logic could live (the server's `planHelpers`, the
+// client's projection mirror, the fixture generator, and here) and the mock is
+// the one place a copy does the most damage: a mock that dates tranches by its own
+// rules makes the create screen's projection check pass against a schedule no
+// server would ever build. One import keeps the mock honest by construction.
+import { addInterval as mockAddInterval } from '../services/paymentPlans';
 
 export class MockError extends Error {
   /**
@@ -56,7 +64,7 @@ const STUDENT_CLASSES = ['JHS 1', 'JHS 2', 'JHS 3', 'Basic 1', 'Basic 2', 'Basic
 const SCHOOL_TYPES = ['public', 'private', 'international', 'mission', 'charter'];
 
 /**
- * Signup classification → `School.type`, mirroring
+ * Signup classification ? `School.type`, mirroring
  * Backend/src/utils/schoolTypeMapping.js. The mock has to reproduce this or the
  * "Senior High School" path would pass here and 422 against the real API.
  */
@@ -134,13 +142,13 @@ const publicUser = (user) => {
 
 /**
  * Roles a signup form may claim. Mirrors `SELF_SIGNUP_ROLES` in
- * Backend/src/validators/authValidators.js — `super_admin` is a platform
+ * Backend/src/validators/authValidators.js � `super_admin` is a platform
  * operator and must never be self-granted.
  */
 const SELF_SIGNUP_ROLES = ['school_admin', 'accountant', 'teacher', 'viewer'];
 
 
-// ── Auth ───────────────────────────────────────────────────────────────────
+// -- Auth -------------------------------------------------------------------
 
 const login = ({ body }) => {
   const email = String(body?.email || '').trim().toLowerCase();
@@ -197,7 +205,7 @@ const signup = ({ body }) => {
     position: String(body?.position ?? '').trim(),
     // Mirrors `SELF_SIGNUP_ROLES` in the backend validator: `super_admin` is not
     // claimable by a signup form, and an unrecognised value falls back to
-    // `school_admin` rather than erroring — the same failure the real controller
+    // `school_admin` rather than erroring � the same failure the real controller
     // produces, on a field the user can fix.
     role: SELF_SIGNUP_ROLES.includes(String(body?.role ?? ''))
       ? String(body.role)
@@ -227,7 +235,7 @@ const signup = ({ body }) => {
   // Reproduces the real `authController.signup` path where `user.save()` has
   // already committed but the provider send failed. The account exists; only
   // the email is missing. Without this, the partial-success branch in
-  // `services/auth.js` — the one that keeps a user off a dead-end signup form —
+  // `services/auth.js` � the one that keeps a user off a dead-end signup form �
   // cannot be exercised at all.
   if (getScenarioId() === 'email-send-fails') {
     const err = new MockError(
@@ -263,7 +271,7 @@ const verifyEmail = ({ params }) => {
  * `POST /auth/resend-verification`
  *
  * The response is deliberately identical for a registered unverified address,
- * an already-verified address, and an address that does not exist — which is
+ * an already-verified address, and an address that does not exist � which is
  * what `authController.resendVerification` does. An earlier version of this
  * mock answered 404 USER_NOT_FOUND for unknown addresses, which turned the
  * endpoint into a user-enumeration oracle: a caller could tell a registered
@@ -313,17 +321,17 @@ const me = ({ token: accessToken }) => {
   if (!user) throw new MockError(401, 'Not authenticated', 'UNAUTHENTICATED');
   // The real controller wraps the user: `GET /auth/me` responds
   // `{ user, onboarding }`, and both `services/user.js` and `services/auth.js`
-  // read them. `onboarding` is the server's resolved link state — without it the
+  // read them. `onboarding` is the server's resolved link state � without it the
   // client has to infer "is this account linked" from a nullable `schoolId`,
   // which is how the dead end got there in the first place.
   return { user: publicUser(user), onboarding: onboardingBlock(user) };
 };
 
 
-// ── Schools ────────────────────────────────────────────────────────────────
+// -- Schools ----------------------------------------------------------------
 
 /**
- * `POST /schools/me` — self-service provisioning. Mirrors
+ * `POST /schools/me` � self-service provisioning. Mirrors
  * `provisionSchoolForUser` in Backend/src/services/school.service.js.
  *
  * This is the handler that makes the CREATE-mode branch of Step 1 real. Without
@@ -332,7 +340,7 @@ const me = ({ token: accessToken }) => {
  *
  * Idempotent by construction: a replayed submit finds `user.schoolId` already
  * set and returns `200` with the existing school instead of creating a second
- * one — the same behaviour the real service has, and the reason a double-clicked
+ * one � the same behaviour the real service has, and the reason a double-clicked
  * Continue is harmless.
  */
 const provisionMySchool = ({ body, user }) => {
@@ -522,12 +530,12 @@ const findSchoolByEmail = (email) =>
   getDb().schools.find((s) => String(s.email || '').toLowerCase() === email);
 
 /**
- * `POST /schools/join` — request to join a school that already exists.
+ * `POST /schools/join` � request to join a school that already exists.
  *
  * The code identifies the school; it does not authenticate the applicant, so the
  * mock mirrors the real service and parks the request as `pending` rather than
  * linking anybody. Handing out access on the code alone would be the one thing
- * this flow must not do — codes are initials plus a three-digit counter.
+ * this flow must not do � codes are initials plus a three-digit counter.
  */
 const joinSchool = ({ body, user }) => {
   if (!user) throw new MockError(401, 'Not authenticated', 'UNAUTHENTICATED');
@@ -576,7 +584,7 @@ const getSchool = ({ params, user }) => {
 };
 
 /**
- * `PUT /schools/:id` — mirrors `updateSchoolSchema`.
+ * `PUT /schools/:id` � mirrors `updateSchoolSchema`.
  *
  * Joi runs with `stripUnknown: true`, so anything not in the schema is dropped
  * silently rather than rejected. The mock reproduces that: passing a payment
@@ -620,7 +628,7 @@ const updateSchool = ({ params, body, user }) => {
   }
   if (data.region !== undefined && !GHANA_REGIONS.includes(String(data.region))) {
     // `region` is an enum on the School model. Step 1 offers a select, so an
-    // arbitrary value here means something bypassed the control — the server
+    // arbitrary value here means something bypassed the control � the server
     // must still refuse it, exactly as Mongoose would.
     errors.region = `"region" must be one of [${GHANA_REGIONS.join(', ')}]`;
   }
@@ -654,7 +662,7 @@ const updateSchool = ({ params, body, user }) => {
   // Coordinates arrive as flattened dotted keys, exactly as `updateSchoolSchema`
   // and `provisionMySchoolSchema` accept them. `School` has no literal
   // `"location.latitude"` property, so writing the key straight onto the school
-  // object would create one — the reassembly below mirrors `updateSchool`.
+  // object would create one � the reassembly below mirrors `updateSchool`.
   const LOCATION_SOURCES = ['gps_address', 'map_pin', 'device', 'manual'];
   if (data['location.latitude'] !== undefined || data['location.longitude'] !== undefined) {
     const lat = data['location.latitude'];
@@ -680,7 +688,7 @@ const updateSchool = ({ params, body, user }) => {
     }
   }
 
-  // Never persisted verbatim — the dotted keys are transport, not fields.
+  // Never persisted verbatim � the dotted keys are transport, not fields.
   delete data['location.latitude'];
   delete data['location.longitude'];
   delete data['location.source'];
@@ -689,7 +697,7 @@ const updateSchool = ({ params, body, user }) => {
   // a self-provisioned school gets no classes, and without them the roster's
   // class filter, the Add Student dropdown, the import validator and the
   // graduation guard are all empty. `updateSchoolSchema` accepts the flattened
-  // dotted key, so the real API persists it — dropping it here would make a
+  // dotted key, so the real API persists it � dropping it here would make a
   // mock-mode class save silently no-op, which is the one failure mode this
   // mock exists to prevent.
   if (data['academic.classes'] !== undefined) {
@@ -702,7 +710,7 @@ const updateSchool = ({ params, body, user }) => {
       data.__classes = list.map((c) => c.trim());
     }
   }
-  // Never persisted verbatim — the dotted key is transport, not a field.
+  // Never persisted verbatim � the dotted key is transport, not a field.
   delete data['academic.classes'];
 
   if (Object.keys(errors).length) {
@@ -782,7 +790,7 @@ const fileToDataUrlPlaceholder = (file) =>
   });
 
 /**
- * `PUT /schools/:id/payout` — **does not exist on the real API.**
+ * `PUT /schools/:id/payout` � **does not exist on the real API.**
  *
  * Present so the Step 2 success path can be tested end to end. The default
  * scenario returns 404 so the wizard's "not persisted" branch is exercised too;
@@ -823,7 +831,7 @@ const updatePayout = ({ params, body, user }) => {
   return school;
 };
 
-/** `POST /schools/:id/verify-hubtel` — also not on the real API. */
+/** `POST /schools/:id/verify-hubtel` � also not on the real API. */
 const verifyHubtel = ({ body }) => {
   const scenario = getScenarioId();
   if (scenario === 'hubtel-unsupported') {
@@ -841,7 +849,7 @@ const verifyHubtel = ({ body }) => {
   return { verified: true, merchantId, checkedAt: new Date().toISOString() };
 };
 
-// ── Students ───────────────────────────────────────────────────────────────
+// -- Students ---------------------------------------------------------------
 
 const listStudents = ({ query, user }) => {
   const schoolId = resolveSchoolId(user, query?.schoolId);
@@ -855,8 +863,8 @@ const listStudents = ({ query, user }) => {
   if (query?.class) rows = rows.filter((s) => s.studentClass === query.class);
   // `'all'` means "no filter", exactly as `buildRosterFilter` treats it on the
   // real service. The mock used to compare `s.status === query.status` for any
-  // truthy value, so a client sending `status=all` — which is what the Students
-  // module's "All Records" option does — got an empty roster here and the whole
+  // truthy value, so a client sending `status=all` � which is what the Students
+  // module's "All Records" option does � got an empty roster here and the whole
   // roster in production. A mock that disagrees with the backend about the one
   // value both accept is worse than no mock.
   if (query?.status && query.status !== 'all') {
@@ -871,7 +879,7 @@ const listStudents = ({ query, user }) => {
   const perPage = Number(query?.perPage) || 20;
   const page = Number(query?.page) || 1;
   const total = rows.length;
-  // Key names mirror `student.service.js` exactly — `total`/`totalPages`, not
+  // Key names mirror `student.service.js` exactly � `total`/`totalPages`, not
   // `totalItems`/`limit`. The adapter hoists `meta` to the top level and
   // unwraps `students` into `data`, reproducing the real `{ data, meta }`.
   return {
@@ -880,7 +888,7 @@ const listStudents = ({ query, user }) => {
   };
 };
 
-// ── Cohorts and alumni ──────────────────────────────────────────────────────
+// -- Cohorts and alumni ------------------------------------------------------
 //
 // The Cohorts and Alumni tabs call these, and without them the mock 404s and
 // the feature reads as broken even though it works against a seeded database.
@@ -889,7 +897,7 @@ const listStudents = ({ query, user }) => {
 // `graduationYear`, and `graduatedCount` / `transferredCount` / `droppedCount`
 // are three different statuses counted within it. The real service needed a
 // `$toString` around its `$subtract` for the same reason these are computed in JS
-// rather than by string surgery — `$concat` refuses a number.
+// rather than by string surgery � `$concat` refuses a number.
 
 const studentsOfSchool = (schoolId) => studentsFor(schoolId);
 
@@ -959,7 +967,7 @@ const listCohorts = ({ params, query }) => {
 const getCohortDetail = ({ params, query }) => {
   const year = String(params.cohortId || '').replace('cohort_', '');
   if (!/^\d{4}$/.test(year)) {
-    throw new MockError(400, 'Invalid cohort ID — expected cohort_2026', 'INVALID_COHORT_ID');
+    throw new MockError(400, 'Invalid cohort ID � expected cohort_2026', 'INVALID_COHORT_ID');
   }
 
   // The query first, never `params.schoolId`.
@@ -967,7 +975,7 @@ const getCohortDetail = ({ params, query }) => {
   // `extractParams` fills the positional slots `id`/`token`/`schoolId`/`userId`
   // from the matched path segment, so on this route `params.schoolId` is the
   // literal string `"cohort_2025"`. It looks like a school id and silently
-  // matches nothing — the detail came back with zero students and the list said
+  // matches nothing � the detail came back with zero students and the list said
   // 26. The real service scopes from the caller, not the path, so the query is
   // the right source here too.
   const schoolId = query?.schoolId;
@@ -1030,7 +1038,7 @@ const listAlumni = ({ params, query }) => {
 
   const search = String(query?.search || '').toLowerCase();
   if (search) {
-    // Literal substring, escaped — the real service had `$regex` interpolation
+    // Literal substring, escaped � the real service had `$regex` interpolation
     // and a `.*` search returned the entire roll.
     rows = rows.filter((r) =>
       [r.studentName, r.studentId, r.certificateNumber]
@@ -1060,7 +1068,501 @@ const listAlumni = ({ params, query }) => {
   };
 };
 
-// ── Public pay surface ──────────────────────────────────────────────────────
+// -- Academic lifecycle ------------------------------------------------------
+//
+// The promotion, graduation and transfer-out writes the end-of-year wizard
+// makes. They mirror the real services rather than returning a canned success,
+// because the wizard's whole value is that the numbers it shows before you
+// commit are the numbers the write produces.
+//
+// Two behaviours are copied deliberately because they are what the UI has to
+// respect: promotion refuses a repeating student, and a repeat is refused a
+// second time. If the mock were permissive, the wizard would look correct here
+// and fail against the real API.
+
+/** The classes a student may graduate from � the same fallback as the service. */
+const finalYearClassesOf = (school) => {
+  const named = school?.academic?.finalYearClasses || [];
+  if (named.length) return named;
+  return (school?.academic?.classes || []).slice(-3);
+};
+
+/** `getNextClass`: the class after this one, or null at the top of the list. */
+const nextClassOf = (school, currentClass) => {
+  const classes = school?.academic?.classes || [];
+  const index = classes.indexOf(currentClass);
+  if (index === -1 || index === classes.length - 1) return null;
+  return classes[index + 1];
+};
+
+const requireStudent = (id) => {
+  const db = getDb();
+  const student = db.students.find((s) => s._id === id || s.studentId === id);
+  if (!student) throw new MockError(404, 'Student not found', 'NOT_FOUND');
+  return student;
+};
+
+/** `POST /students/promote/preview` � the class mapping the matrix is built on. */
+/**
+ * The payload key is `body`, not `data`.
+ *
+ * The adapter passes both: `body` is the *parsed* JSON, and `data` is the raw
+ * `config.data` axios was handed � a string for a JSON post. Reading `data` here
+ * gives a string, so `data.studentIds` is `undefined`, and the handler's
+ * `studentIds` check rejects a request that was perfectly well formed. The
+ * symptom is a validation error on a valid batch, which sends you looking at the
+ * schema instead of at the mock.
+ *
+ * `data` is only correct for multipart, where the body genuinely is a
+ * `FormData` � that is why `/upload/student-photo` reads `data`.
+ */
+const previewPromotion = ({ body, user }) => {
+  // `resolveSchoolId(user, requested)`: a school admin is pinned to their own
+  // school, and only a `super_admin` may target another. Passing a hand-built
+  // `user` here would make every caller look like the second case.
+  const schoolId = resolveSchoolId(user, body?.schoolId);
+  if (!schoolId) throw new MockError(403, 'No school in scope', 'NO_SCHOOL_SCOPE');
+  const school = findSchool(schoolId);
+
+  const requested = body?.classNames || [];
+  if (!requested.length) {
+    throw new MockError(422, 'Provide at least one of classNames, gradeLevels or studentIds', 'VALIDATION_ERROR');
+  }
+
+  const inScope = studentsFor(schoolId).filter(
+    (s) =>
+      !s.deletedAt &&
+      s.status === 'active' &&
+      !s.isRepeating &&
+      requested.includes(s.studentClass)
+  );
+
+  const mapping = [];
+  const unmappedStudents = [];
+
+  inScope.forEach((student) => {
+    const next = nextClassOf(school, student.studentClass);
+    if (!next) {
+      unmappedStudents.push({
+        studentId: student._id,
+        reason: 'No next level defined for current class',
+      });
+      return;
+    }
+    let entry = mapping.find((m) => m.currentClass === student.studentClass);
+    if (!entry) {
+      entry = { currentClass: student.studentClass, targetClass: next, studentCount: 0, students: [] };
+      mapping.push(entry);
+    }
+    entry.studentCount += 1;
+    entry.students.push({
+      id: student._id,
+      studentNumber: student.studentId,
+      name: student.studentName,
+    });
+  });
+
+  // The preview returns *every* in-scope student as eligible, including the
+  // final-year ones it cannot map. The client filters them by class position
+  // rather than by absence from `mapping`, so it has to see them here too.
+  return {
+    previewDate: new Date().toISOString(),
+    schoolId,
+    totalEligibleStudents: inScope.length,
+    mapping,
+    warnings: [],
+    unmappedStudents,
+  };
+};
+
+/** `POST /students/:id/promote` */
+const promoteStudent = ({ params, body }) => {
+  const student = requireStudent(params.id);
+  if (student.status !== 'active') {
+    throw new MockError(409, 'Only active students can be promoted', 'INVALID_STATUS');
+  }
+  if (student.isRepeating) {
+    throw new MockError(
+      409,
+      'Repeating students cannot be promoted until repeat period ends',
+      'STUDENT_REPEATING'
+    );
+  }
+
+  const school = findSchool(student.schoolId);
+  const classes = school.academic?.classes || [];
+  let target = body?.targetClass;
+
+  if (!target) {
+    target = nextClassOf(school, student.studentClass);
+    if (!target) {
+      throw new MockError(409, 'No next class level defined for student\'s current class', 'NO_NEXT_LEVEL');
+    }
+  } else if (!classes.includes(target)) {
+    throw new MockError(400, 'Target class not found in school', 'INVALID_TARGET_CLASS');
+  }
+
+  student.promotedFrom = student.studentClass;
+  student.promotedTo = target;
+  student.promotionDate = body?.promotionDate || new Date().toISOString();
+  student.studentClass = target;
+  return student;
+};
+
+/** `POST /students/:id/repeat` */
+const repeatStudent = ({ params, body }) => {
+  const student = requireStudent(params.id);
+  if (student.status !== 'active') {
+    throw new MockError(409, 'Only active students can be marked as repeating', 'INVALID_STATUS');
+  }
+  if ((student.repeatCount || 0) >= 1) {
+    throw new MockError(
+      409,
+      'Student has reached maximum repeat limit for this grade',
+      'MAX_REPEATS_EXCEEDED'
+    );
+  }
+  student.isRepeating = true;
+  student.repeatCount = (student.repeatCount || 0) + 1;
+  student.repeatReason = body?.repeatReason || 'ACADEMIC';
+  return student;
+};
+
+/** `POST /students/:id/unrepeat` */
+const clearRepeat = ({ params, body }) => {
+  const student = requireStudent(params.id);
+  if (!body?.reason || String(body.reason).trim().length < 3) {
+    throw new MockError(422, 'A reason of at least 3 characters is required', 'VALIDATION_ERROR');
+  }
+  student.isRepeating = false;
+  return student;
+};
+
+/** `POST /students/bulk-graduate/:schoolId` */
+const bulkGraduate = ({ params, body, user }) => {
+  const schoolId = resolveSchoolId(user, params.schoolId);
+  if (!schoolId) throw new MockError(403, 'No school in scope', 'NO_SCHOOL_SCOPE');
+  const school = findSchool(schoolId);
+
+  // `classNames`, matching the schema. The service this mirrors used to read a
+  // `classIds` field that no schema defines, so graduating a class threw
+  // MISSING_CRITERIA and only an already-graduated cohort could be selected.
+  const classNames = body?.classNames || [];
+  if (!classNames.length) {
+    throw new MockError(400, 'Either cohortId or classNames must be provided', 'MISSING_CRITERIA');
+  }
+  if (!body?.graduationDate) {
+    throw new MockError(422, 'graduationDate is required', 'VALIDATION_ERROR');
+  }
+
+  const targets = studentsFor(schoolId).filter(
+    (s) => !s.deletedAt && s.status === 'active' && classNames.includes(s.studentClass)
+  );
+  if (!targets.length) {
+    throw new MockError(400, 'No eligible students found for graduation', 'NO_ELIGIBLE_STUDENTS');
+  }
+
+  const finalClasses = finalYearClassesOf(school);
+  const gradDate = new Date(body.graduationDate);
+  const year = gradDate.getFullYear();
+
+  const graduated = [];
+  const ineligible = [];
+  // From a shared counter per school-year, mirroring the service's `certCounter`
+  // so a second batch cannot hand out a number the first one already used.
+  const issued = dbCertCounters(schoolId, year, body.certificatePrefix || 'CERT');
+
+  targets.forEach((student) => {
+    if (!finalClasses.includes(student.studentClass)) {
+      ineligible.push({ studentId: student._id, reason: 'Not in final year class' });
+      return;
+    }
+    const certificateNumber = body.autoAssignCertificates === false ? '' : issued.next();
+    student.status = 'graduated';
+    student.isAlumni = true;
+    student.graduationDate = gradDate.toISOString();
+    student.graduationYear = String(year);
+    student.graduationType = body.graduationType || 'STANDARD';
+    student.certificateNumber = certificateNumber;
+    student.honors = 'NONE';
+    graduated.push({
+      studentId: student._id,
+      studentNumber: student.studentId,
+      certificateNumber,
+      honors: 'NONE',
+    });
+  });
+
+  return {
+    summary: {
+      totalProcessed: targets.length,
+      graduated: graduated.length,
+      ineligible: ineligible.length,
+      failed: 0,
+    },
+    graduatedStudents: graduated,
+    ineligibleStudents: ineligible,
+    failedStudents: [],
+    cohort: null,
+  };
+};
+
+/** Per-school, per-year certificate counter, kept on the mock db. */
+const dbCertCounters = (schoolId, year, prefix) => {
+  const db = getDb();
+  db.certificateCounters = db.certificateCounters || {};
+  const key = `${schoolId}:${year}:${prefix}`;
+  db.certificateCounters[key] = (db.certificateCounters[key] || 0) + 1;
+  return { next: () => `${prefix}-${year}-${String(db.certificateCounters[key]).padStart(4, '0')}` };
+};
+
+/** `POST /students/:id/transfer-out` */
+const transferOutStudent = ({ params, body }) => {
+  const student = requireStudent(params.id);
+
+  if (!body?.destinationInstitution || String(body.destinationInstitution).trim().length < 2) {
+    throw new MockError(422, 'destinationInstitution is required', 'VALIDATION_ERROR');
+  }
+  if (!body?.transferDate) {
+    throw new MockError(422, 'transferDate is required', 'VALIDATION_ERROR');
+  }
+  if (!body?.transferReason) {
+    throw new MockError(422, 'transferReason is required', 'VALIDATION_ERROR');
+  }
+  if (body.transferReason === 'OTHER' && String(body.customReason || '').trim().length < 5) {
+    throw new MockError(422, 'A custom reason of at least 5 characters is required', 'VALIDATION_ERROR');
+  }
+
+  student.status = 'transferred_out';
+  student.transferOutDate = body.transferDate;
+  student.transferOutRecord = {
+    destinationInstitution: body.destinationInstitution,
+    destinationInstitutionType: body.destinationInstitutionType || 'PUBLIC_SCHOOL',
+    transferDate: body.transferDate,
+    transferReason: body.transferReason,
+    customReason: body.customReason,
+    recordsTransferred: body.recordsTransferred !== false,
+    notes: body.notes,
+    studentId: student._id,
+    schoolId: student.schoolId,
+  };
+
+  // The ledger is deliberately left intact � that is the point of the form.
+  return { student, transferRecord: student.transferOutRecord };
+};
+
+// -- ID cards ------------------------------------------------------------------
+//
+// The batch flow is asynchronous for real � the server answers 202 and a
+// background job renders the PDF � so the mock reproduces the same handshake
+// rather than handing back a file immediately. A mock that answered 200 with a
+// finished PDF would let the studio's polling loop pass while unexercised, and
+// the first time it met a real 202 it would try to download a pending batch.
+//
+// One poll is `pending` and the next is `ready`, so the loop is exercised
+// exactly once rather than spun forever or skipped entirely.
+
+const batchStore = () => {
+  getDb().idCardBatches = getDb().idCardBatches || {};
+  return getDb().idCardBatches;
+};
+
+/** POST /id-cards/batch */
+const createIdCardBatch = ({ body, user }) => {
+  const schoolId = resolveSchoolId(user);
+  if (!schoolId) throw new MockError(403, 'No school in scope', 'NO_SCHOOL_SCOPE');
+
+  const studentIds = body?.studentIds || [];
+  if (!Array.isArray(studentIds) || studentIds.length === 0) {
+    throw new MockError(422, 'Provide at least one student ID', 'VALIDATION_ERROR');
+  }
+
+  const owned = studentsFor(schoolId).filter((s) => studentIds.includes(s._id));
+  if (owned.length !== studentIds.length) {
+    throw new MockError(
+      `${studentIds.length - owned.length} of the provided student IDs do not belong to your school`,
+      400,
+      'INVALID_STUDENTS'
+    );
+  }
+
+  const batchId = objectId(31);
+  batchStore()[batchId] = {
+    _id: batchId,
+    schoolId,
+    studentIds: owned.map((s) => s._id),
+    totalCards: owned.length,
+    status: 'pending',
+    pdfUrl: null,
+    // Counts polls, not milliseconds: the studio polls on its own timer and a
+    // wall-clock delay would make the mock slow for no added confidence.
+    polls: 0,
+  };
+
+  return { __raw: { batchId, status: 'pending' }, __status: 202 };
+};
+
+/** The shared 202 ? ready handshake for both batch endpoints. */
+const advanceBatch = (batchId, schoolId) => {
+  const batch = batchStore()[batchId];
+  if (!batch || batch.schoolId !== schoolId) {
+    throw new MockError(404, 'Batch not found', 'NOT_FOUND');
+  }
+  if (batch.status === 'ready') return batch;
+
+  batch.polls += 1;
+  // The first poll is pending, the second is ready. One pending response is
+  // enough for the studio's loop to prove it retries, and two is enough to get
+  // it to the download without making the mock slow.
+  if (batch.polls < 2) return batch;
+
+  batch.status = 'ready';
+  batch.pdfUrl = `https://res.cloudinary.com/mock/id-cards/${batchId}.pdf`;
+  return null;
+};
+
+/** GET /id-cards/batch/:batchId � HTML preview */
+const getIdCardBatchPreview = ({ params, user }) => {
+  const schoolId = resolveSchoolId(user);
+  const batchId = params.batchId;
+  const store = batchStore();
+
+  if (!store[batchId]) throw new MockError(404, 'Batch not found', 'NOT_FOUND');
+  if (store[batchId].schoolId !== schoolId) {
+    throw new MockError(404, 'Batch not found', 'NOT_FOUND');
+  }
+
+  const pending = advanceBatch(batchId, schoolId);
+  if (pending) {
+    return { __raw: { status: 'pending', retryAfter: 3 }, __status: 202 };
+  }
+
+  const school = findSchool(schoolId);
+  const students = studentsFor(schoolId).filter((s) =>
+    store[batchId].studentIds.includes(s._id)
+  );
+
+  const cards = students
+    .map(
+      (student) => `
+      <div class="id-card-preview">
+        <div class="card-header">${escapeHtml(school?.name || 'School')}</div>
+        <div class="card-body">
+          <div class="student-name">${escapeHtml(student.studentName)}</div>
+          <div class="student-id">ID: ${escapeHtml(student.studentId || '')}</div>
+          <div class="student-class">${escapeHtml(student.studentClass)}</div>
+          ${
+            student.studentImage
+              ? `<img class="student-photo" src="${student.studentImage}" alt="Photo" />`
+              : '<div class="photo-placeholder">No Photo</div>'
+          }
+        </div>
+      </div>`
+    )
+    .join('');
+
+  return {
+    __text: {
+      mimeType: 'text/html; charset=utf-8',
+      filename: 'id-card-batch-preview.html',
+      body: `<!DOCTYPE html><html><head><meta charset="utf-8"><title>ID card batch preview</title></head><body><h1>${escapeHtml(
+        school?.name || 'School'
+      )}</h1><p>${store[batchId].totalCards} cards</p>${cards}</body></html>`,
+    },
+  };
+};
+
+/** GET /id-cards/batch/:batchId/pdf */
+const getIdCardBatchPdf = ({ params, user }) => {
+  const schoolId = resolveSchoolId(user);
+  const batchId = params.batchId;
+  const store = batchStore();
+
+  if (!store[batchId] || store[batchId].schoolId !== schoolId) {
+    throw new MockError(404, 'Batch not found', 'NOT_FOUND');
+  }
+
+  const pending = advanceBatch(batchId, schoolId);
+  if (pending) {
+    return { __raw: { status: 'pending' }, __status: 202 };
+  }
+
+  // Not a real PDF: it only has to be bytes the browser will download, and a
+  // hand-written PDF header is not worth the maintenance.
+  return {
+    __file: {
+      mimeType: 'application/pdf',
+      filename: `id-cards-${store[batchId].totalCards}.pdf`,
+      body: `%PDF-1.4 mock batch ${batchId}`,
+    },
+  };
+};
+
+/** GET /id-cards/:studentId � single card */
+const getStudentIdCard = ({ params, user }) => {
+  const schoolId = resolveSchoolId(user);
+  const student = studentsFor(schoolId).find((s) => s._id === params.studentId);
+  if (!student) throw new MockError(404, 'Student not found', 'STUDENT_NOT_FOUND');
+
+  return {
+    __file: {
+      mimeType: 'application/pdf',
+      filename: `id-card-${student.studentId}.pdf`,
+      body: `%PDF-1.4 mock card for ${student.studentName}`,
+    },
+  };
+};
+
+/** GET /id-cards/qr-links/:schoolId � CSV */
+const getQrLinksExport = ({ params, user, query }) => {
+  const schoolId = resolveSchoolId(user);
+  if (String(params.schoolId) !== String(schoolId)) {
+    throw new MockError(403, 'No school in scope', 'NO_SCHOOL_SCOPE');
+  }
+
+  const page = Number(query?.page) || 1;
+  const perPage = Number(query?.perPage) || 20;
+  const all = studentsFor(schoolId).filter((s) => s.payLink);
+  const slice = all.slice((page - 1) * perPage, page * perPage);
+
+  const header = 'Student ID,Student Name,Class,Pay Link,QR Image URL';
+  const lines = slice.map(
+    (s) =>
+      `${csvCell(s.studentId)},${csvCell(s.studentName)},${csvCell(
+        s.studentClass
+      )},${csvCell(s.payLink)},${csvCell(`https://api.qrserver.com/v1/?data=${s.payLink}`)}`
+  );
+
+  return {
+    __file: {
+      mimeType: 'text/csv; charset=utf-8',
+      filename: `qr-links-${all.length}.csv`,
+      body: [header, ...lines].join('\n'),
+    },
+  };
+};
+
+/**
+ * HTML-escape for the string interpolated into the batch preview markup.
+ *
+ * Fixture names are generated, but the preview page is assembled from record
+ * fields, and an unescaped `&` or `<` in a student name would break the markup
+ * � which in a mock looks exactly like a broken preview endpoint and sends you
+ * looking at the wrong file.
+ *
+ * CSV quoting reuses the existing `csvCell`, which also neutralises formula
+ * prefixes � worth having here too, since a pay link or a name beginning with
+ * `=` is exactly what a spreadsheet would execute.
+ */
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+// -- Public pay surface ------------------------------------------------------
 //
 // Unauthenticated, reached by an SMS link, and keyed on the pay token rather
 // than a session. The mock keeps its own token map because a fixture student has
@@ -1151,13 +1653,236 @@ const verifyPay = ({ params }) => {
   return { status: pending ? pending.status : 'completed' };
 };
 
+// -- Payments -----------------------------------------------------------------
+//
+// The admin half of the ledger: the transaction list, the aggregates behind the
+// dashboard's KPI band, the CSV, one payment in full, its receipt, and a refund.
+// The parent-facing half is the public pay surface above.
+//
+// Everything below reads one filter, `filterPayments`. The real service does the
+// same through `buildPaymentFilter` in `payment.service.js`, for the same reason:
+// there are three readers of this filter and a condition added to one and
+// forgotten in the other two is a report that quietly disagrees with the table
+// above it. A list that honours `class` while the export beside it does not
+// produces a CSV that is not the screen it was exported from, and reconciling
+// that file is the entire reason the export exists.
+
+/**
+ * The `momoNetwork` enum in its declared order, and the labels the summary shows.
+ *
+ * Every network is returned whether or not it collected anything. A row that
+ * lists only the networks present leaves the client to invent the missing ones,
+ * and "MTN collected nothing this month" has to be told apart from "MTN was
+ * filtered out". Ties fall back to the enum order, so two calls over the same
+ * data return the same array.
+ */
+const NETWORK_ORDER = ['MTN', 'VODAFONE', 'AIRTELTELIGO', 'UNKNOWN'];
+const NETWORK_LABELS = {
+  MTN: 'MTN MoMo',
+  VODAFONE: 'Vodafone Cash',
+  AIRTELTELIGO: 'AT Money',
+  UNKNOWN: 'Unidentified',
+};
+
+/** The `paymentMethod` enum's human names, for the summary and the CSV channel column. */
+const METHOD_LABELS = {
+  momo: 'Mobile Money',
+  cash: 'Cash',
+  card: 'Card',
+  bank_transfer: 'Bank transfer',
+  unknown: 'Unknown',
+};
+
+/**
+ * Mirrors of `round` / `rate` from `payment.service.js`, deliberately not a
+ * shared import � that module keeps both private, and a share percentage that
+ * rounds differently in two modules is worse than a duplicated three-line
+ * function.
+ *
+ * The zero-denominator guard is the point of `mockRate`: an empty window has no
+ * percentage, and returning 0 rather than NaN is what keeps the KPI tile
+ * renderable instead of showing "NaN%".
+ */
+const mockRound = (num, dp = 2) => {
+  const factor = 10 ** dp;
+  return Math.round((Number(num) || 0) * factor) / factor;
+};
+const mockRate = (collected, expected) => (expected ? mockRound((collected / expected) * 100) : 0);
+
+/** `startOfDayAccra` / `endOfDayAccra` from the server's `dateHelpers.js`. */
+const startOfDay = (value) => {
+  const d = new Date(value);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
+};
+const endOfDay = (value) => {
+  const d = new Date(value);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 23, 59, 0, 0));
+};
+
+/** `createdAt` as milliseconds, with a missing or unparseable value as 0. */
+const createdAtMs = (payment) => {
+  const time = new Date(payment.createdAt).getTime();
+  return Number.isNaN(time) ? 0 : time;
+};
+
+/**
+ * The one filter behind `GET /payments`, `GET /payments/summary` and
+ * `GET /payments/export` � `buildPaymentFilter` in `payment.service.js`, in JS.
+ *
+ * Two of its conditions belong to the *Student* document rather than the Payment:
+ * `class`, and the student half of `search`. A Payment stores no copy of
+ * `studentClass` or `studentName`, so there is nothing on this collection to
+ * match them against, and they are resolved through the school's students here
+ * exactly as the server resolves them to `studentId: { $in: ids }`. They are
+ * applied as separate row filters, which intersects them � resolving each to an
+ * id list and merging the lists afterwards would have taken the union, so
+ * "class JHS 2 AND search Ama" would have returned every payment for any student
+ * in the school.
+ *
+ * **`search` uses `includes`, not a RegExp.** The server escapes the term before
+ * splicing it into `$regex`: it used not to, and `?search=.*` matched every
+ * payment in the school while `?search=[` threw a driver error that surfaced as a
+ * 500. A search box is an injection point until it is escaped, and escaping is
+ * also what makes it the literal substring search a user typing into one
+ * expects � which is precisely `includes`, so the mock gets the same semantics
+ * without carrying an escape helper it could get wrong.
+ */
+const filterPayments = (query, schoolId) => {
+  const db = getDb();
+  const students = studentsFor(schoolId);
+  const classOf = new Map(students.map((s) => [s._id, s.studentClass]));
+
+  let rows = db.payments.filter((p) => p.schoolId === schoolId && !p.deletedAt);
+
+  // `'all'` is the enum's own "no filter" value � `paymentsQuerySchema` defaults
+  // `status` to it, and `usePayments` sends it on every request � so comparing it
+  // as a status string empties the module's *unfiltered* view. Same rule, and the
+  // same reasoning, as `listStudents`.
+  if (query?.status && query.status !== 'all') rows = rows.filter((p) => p.status === query.status);
+  if (query?.paymentMethod) rows = rows.filter((p) => p.paymentMethod === query.paymentMethod);
+  if (query?.provider) rows = rows.filter((p) => p.provider === query.provider);
+  // `UNKNOWN` is a bucket, not a stored value, and it expands to the rows that
+  // actually land in it � a null, missing or literally-`UNKNOWN` network. That is
+  // what the summary's `$ifNull` facet counts, so the chip the filter bar offers
+  // and the rows the table shows are the same set.
+  if (query?.network) {
+    rows =
+      query.network === 'UNKNOWN'
+        ? rows.filter((p) => !p.momoNetwork || p.momoNetwork === 'UNKNOWN')
+        : rows.filter((p) => p.momoNetwork === query.network);
+  }
+  if (query?.studentId) rows = rows.filter((p) => p.studentId === query.studentId);
+  if (query?.class) rows = rows.filter((p) => classOf.get(p.studentId) === query.class);
+
+  // `minAmount` / `maxAmount`, as written in the schema. The falsy-zero quirk is
+  // the server's (`if (query.minAmount || �)` ignores an explicit 0) and is
+  // harmless: 0 is a no-op bound in either reading.
+  if (query?.minAmount) rows = rows.filter((p) => (p.amount || 0) >= Number(query.minAmount));
+  if (query?.maxAmount) rows = rows.filter((p) => (p.amount || 0) <= Number(query.maxAmount));
+
+  // Both ends snapped to whole Accra calendar days, matching `buildPaymentFilter`'s
+  // `startOfDayAccra` / `endOfDayAccra`. A bare `new Date(endDate)` ends the
+  // window at *midnight* on that day, so "This month" stopped short of today and
+  // the band above the table disagreed with it � one query parameter, one
+  // inclusive-day definition, on both surfaces.
+  if (query?.startDate) {
+    const from = startOfDay(query.startDate).getTime();
+    if (!Number.isNaN(from)) rows = rows.filter((p) => createdAtMs(p) >= from);
+  }
+  if (query?.endDate) {
+    const to = endOfDay(query.endDate).getTime();
+    if (!Number.isNaN(to)) rows = rows.filter((p) => createdAtMs(p) <= to);
+  }
+
+  const search = String(query?.search || '').trim().toLowerCase();
+  if (search) {
+    // The payment-side fields first � the reference a bursar actually pastes in
+    // from a receipt or a gateway dashboard � then the students whose name or
+    // human id matched. The two are ORed, so searching for a receipt number is
+    // unaffected by the student half finding nobody. A whitespace-only box
+    // matches nothing rather than everything, for the same reason
+    // `buildPaymentFilter` keys on the trimmed term.
+    const studentById = new Map(students.map((s) => [s._id, s]));
+    const hit = (value) => Boolean(value) && String(value).toLowerCase().includes(search);
+    rows = rows.filter((p) => {
+      if ([p.paymentId, p.receiptNumber, p.hubtelTransactionId].some(hit)) return true;
+      const student = studentById.get(p.studentId);
+      return Boolean(student && (hit(student.studentName) || hit(student.studentId)));
+    });
+  }
+
+  return rows;
+};
+
+/** The `sortBy` allow-list from `paymentsQuerySchema`; anything else falls back. */
+const SORTABLE_PAYMENT_FIELDS = ['createdAt', 'amount', 'completedAt', 'paymentId'];
+
+/**
+ * `sortBy` / `sortOrder`, with the schema's allow-list.
+ *
+ * The allow-list is the point, not defensive coding: `TransactionTable` offers
+ * `status` as a sortable column and `paymentsQuerySchema` does not accept it, so
+ * that click is a 422 against the real API. Falling back to `createdAt` here
+ * keeps the mock's answer stable instead of sorting by an undefined field,
+ * which would leave the order arbitrary and read as a broken table.
+ */
+const sortPayments = (rows, query) => {
+  const sortBy = SORTABLE_PAYMENT_FIELDS.includes(query?.sortBy) ? query.sortBy : 'createdAt';
+  const direction = query?.sortOrder === 'asc' ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const left = a[sortBy];
+    const right = b[sortBy];
+    if (typeof left === 'number' && typeof right === 'number') return (left - right) * direction;
+    return String(left ?? '').localeCompare(String(right ?? '')) * direction;
+  });
+};
+
+/**
+ * `studentId` populated, the way `listPayments` populates it on the server.
+ *
+ * The table renders the student's name, class and **guardian** out of this
+ * object, so a row that left `studentId` as a bare id would still draw � with an
+ * empty guardian column, which reads as "this payment has no parent on file"
+ * rather than as a limitation of the mock. The phone numbers are not masked,
+ * matching the server's projection: unlike the roster, this surface exists so a
+ * bursar can chase a payment that did not arrive, and the route is already
+ * behind `authenticate` + `requireSchoolAdmin`.
+ *
+ * A payment whose student no longer resolves keeps the raw id, which is what
+ * mongoose's `.populate()` leaves behind too.
+ */
+const withStudent = (payment) => {
+  const student = getDb().students.find((s) => s._id === payment.studentId);
+  if (!student) return payment;
+  return {
+    ...payment,
+    studentId: {
+      studentId: student.studentId,
+      studentName: student.studentName,
+      studentClass: student.studentClass,
+      parents: student.parents || [],
+    },
+  };
+};
+
+/**
+ * Payment lookup, school-scoped.
+ *
+ * Scoped twice over, as every admin payment route is: by `paymentId` within the
+ * caller's own school, and by `deletedAt: null`. Without the school half a
+ * bursar who guessed or leaked a reference could read another school's
+ * transaction.
+ */
+const findPaymentFor = (paymentId, schoolId) =>
+  getDb().payments.find((p) => p.paymentId === paymentId && p.schoolId === schoolId && !p.deletedAt) || null;
+
 /**
  * Record a payment taken at the bursar's desk.
  *
  * Mirrors `manualPayment.service.js`: the payment row *and* the student's
  * `totalPaid`/`balance` move together. A mock that only wrote the payment would
  * make the feature look finished while the roster, the KPI band and every report
- * still showed the old figure — which is the exact failure the real service's
+ * still showed the old figure � which is the exact failure the real service's
  * transaction exists to prevent.
  *
  * The guards match too: `momo` is refused (a Mobile Money payment is confirmed
@@ -1207,11 +1932,11 @@ const recordManualPayment = ({ body, user }) => {
     paymentMethod: body.method || 'cash',
     provider: 'manual',
     reference: body.reference || null,
-    description: body.notes || `Manual payment — ${(body.method || 'cash').replace(/_/g, ' ')}`,
+    description: body.notes || `Manual payment � ${(body.method || 'cash').replace(/_/g, ' ')}`,
     receiptNumber: `RCP-${paymentId}`,
     initiatedAt: at,
     completedAt: at,
-    // Set, so a later provider webhook is a no-op — as on the real service.
+    // Set, so a later provider webhook is a no-op � as on the real service.
     settlement: { appliedAt: at, reference: body.reference || null },
     createdAt: at,
     createdBy: user._id,
@@ -1237,24 +1962,545 @@ const recordManualPayment = ({ body, user }) => {
   };
 };
 
-/** `GET /payments` — the dashboard's recent activity and the Payments module. */
+/**
+ * `GET /payments` � the dashboard's recent activity and the Payments module.
+ *
+ * **`__rows`, not a `payments` key.** This is the one response envelope the
+ * adapter cannot infer: `listPaymentsController` puts a bare ARRAY in `data` and
+ * the count in `meta`, and `services/payments.js` reads
+ * `Array.isArray(data?.data) ? data.data : []`. Handing the adapter
+ * `{ payments, meta }` produced `data: { payments, meta }` � an object � so the
+ * guard fell through to `[]` and the table rendered empty next to a `meta.total`
+ * that said otherwise.
+ *
+ * **`meta.perPage` is filled from `limit`.** `limit` is the parameter
+ * `paymentsQuerySchema` validates, and `usePayments` renames the pager's
+ * `perPage` to it before sending. Reading only `perPage` pinned every page size
+ * to the default 20 however the bursar chose, while the pager � which reads
+ * `perPage` � showed them their own choice back. `perPage` is still accepted as
+ * a fallback, because the shared `Pagination` component uses that spelling and a
+ * caller that does should not be silently given the default.
+ */
 const listPayments = ({ query, user }) => {
-  const db = getDb();
   const schoolId = resolveSchoolId(user, query?.schoolId);
   if (!schoolId) throw new MockError(400, 'A schoolId is required', 'NO_SCHOOL_SCOPE');
 
-  let rows = db.payments.filter((p) => p.schoolId === schoolId);
-  if (query?.studentId) rows = rows.filter((p) => p.studentId === query.studentId);
-  if (query?.status) rows = rows.filter((p) => p.status === query.status);
-
-  rows = [...rows].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-  const perPage = Number(query?.perPage) || 20;
+  const rows = sortPayments(filterPayments(query, schoolId), query);
+  const perPage = Number(query?.limit ?? query?.perPage) || 20;
   const page = Number(query?.page) || 1;
+
   return {
-    payments: rows.slice((page - 1) * perPage, page * perPage),
+    __rows: rows.slice((page - 1) * perPage, page * perPage).map(withStudent),
     meta: { page, perPage, total: rows.length, totalPages: Math.ceil(rows.length / perPage) },
   };
+};
+
+/**
+ * The window the summary is measured over, and the window immediately before it.
+ * `resolveSummaryPeriod` in `payment.service.js`.
+ *
+ * Defaults to the 1st of the current calendar month through *now*, matching
+ * `monthWindow()` in `reports.service.js` so an unfiltered dashboard and the
+ * monthly report cover the same dates. `endDate` defaults to now rather than to
+ * the end of the month, so a payment made a minute ago is inside the window; an
+ * explicit date is snapped to the end of its day, so `?endDate=2026-09-30`
+ * includes the whole of the 30th. That day-snapping is the one place the summary
+ * and the list legitimately differ, and it is why `filterPayments` does not do
+ * it.
+ *
+ * The previous window is derived by *length*: it ends one millisecond before this
+ * one opens and is exactly as long. "The previous calendar month" would compare
+ * a part-finished month against a full one and report a collapse in income that
+ * never happened. The one-millisecond gap is deliberate � with both sides
+ * inclusive, a payment landing exactly on the boundary would be counted twice.
+ */
+const resolveSummaryPeriod = (query, now) => {
+  const start = query?.startDate
+    ? startOfDay(query.startDate)
+    : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
+  const end = query?.endDate ? endOfDay(query.endDate) : now;
+  const span = end.getTime() - start.getTime();
+
+  return {
+    start,
+    end,
+    previousStart: new Date(start.getTime() - span),
+    previousEnd: new Date(start.getTime() - 1),
+  };
+};
+
+/**
+ * `GET /payments/summary` � the aggregates behind `PaymentKpiRow`.
+ *
+ * Computed over the whole filtered set, never over the visible page, for the
+ * reason the client states: the list is capped at 100 rows, so a client-side sum
+ * reports the first twenty payments in the school as the school's income, and
+ * the figure looks entirely plausible.
+ *
+ * **There is deliberately no escrow, pending-sweep or next-sweep figure.** Nothing
+ * in this backend banks money. `Payment.settlement.appliedAt` is the stamp that
+ * says a student's *balance* was credited, not that the money reached a bank
+ * account, and there is no settlement batch or sweep job anywhere in the codebase
+ * to compute one from. A dashboard tile implying otherwise could only have been
+ * filled with a placeholder, and a plausible-looking cedi figure on a payments
+ * screen is the single most dangerous thing this module could render, because a
+ * bursar reconciles against it.
+ *
+ * `feesCollected` is `null` for the same family of reasons: Payment has no
+ * `fees` field at all, and `feesBreakdown` is a breakdown *of* the amount, so
+ * summing it would restate the inflow rather than add a fee to it. A number that
+ * looks like a figure and is not one is worse than an acknowledged absence.
+ */
+const paymentSummary = ({ query, user }) => {
+  const schoolId = resolveSchoolId(user, query?.schoolId);
+  if (!schoolId) throw new MockError(400, 'A schoolId is required', 'NO_SCHOOL_SCOPE');
+
+  const { start, end, previousStart, previousEnd } = resolveSummaryPeriod(query, new Date());
+
+  // Built through the shared filter with the *resolved* window substituted in, so
+  // every other condition is inherited rather than re-derived here, then the date
+  // bound is dropped again: each facet below applies its own window, and the
+  // trend needs the equally long one before it, which a single date filter cannot
+  // express.
+  const scoped = filterPayments({ ...query, startDate: undefined, endDate: undefined }, schoolId);
+  const from = start.getTime();
+  const to = end.getTime();
+  const inWindow = (p) => {
+    const at = createdAtMs(p);
+    return at >= from && at <= to;
+  };
+  const sum = (rows) => rows.reduce((total, p) => total + (p.amount || 0), 0);
+
+  const completed = scoped.filter((p) => p.status === 'completed' && inWindow(p));
+  const totalInflow = sum(completed);
+
+  const previousTotalInflow = sum(
+    scoped.filter((p) => {
+      if (p.status !== 'completed') return false;
+      const at = createdAtMs(p);
+      return at >= previousStart.getTime() && at <= previousEnd.getTime();
+    })
+  );
+
+  const networks = NETWORK_ORDER.map((network) => {
+    const rows = completed.filter((p) => (p.momoNetwork || 'UNKNOWN') === network);
+    const amount = sum(rows);
+    return {
+      network,
+      label: NETWORK_LABELS[network],
+      amount,
+      count: rows.length,
+      sharePercent: mockRate(amount, totalInflow),
+      // A null MSISDN is collected and then dropped: every non-Mobile-Money row
+      // has one, and a cash payment is not a wallet. Counted as a set rather than
+      // summed across the networks, so a parent who paid by both MTN and Vodafone
+      // is one wallet rather than two.
+      wallets: new Set(rows.map((p) => p.momoPhoneNumber).filter(Boolean)).size,
+    };
+  }).sort(
+    (a, b) => b.amount - a.amount || NETWORK_ORDER.indexOf(a.network) - NETWORK_ORDER.indexOf(b.network)
+  );
+
+  const byMethod = [...new Set(completed.map((p) => p.paymentMethod || 'unknown'))]
+    .map((method) => {
+      const rows = completed.filter((p) => (p.paymentMethod || 'unknown') === method);
+      const amount = sum(rows);
+      return {
+        method,
+        label: METHOD_LABELS[method] || method,
+        amount,
+        count: rows.length,
+        sharePercent: mockRate(amount, totalInflow),
+      };
+    })
+    .sort((a, b) => b.amount - a.amount);
+
+  // `pending` and `processing` only: those are the two states waiting on a
+  // gateway callback that has not arrived. A `failed` attempt is not outstanding
+  // money and a `cancelled` one never was.
+  const awaiting = scoped.filter((p) => inWindow(p) && (p.status === 'pending' || p.status === 'processing'));
+
+  return {
+    // ISO strings, because the real controller JSON-serialises its `Date`s and the
+    // mock hands its return value straight to the client without a round trip.
+    period: { startDate: start.toISOString(), endDate: end.toISOString() },
+    totalInflow,
+    totalTransactions: completed.length,
+    previousTotalInflow,
+    // `null`, not 0, when the previous window was empty: "we collected money this
+    // month and there is nothing to compare it against" is a different statement
+    // from "we collected nothing", and `TrendBadge` renders nothing for the first
+    // rather than a confident "+0.0%".
+    trendPercent: previousTotalInflow
+      ? mockRound(((totalInflow - previousTotalInflow) / previousTotalInflow) * 100)
+      : null,
+    networks,
+    // Distinct MSISDNs across the whole window, not the sum of the per-network
+    // counts � the difference is a parent who used two networks, which is exactly
+    // what "wallets" is supposed to mean.
+    walletCount: new Set(completed.map((p) => p.momoPhoneNumber).filter(Boolean)).size,
+    awaitingConfirmation: { amount: sum(awaiting), count: awaiting.length },
+    byMethod,
+    feesCollected: null,
+  };
+};
+
+// The CSV columns, in the order `exportPayments` declares them on the server and
+// declared *up front* rather than derived from the first row, for the reason
+// `exportStudents` gives: a header derived from row zero makes an export that
+// matched nothing produce an empty file, which opens as one blank line and reads
+// to a bursar as data loss.
+const PAYMENT_EXPORT_COLUMNS = [
+  { key: 'transactionRef', header: 'Transaction Ref' },
+  { key: 'dateTime', header: 'Date/Time' },
+  { key: 'studentId', header: 'Student ID' },
+  { key: 'studentName', header: 'Student Name' },
+  { key: 'studentClass', header: 'Class' },
+  { key: 'guardianName', header: 'Guardian Name' },
+  { key: 'guardianPhone', header: 'Guardian Phone' },
+  { key: 'channel', header: 'Channel' },
+  { key: 'method', header: 'Method' },
+  { key: 'provider', header: 'Provider' },
+  { key: 'status', header: 'Status' },
+  { key: 'amountCedis', header: 'Amount (Cedis)' },
+  { key: 'receiptNumber', header: 'Receipt Number' },
+  { key: 'description', header: 'Description' },
+];
+
+/**
+ * `streamCsv`'s two rules from the server's `csvWriter.js`, reproduced exactly:
+ * prefix a cell whose first character is a formula lead-in, then quote anything
+ * holding a comma, a quote or a newline.
+ *
+ * The `-` prefix is why a refund arrives as the text `'-50.00` rather than the
+ * number -50.00. That is the shared writer doing its job and it is not worked
+ * around � the Status column carries the meaning, and the JSON list still shows
+ * the raw integer. Handing the rows to `papaparse` instead would quote
+ * differently and silently break both rules.
+ */
+const CSV_FORMULA_PREFIXES = ['=', '+', '-', '@', '\t', '\r'];
+const csvCell = (value) => {
+  if (value === null || value === undefined) return '';
+  let text = String(value);
+  if (text.length && CSV_FORMULA_PREFIXES.includes(text[0])) text = `'${text}`;
+  if (/[",\n\r]/.test(text)) text = `"${text.replace(/"/g, '""')}"`;
+  return text;
+};
+
+/** The header line, then one line per row, then a trailing newline � as `streamCsv` writes it. */
+const toCsv = (columns, rows) =>
+  [
+    columns.map((column) => csvCell(column.header)).join(','),
+    ...rows.map((row) => columns.map((column) => csvCell(row[column.key])).join(',')),
+  ].join('\n') + '\n';
+
+/**
+ * An ISO timestamp, or an empty cell.
+ *
+ * Not decorative: `new Date("").toISOString()` throws, so one row with both
+ * `completedAt` and `createdAt` missing would fail the whole export.
+ */
+const toIsoOrBlank = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString();
+};
+
+/**
+ * `GET /payments/export` � the filtered transactions as a CSV file.
+ *
+ * Same filter as the list, so "export what I am looking at" is literally the
+ * rows on screen. `page`, `limit`, `sortBy` and `sortOrder` are accepted and
+ * ignored on purpose: they stay in the query schema so an "export this view" link
+ * can carry them without a 422, and a file that silently held only the first page
+ * is the failure `paginationFor()` in `reports.service.js` exists to prevent � a
+ * bursar reconciling a partial file is reconciling the wrong thing.
+ *
+ * `__file` is how a mock returns a *file* rather than a JSON body; the adapter
+ * turns it into the `Blob` and `Content-Disposition` header
+ * `services/payments.js` reads to name and save the download.
+ */
+const exportPayments = ({ query, user }) => {
+  const schoolId = resolveSchoolId(user, query?.schoolId);
+  if (!schoolId) throw new MockError(400, 'A schoolId is required', 'NO_SCHOOL_SCOPE');
+
+  const school = findSchool(schoolId);
+  // Newest first whatever the table is sorted by � the real service hard-codes
+  // `createdAt: -1` here, so a bursar who exports from an amount-ascending table
+  // gets the same file either way.
+  const rows = sortPayments(filterPayments(query, schoolId), { sortOrder: 'desc' });
+  const slug = school?.slug || school?.schoolCode || 'payments';
+
+  return {
+    __file: {
+      filename: `payments-${slug}-${new Date().toISOString().slice(0, 10)}.csv`,
+      mimeType: 'text/csv; charset=utf-8',
+      body: toCsv(
+        PAYMENT_EXPORT_COLUMNS,
+        rows.map((payment) => {
+          const student = withStudent(payment).studentId;
+          const parents = (student && student.parents) || [];
+          // The primary parent, falling back to the first: a record written before
+          // "exactly one isPrimary" was enforced can have none, and an empty
+          // guardian column is worse than a second parent's name.
+          const guardian = parents.find((p) => p.isPrimary) || parents[0] || null;
+          const isMomo = payment.paymentMethod === 'momo';
+          return {
+            transactionRef: payment.paymentId || '',
+            // `completedAt` when it settled, `createdAt` otherwise. A refund and a
+            // failed attempt are not "when it completed", and a reconciliation
+            // file that dates them all to the moment the row was created is wrong
+            // for exactly the rows a bursar most wants to find.
+            dateTime: toIsoOrBlank(payment.completedAt || payment.createdAt),
+            studentId: student?.studentId || '',
+            studentName: student?.studentName || '',
+            studentClass: student?.studentClass || '',
+            // Unmasked: an export is taken off-system and reconciled against a
+            // statement, so a masked number makes the file useless for the one
+            // thing it is exported for.
+            guardianName: guardian?.parentName || '',
+            guardianPhone: guardian?.phone || '',
+            // The network for a Mobile Money payment, the method for everything
+            // else. A cash payment carries `momoNetwork: "UNKNOWN"` on its record,
+            // and printing that would tell the bursar the network was unknown when
+            // the real answer is that no network was involved. The raw method sits
+            // in the next column, so the file is still filterable in a spreadsheet.
+            channel: isMomo
+              ? NETWORK_LABELS[payment.momoNetwork] || NETWORK_LABELS.UNKNOWN
+              : METHOD_LABELS[payment.paymentMethod] || payment.paymentMethod || '',
+            method: payment.paymentMethod || '',
+            provider: payment.provider || '',
+            status: payment.status || '',
+            // Cedis, named in the header. The stored integer is pesewas (85000 =
+            // GH? 850.00), and a header that said `amount` over a pesewa count
+            // gets read as a hundred-fold error by anyone who opens the file.
+            amountCedis: ((payment.amount || 0) / 100).toFixed(2),
+            receiptNumber: payment.receiptNumber || '',
+            description: payment.description || '',
+          };
+        })
+      ),
+    },
+  };
+};
+
+/**
+ * `GET /payments/:paymentId` � one payment in full.
+ *
+ * Both references are populated, because that is what the drawer reads: the
+ * student's name, class and guardians, and the school's name and code. The list's
+ * projection is deliberately thinner � `hubtelTransactionId`, `feesBreakdown` and
+ * the provider reference are not on it � so a drawer built from the row it was
+ * opened from would show blanks in exactly the fields a bursar opens it to check.
+ * That is the whole reason this is a second request.
+ *
+ * `includeWebhookData` is not honoured: the mock has no `webhookPayload` to
+ * withhold, so the flag has nothing to strip. It is passed by `getPayment` only
+ * when a caller explicitly asks for it, and the drawer never does.
+ */
+const getPaymentDetail = ({ params, query, user }) => {
+  const schoolId = resolveSchoolId(user, query?.schoolId);
+  if (!schoolId) throw new MockError(400, 'A schoolId is required', 'NO_SCHOOL_SCOPE');
+
+  const payment = findPaymentFor(params.paymentId, schoolId);
+  if (!payment) throw new MockError(404, 'Payment not found', 'NOT_FOUND');
+
+  const student = getDb().students.find((s) => s._id === payment.studentId);
+  const school = findSchool(payment.schoolId);
+
+  return {
+    ...payment,
+    studentId: student
+      ? {
+          studentId: student.studentId,
+          studentName: student.studentName,
+          studentClass: student.studentClass,
+          schoolId: student.schoolId,
+          parents: student.parents || [],
+        }
+      : payment.studentId,
+    schoolId: school
+      ? { _id: school._id, name: school.name, schoolCode: school.schoolCode }
+      : payment.schoolId,
+  };
+};
+
+/**
+ * `GET /payments/:paymentId/receipt` � the receipt document, as JSON.
+ *
+ * Not a file. `generateReceipt` builds the document and its number and returns
+ * it, and `ReceiptDialog` renders it and hands `window.print()` the PDF � the
+ * endpoint itself never produces one. An earlier mock route claimed receipts
+ * were a PDF, which was false in both modes and hid the fact that nothing here
+ * was mocking the real response.
+ *
+ * **The number is minted when the payment has none, and written back onto the
+ * row**, exactly as `generateReceipt` does through its `findByIdAndUpdate`. That
+ * is what makes the print flow work for a payment taken before receipts existed:
+ * the dialog's title, the printed header and the row's own `receiptNumber` all
+ * read this field, and a handler that returned a freshly computed number without
+ * storing it would hand the bursar a different receipt every time they opened it.
+ */
+const getPaymentReceipt = ({ params, query, user }) => {
+  const schoolId = resolveSchoolId(user, query?.schoolId);
+  if (!schoolId) throw new MockError(400, 'A schoolId is required', 'NO_SCHOOL_SCOPE');
+
+  const payment = findPaymentFor(params.paymentId, schoolId);
+  if (!payment) throw new MockError(404, 'Payment not found', 'NOT_FOUND');
+  if (payment.status !== 'completed') {
+    throw new MockError(
+      400,
+      'Can only generate receipt for completed payments',
+      'INVALID_PAYMENT_STATUS'
+    );
+  }
+
+  if (!payment.receiptNumber) {
+    const now = new Date();
+    const dayStart = new Date(now);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(now);
+    dayEnd.setHours(23, 59, 59, 999);
+    // Counts the school's completed payments from today, *including this one* �
+    // it is already stored, exactly as `countDocuments` sees it. Hence +1.
+    const today = getDb().payments.filter(
+      (p) =>
+        p.schoolId === schoolId &&
+        p.status === 'completed' &&
+        createdAtMs(p) >= dayStart.getTime() &&
+        createdAtMs(p) <= dayEnd.getTime()
+    ).length;
+    payment.receiptNumber = `RCP-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String(today + 1).padStart(4, '0')}`;
+    payment.receiptGeneratedAt = now.toISOString();
+  }
+
+  const student = getDb().students.find((s) => s._id === payment.studentId);
+  const school = findSchool(payment.schoolId);
+
+  return {
+    receipt: {
+      receiptNumber: payment.receiptNumber,
+      paymentId: payment.paymentId,
+      date: payment.completedAt,
+      student: {
+        studentId: student?.studentId,
+        studentName: student?.studentName,
+        studentClass: student?.studentClass,
+      },
+      school: {
+        name: school?.name,
+        schoolCode: school?.schoolCode,
+        address: school?.address,
+        city: school?.city,
+        region: school?.region,
+      },
+      amount: payment.amount,
+      currency: payment.currency,
+      paymentMethod: payment.paymentMethod,
+      description: payment.description,
+      feesBreakdown: payment.feesBreakdown,
+    },
+  };
+};
+
+/**
+ * `POST /payments/:paymentId/refund` � reverse a payment against a balance.
+ *
+ * The reversal is a **new** payment row with a negative amount, never an edit of
+ * the original. The ledger stays additive, so a full refund shows the original
+ * beside the row that cancelled it and neither overwrites the evidence of what
+ * was taken � which is also why `TransactionTable` renders a negative amount in
+ * red instead of hiding it.
+ *
+ * The original is only marked `refunded` when the reversal covers all of it. A
+ * partial one leaves it `completed`, because "this payment was refunded" and
+ * "part of this payment was refunded" are different facts, and the second is
+ * carried by the negative row rather than smeared over the first.
+ *
+ * The student's `totalPaid` and `balance` move in the same step, for the reason
+ * `recordManualPayment` above moves them together: a mock that reversed the
+ * payment and left the balance alone would show the feature working while the
+ * roster, the KPI band and every report kept the old figure.
+ */
+const refundPayment = ({ params, body, user }) => {
+  const schoolId = resolveSchoolId(user, body?.schoolId);
+  if (!schoolId) throw new MockError(400, 'A schoolId is required', 'NO_SCHOOL_SCOPE');
+
+  const payment = findPaymentFor(params.paymentId, schoolId);
+  if (!payment) throw new MockError(404, 'Payment not found', 'NOT_FOUND');
+  if (payment.status !== 'completed') {
+    throw new MockError(400, 'Can only refund completed payments', 'INVALID_PAYMENT_STATUS');
+  }
+
+  // The reason is required and is the only part of the reversal a bursar cannot
+  // reconstruct later: it is the whole of what the activity log records. A refund
+  // with no reason is a balance change nobody can audit.
+  const reason = String(body?.reason || '').trim();
+  if (!reason) throw new MockError(400, 'A reason is required', 'VALIDATION_ERROR');
+
+  // Omitted means "all of it", which is the right default for a mis-keyed row and
+  // exactly why `RefundPaymentDialog` pre-fills the full amount and spells the
+  // consequence out in the confirm button rather than leaving it implied.
+  const amount = body?.amount === undefined || body?.amount === null ? payment.amount : body.amount;
+  if (!Number.isInteger(amount) || amount < 1) {
+    throw new MockError(400, 'Amount must be a positive whole number of pesewas', 'INVALID_REFUND_AMOUNT');
+  }
+  if (amount > payment.amount) {
+    throw new MockError(400, 'Refund amount cannot exceed payment amount', 'INVALID_REFUND_AMOUNT');
+  }
+
+  const db = getDb();
+  const at = new Date().toISOString();
+  const sequence = db.payments.length + 1;
+  const refund = {
+    _id: objectId(95000 + sequence),
+    // The model's pre-save hook mints `PAY-<date>-<6 chars>`; this is the same
+    // shape with a counter in the random slot, so it is visibly a mock id and
+    // still unique.
+    paymentId: `PAY-${at.slice(0, 10).replace(/-/g, '')}-MOCK${String(sequence).padStart(4, '0')}`,
+    studentId: payment.studentId,
+    schoolId: payment.schoolId,
+    parentId: payment.parentId ?? null,
+    amount: -amount,
+    currency: payment.currency || 'GHS',
+    status: 'completed',
+    paymentMethod: payment.paymentMethod,
+    provider: payment.provider,
+    momoNetwork: payment.momoNetwork,
+    momoPhoneNumber: payment.momoPhoneNumber ?? null,
+    description: `Refund: ${reason}`,
+    // No `receiptNumber`: the receipt route above mints one on demand, which is
+    // the same path a real refund row takes.
+    initiatedAt: at,
+    completedAt: at,
+    settlement: { appliedAt: at, reference: payment.settlement?.reference ?? null },
+    createdAt: at,
+    createdBy: user?._id,
+  };
+  db.payments.push(refund);
+
+  const isFullRefund = amount === payment.amount;
+  payment.status = isFullRefund ? 'refunded' : 'completed';
+  if (isFullRefund) payment.refundedAt = at;
+
+  const student = db.students.find((s) => s._id === payment.studentId);
+  if (student) {
+    student.totalPaid = (student.totalPaid || 0) - amount;
+    student.balance = (student.balance || 0) + amount;
+  }
+
+  const school = db.schools.find((s) => s._id === payment.schoolId);
+  if (school?.stats) {
+    // Faithfully odd, and worth spelling out: the real service runs the same
+    // `$inc`, subtracting a *pesewa amount* from a field that
+    // `recordManualPayment` increments by **1** as a count. One refund therefore
+    // drives this school's "payments this month" thousands below zero. Mirrored
+    // rather than quietly corrected, because a mock that quietly corrected it
+    // would hide a real bug in the one place the two numbers get compared.
+    school.stats.totalPaymentsThisMonth = (school.stats.totalPaymentsThisMonth || 0) - amount;
+  }
+
+  return { originalPayment: payment, refundPayment: refund };
 };
 
 /**
@@ -1326,7 +2572,7 @@ const studentProfile = ({ params, query, user }) => {
 const bulkDryRun = ({ body }) => {
   const matched = body?.ids?.length || 0;
   // Returned bare, not nested: the adapter sets `data` to the handler's object,
-  // so a `{ data: … }` return would arrive as `data.data` and read as undefined.
+  // so a `{ data: � }` return would arrive as `data.data` and read as undefined.
   return {
     committed: false,
     matched,
@@ -1405,7 +2651,7 @@ const createStudent = ({ body, user }) => {
   return student;
 };
 
-/** `POST /students/bulk` — mirrors `bulkCreateStudents`, row by row. */
+/** `POST /students/bulk` � mirrors `bulkCreateStudents`, row by row. */
 const bulkImport = async ({ data, user }) => {
   const scenario = getScenarioId();
   const file = data instanceof FormData ? data.get('file') : null;
@@ -1451,7 +2697,7 @@ const bulkImport = async ({ data, user }) => {
   const acceptAll = scenario === 'import-all-valid';
 
   rows.forEach((raw, index) => {
-    // Row 1 is the header, so data rows start at 2 — the numbering the real
+    // Row 1 is the header, so data rows start at 2 � the numbering the real
     // importer uses and that the error list on Step 3 shows.
     const rowNum = index + 2;
     const row = Object.fromEntries(
@@ -1479,7 +2725,7 @@ const bulkImport = async ({ data, user }) => {
       return;
     }
 
-    // Cedis in the file, pesewas on the wire — the conversion the real
+    // Cedis in the file, pesewas on the wire � the conversion the real
     // importer does, and a classic source of 100x errors if it is missed.
     const totalOwed = row.totalowed
       ? Math.round(Number(String(row.totalowed).replace(/,/g, '')) * 100)
@@ -1533,33 +2779,1048 @@ const bulkImport = async ({ data, user }) => {
   return { created: docs.length, failed: errors.length, errors, format };
 };
 
-// ── SMS ────────────────────────────────────────────────────────────────────
+// -- Installment plans ------------------------------------------------------
 
 /**
- * `POST /sms/bulk/:schoolId` — **does not exist on the real API.**
+ * The compliance classifier, mirrored from
+ * `classifyPlan` in `Backend/src/services/paymentPlan.service.js`.
  *
- * 404s by default so the wizard's honest-failure branch is what runs. The
- * `sms-enabled` scenario makes it succeed, which is how the *full* happy path
- * (celebrate → send → count → dashboard) gets tested before the backend exists.
+ * The order is load-bearing and is the whole definition: `overdue` beats
+ * `approaching`, and both are decided *before* `on_track`. A plan with one
+ * slipped tranche and another due tomorrow is in default, not approaching � a
+ * school that chases it as "approaching" has told a family in arrears that it is
+ * merely early.
+ */
+const COMPLIANCE_WINDOW_DAYS = 3;
+const LIVE_PLAN_STATUSES = ['active', 'pending_acceptance'];
+
+const mockOutstanding = (plan) =>
+  (plan.installments || []).reduce(
+    (sum, i) => sum + Math.max((i.amount || 0) - (i.amountPaid || 0), 0),
+    0
+  );
+
+const mockArrears = (plan) => {
+  const now = Date.now();
+  return (plan.installments || []).reduce((sum, i) => {
+    if (!['pending', 'partial', 'overdue'].includes(i.status)) return sum;
+    if (new Date(i.dueDate).getTime() > now) return sum;
+    return sum + Math.max((i.amount || 0) - (i.amountPaid || 0), 0);
+  }, 0);
+};
+
+const mockNextUnsettled = (plan) =>
+  (plan.installments || []).find(
+    (i) => !['paid', 'waived'].includes(i.status) && i.amount > i.amountPaid
+  ) || null;
+
+const mockClassifyPlan = (plan) => {
+  if (plan.planStatus === 'completed') return 'completed';
+  if (plan.planStatus === 'defaulted') return 'defaulted';
+  if (['cancelled', 'expired'].includes(plan.planStatus)) return null;
+  if (plan.planStatus === 'pending_acceptance') return 'pending_acceptance';
+
+  if ((plan.installments || []).some((i) => i.status === 'overdue')) return 'overdue';
+
+  const next = mockNextUnsettled(plan);
+  if (next) {
+    const horizon = Date.now() + COMPLIANCE_WINDOW_DAYS * 86400000;
+    if (new Date(next.dueDate).getTime() <= horizon) return 'approaching_due';
+  }
+  return 'on_track';
+};
+
+/**
+ * The `summary` keys for the three in-flight buckets.
+ *
+ * Deliberately *not* the classifier's return values. `classifyPlan` answers
+ * `on_track` / `approaching_due`; the summary counts them under `onTrack` /
+ * `approachingDue`. Summing the first vocabulary into a summary keyed by the
+ * second yields three `undefined`s, and this is exactly the bug the mockcheck
+ * caught in the service before it shipped: `activePlans: 0` with a
+ * `complianceRate` of `null`, so every tile on the dashboard read "�".
+ */
+const ACTIVE_SUMMARY_KEYS = ['onTrack', 'approachingDue', 'overdue'];
+
+const getSchoolComplianceHandler = ({ params, query, user }) => {
+  const schoolId = resolveSchoolId(user, params.schoolId);
+  if (!schoolId) throw new MockError(403, 'No school in scope', 'NO_SCHOOL_SCOPE');
+  const school = findSchool(schoolId);
+  if (!school) throw new MockError(404, 'School not found', 'SCHOOL_NOT_FOUND');
+
+  const db = getDb();
+  let plans = (db.paymentPlans || []).filter((p) => p.schoolId === schoolId && !p.deletedAt);
+  const students = studentsFor(schoolId);
+  const studentById = new Map(students.map((s) => [s._id, s]));
+
+  if (query.class) {
+    plans = plans.filter((plan) => studentById.get(plan.studentId)?.studentClass === query.class);
+  }
+  if (query.term) {
+    plans = plans.filter((plan) => plan.term === query.term);
+  }
+  if (query.search) {
+    const needle = String(query.search).toLowerCase();
+    plans = plans.filter((plan) => {
+      const student = studentById.get(plan.studentId);
+      if (!student) return false;
+      const parent = student.parents.find((p) => p.isPrimary) || student.parents[0];
+      return (
+        student.studentName.toLowerCase().includes(needle) ||
+        String(student.studentId).toLowerCase().includes(needle) ||
+        String(parent?.parentName || '').toLowerCase().includes(needle)
+      );
+    });
+  }
+
+  // -- Summary, over the whole filtered set, not the page --
+  const summary = {
+    totalPlans: plans.length,
+    onTrack: 0,
+    approachingDue: 0,
+    overdue: 0,
+    completed: 0,
+    defaulted: 0,
+    pendingAcceptance: 0,
+    onTrackValue: 0,
+    approachingDueValue: 0,
+    overdueValue: 0,
+    committedAmount: 0,
+    overdueArrears: 0,
+    approachingInflow: 0,
+  };
+
+  const decorated = plans.map((plan) => {
+    const bucket = mockClassifyPlan(plan);
+    if (bucket === 'on_track') summary.onTrack += 1;
+    else if (bucket === 'approaching_due') summary.approachingDue += 1;
+    else if (bucket === 'overdue') summary.overdue += 1;
+    else if (bucket === 'completed') summary.completed += 1;
+    else if (bucket === 'defaulted') summary.defaulted += 1;
+    else if (bucket === 'pending_acceptance') summary.pendingAcceptance += 1;
+
+    const next = mockNextUnsettled(plan);
+    const nextView = next
+      ? {
+          installmentNumber: next.installmentNumber,
+          amount: next.amount,
+          amountPaid: next.amountPaid,
+          dueDate: next.dueDate,
+          status: next.status,
+          outstanding: next.amount - (next.amountPaid || 0),
+        }
+      : null;
+
+    if (ACTIVE_SUMMARY_KEYS.includes(
+      bucket === 'on_track' ? 'onTrack' : bucket === 'approaching_due' ? 'approachingDue' : bucket
+    )) {
+      const outstanding = mockOutstanding(plan);
+      summary.committedAmount += outstanding;
+      if (bucket === 'on_track') summary.onTrackValue += outstanding;
+      else if (bucket === 'approaching_due') {
+        summary.approachingDueValue += outstanding;
+        summary.approachingInflow += nextView ? nextView.outstanding : 0;
+      } else {
+        summary.overdueValue += outstanding;
+        summary.overdueArrears += mockArrears(plan);
+      }
+    }
+
+    return { ...plan, complianceStatus: bucket, nextInstallment: nextView, outstandingAmount: mockOutstanding(plan) };
+  });
+
+  const filtered =
+    query.status && query.status !== 'all'
+      ? decorated.filter((plan) => plan.complianceStatus === query.status)
+      : decorated;
+
+  const direction = query.sortOrder === 'desc' ? -1 : 1;
+  const sortBy = query.sortBy || 'endDate';
+  filtered.sort((a, b) => {
+    const left = a[sortBy] ?? 0;
+    const right = b[sortBy] ?? 0;
+    if (left === right) return 0;
+    return (left > right ? 1 : -1) * direction;
+  });
+
+  const page = Number(query.page) || 1;
+  const perPage = Number(query.perPage) || 20;
+  const pagePlans = filtered.slice((page - 1) * perPage, page * perPage);
+
+  summary.activePlans = ACTIVE_SUMMARY_KEYS.reduce((sum, key) => sum + summary[key], 0);
+  summary.complianceRate = summary.activePlans
+    ? Math.round((summary.onTrack / summary.activePlans) * 1000) / 10
+    : null;
+  summary.atRiskPlans = summary.overdue + summary.approachingDue;
+
+  return {
+    summary,
+    plans: pagePlans.map((plan) => {
+      const student = studentById.get(plan.studentId);
+      const parent = student?.parents.find((p) => p.isPrimary) || student?.parents[0];
+      return {
+        ...plan,
+        acceptanceToken: undefined,
+        student: student
+          ? {
+              _id: student._id,
+              studentId: student.studentId,
+              studentName: student.studentName,
+              studentClass: student.studentClass,
+              balance: student.balance,
+              parentName: parent?.parentName || null,
+            }
+          : null,
+      };
+    }),
+    meta: {
+      page,
+      perPage,
+      total: filtered.length,
+      totalPages: Math.max(1, Math.ceil(filtered.length / perPage)),
+    },
+  };
+};
+
+const getStudentPlanHandler = ({ params, user }) => {
+  const schoolId = resolveSchoolId(user);
+  if (schoolId) assertMockSchoolAccess(user, schoolId);
+
+  const db = getDb();
+  const student = studentsFor(schoolId).find((s) => s._id === params.studentId);
+  if (!student) throw new MockError(404, 'Student not found', 'STUDENT_NOT_FOUND');
+
+  const plans = (db.paymentPlans || []).filter(
+    (p) => p.studentId === params.studentId && !p.deletedAt
+  );
+  const plan =
+    plans
+      .filter((p) => LIVE_PLAN_STATUSES.includes(p.planStatus))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0] ||
+    plans.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+
+  if (!plan) throw new MockError(404, 'No payment plan found', 'PLAN_NOT_FOUND');
+
+  return {
+    plan: { ...plan, acceptanceToken: undefined },
+    student: {
+      _id: student._id,
+      studentId: student.studentId,
+      studentName: student.studentName,
+      studentClass: student.studentClass,
+      status: student.status,
+      totalOwed: student.totalOwed,
+      totalPaid: student.totalPaid,
+      balance: student.balance,
+      parents: student.parents,
+      schoolId: student.schoolId,
+    },
+  };
+};
+
+/**
+ * `POST /payment-plans/create/:studentId`.
+ *
+ * Builds the schedule with the same `splitAmount` + `addInterval` maths the
+ * service uses, because the create screen previews it client-side and the two
+ * must not disagree. The mockcheck assertion "the client and the server agree on
+ * the schedule" is what fails loudly if they drift.
+ */
+const createPaymentPlanHandler = ({ params, body, user }) => {
+  const schoolId = resolveSchoolId(user, body.schoolId);
+  if (!schoolId) throw new MockError(403, 'No school in scope', 'NO_SCHOOL_SCOPE');
+  const school = findSchool(schoolId);
+
+  const student = studentsFor(schoolId).find((s) => s._id === params.studentId);
+  if (!student) throw new MockError(404, 'Student not found', 'STUDENT_NOT_FOUND');
+  if (student.status !== 'active') {
+    throw new MockError(400, 'A payment plan can only be created for an active student', 'STUDENT_NOT_ACTIVE');
+  }
+  if (!student.balance) {
+    throw new MockError(400, 'Student has no outstanding balance to plan for', 'NO_OUTSTANDING_BALANCE');
+  }
+
+  const db = getDb();
+  const existing = (db.paymentPlans || []).find(
+    (p) => p.studentId === student._id && LIVE_PLAN_STATUSES.includes(p.planStatus) && !p.deletedAt
+  );
+  if (existing) {
+    throw new MockError(
+      409,
+      `Student already has a ${existing.planStatus} payment plan (${existing.planName})`,
+      'PLAN_ALREADY_EXISTS'
+    );
+  }
+
+  const count = Number(body.numberOfInstallments);
+  if (!Number.isInteger(count) || count < 2 || count > 6) {
+    throw new MockError(422, '"numberOfInstallments" must be between 2 and 6', 'VALIDATION_ERROR');
+  }
+  const start = new Date(`${body.startDate}T00:00:00Z`);
+  if (Number.isNaN(start.getTime())) {
+    throw new MockError(422, '"startDate" is required', 'VALIDATION_ERROR');
+  }
+  if (start.getTime() < new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z').getTime()) {
+    throw new MockError(422, 'Date cannot be in the past', 'VALIDATION_ERROR');
+  }
+
+  const interval = body.interval || 'monthly';
+  const base = Math.floor(student.balance / count);
+  const amounts = Array.from({ length: count }, () => base);
+  amounts[count - 1] = student.balance - base * (count - 1);
+
+  const plan = {
+    _id: objectId((db.paymentPlans?.length || 0) + 1),
+    studentId: student._id,
+    schoolId,
+    planName: body.planName || 'Custom Plan',
+    totalAmount: student.balance,
+    numberOfInstallments: count,
+    interval,
+    installments: amounts.map((amount, index) => ({
+      installmentNumber: index + 1,
+      amount,
+      dueDate: mockAddInterval(start, interval, index).toISOString(),
+      status: 'pending',
+      amountPaid: 0,
+      paidAt: null,
+      paymentIds: [],
+      reminderSentAt: null,
+      overdueNotifiedAt: null,
+      notes: '',
+    })),
+    planStatus: 'pending_acceptance',
+    acceptanceToken: 'ACCEPT',
+    startDate: start.toISOString(),
+    endDate: mockAddInterval(start, interval, count - 1).toISOString(),
+    adminNotes: body.adminNotes || '',
+    term: school.academic?.currentTerm || '',
+    academicYear: school.academic?.currentYear || '',
+    installmentsPaid: 0,
+    installmentsRemaining: count,
+    amountPaid: 0,
+    totalRemaining: student.balance,
+    progressPercent: 0,
+    acceptedAt: null,
+    acceptedVia: null,
+    cancelledAt: null,
+    cancellationReason: '',
+    deletedAt: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  db.paymentPlans = db.paymentPlans || [];
+  db.paymentPlans.push(plan);
+
+  // `__raw` + `meta`, reproducing `createPaymentPlanController`'s exact shape: the
+  // plan in `data`, the parent-notification result in `meta`. The create screen
+  // reads `meta.sms` to say whether a family was actually told about the plan, and
+  // a payload that flattened both into `data` would hand it a plan object
+  // containing a plan object.
+  return { __raw: { ...plan, acceptanceToken: undefined }, meta: { sms: { sent: true, reason: null } } };
+};
+
+const updatePaymentPlanHandler = ({ params, body, user }) => {
+  const schoolId = resolveSchoolId(user);
+  const plan = findMockPlan(params.planId, schoolId);
+
+  if (
+    plan.planStatus !== 'pending_acceptance' &&
+    !(plan.planStatus === 'active' && (plan.installmentsPaid || 0) === 0)
+  ) {
+    throw new MockError(
+      400,
+      'A plan can only be edited while it is awaiting acceptance or while it is active with no installments paid. Cancel it and create a new one instead.',
+      'PLAN_NOT_EDITABLE'
+    );
+  }
+
+  if (body.planName !== undefined) plan.planName = body.planName;
+  if (body.adminNotes !== undefined) plan.adminNotes = body.adminNotes || '';
+  if (body.interval !== undefined) plan.interval = body.interval;
+
+  if (body.installments) {
+    const sum = body.installments.reduce((total, i) => total + i.amount, 0);
+    if (sum !== plan.totalAmount) {
+      throw new MockError(400, 'Installment amounts must sum to the plan total amount', 'INVALID_INSTALLMENT_SPLIT');
+    }
+    body.installments.forEach((entry) => {
+      const target = plan.installments.find((i) => i.installmentNumber === entry.installmentNumber);
+      if (!target) return;
+      target.amount = entry.amount;
+      if (entry.notes !== undefined) target.notes = entry.notes || '';
+    });
+  }
+
+  recomputeMockPlan(plan);
+  return { ...plan, acceptanceToken: undefined };
+};
+
+const cancelPaymentPlanHandler = ({ params, body, user }) => {
+  const schoolId = resolveSchoolId(user);
+  const plan = findMockPlan(params.planId, schoolId);
+
+  if (!LIVE_PLAN_STATUSES.includes(plan.planStatus)) {
+    throw new MockError(400, `A ${plan.planStatus} plan cannot be cancelled`, 'PLAN_NOT_CANCELLABLE');
+  }
+
+  plan.planStatus = 'cancelled';
+  plan.cancelledAt = new Date().toISOString();
+  plan.cancellationReason = body?.reason || '';
+  plan.deletedAt = new Date().toISOString();
+  return { ...plan, acceptanceToken: undefined };
+};
+
+const updateInstallmentHandler = ({ params, body, user }) => {
+  const schoolId = resolveSchoolId(user);
+  const plan = findMockPlan(params.planId, schoolId);
+
+  if (['cancelled', 'expired', 'completed'].includes(plan.planStatus)) {
+    throw new MockError(400, `Installments cannot be changed on a ${plan.planStatus} plan`, 'PLAN_NOT_EDITABLE');
+  }
+
+  const num = Number(params.num);
+  const installment = plan.installments.find((i) => i.installmentNumber === num);
+  if (!installment) throw new MockError(404, 'Installment not found', 'INSTALLMENT_NOT_FOUND');
+
+  switch (body.action) {
+    case 'mark_paid':
+      installment.status = 'paid';
+      installment.amountPaid = body.amount ?? installment.amount;
+      installment.paidAt = new Date().toISOString();
+      break;
+    case 'mark_unpaid':
+      installment.status =
+        new Date(installment.dueDate).getTime() < Date.now() ? 'overdue' : 'pending';
+      installment.amountPaid = 0;
+      installment.paidAt = null;
+      break;
+    case 'adjust_amount':
+      if (!body.amount) {
+        throw new MockError(400, 'amount is required for the adjust_amount action', 'VALIDATION_ERROR');
+      }
+      if (body.amount < installment.amountPaid) {
+        throw new MockError(400, 'Installment amount cannot be lower than the amount already paid', 'INVALID_AMOUNT');
+      }
+      installment.amount = body.amount;
+      break;
+    case 'waive':
+      installment.status = 'waived';
+      installment.amountPaid = installment.amount;
+      break;
+    default:
+      throw new MockError(400, 'Unsupported installment action', 'INVALID_ACTION');
+  }
+
+  if (body.notes !== undefined) installment.notes = body.notes || '';
+  recomputeMockPlan(plan);
+  return { ...plan, acceptanceToken: undefined };
+};
+
+const findMockPlan = (planId, schoolId) => {
+  const plan = (getDb().paymentPlans || []).find(
+    (p) => p._id === planId && (!schoolId || p.schoolId === schoolId)
+  );
+  if (!plan) throw new MockError(404, 'Payment plan not found', 'PLAN_NOT_FOUND');
+  return plan;
+};
+
+/** The model pre-save hook's arithmetic, so the mock's derived fields stay true. */
+const recomputeMockPlan = (plan) => {
+  const installments = plan.installments || [];
+  plan.installmentsPaid = installments.filter((i) => i.status === 'paid' || i.status === 'waived').length;
+  plan.installmentsRemaining = installments.length - plan.installmentsPaid;
+  plan.amountPaid = installments.reduce((sum, i) => sum + (i.amountPaid || 0), 0);
+  plan.totalRemaining = Math.max(plan.totalAmount - plan.amountPaid, 0);
+  plan.progressPercent = installments.length
+    ? Math.round((plan.installmentsPaid / installments.length) * 100)
+    : 0;
+  if (plan.installmentsPaid >= installments.length) plan.planStatus = 'completed';
+  plan.updatedAt = new Date().toISOString();
+  return plan;
+};
+
+const assertMockSchoolAccess = (user, schoolId) => {
+  if (user?.role !== 'super_admin' && user?.schoolId && String(user.schoolId) !== String(schoolId)) {
+    throw new MockError(403, 'You do not have access to this school', 'SCHOOL_ACCESS_DENIED');
+  }
+};
+
+// -- SMS --------------------------------------------------------------------
+
+/**
+ * The client-side mirror of the SMS module's pure logic.
+ *
+ * `countSegments`, `renderBodyLocally` and the token helpers are duplicated in
+ * `services/sms.js` and in `Backend/src/services/sms.service.js`. This is a
+ * *third* copy, and it is here for one reason: the mock must reject the same
+ * inputs the real API rejects, at the same threshold, or a message that costs
+ * two segments here and three there is a discrepancy the tester has no way to
+ * explain. The three must stay in step; the assertions in
+ * `.mockcheck/sms-*.jsx` exist to catch it when they drift.
+ */
+const SMS_TOKENS = [
+  'parentName',
+  'studentName',
+  'studentClass',
+  'balance',
+  'amountPaid',
+  'dueDate',
+  'schoolName',
+  'payLink',
+  'term',
+];
+
+const SMS_CREDIT_RATE_PES = 12;
+const SMS_PRESETS = [
+  {
+    key: 'gentle_prompt',
+    name: 'Gentle Prompt',
+    category: 'fee_reminder',
+    requiredTokens: ['balance', 'payLink'],
+    body: 'Dear {parentName}, {studentName} owes GHC {balance} for this term at {schoolName}. Please pay via MTN MoMo, Telecel Cash or AirtelTigo: {payLink}',
+  },
+  {
+    key: 'final_warning',
+    name: 'Final Warning',
+    category: 'final_warning',
+    requiredTokens: ['balance', 'dueDate', 'payLink'],
+    body: "Dear {parentName}, this is a final reminder for {studentName}'s GHC {balance} outstanding at {schoolName}. Fees must be cleared by {dueDate}. Pay now: {payLink}",
+  },
+  {
+    key: 'pta_special',
+    name: 'PTA Special',
+    category: 'pta',
+    requiredTokens: ['balance', 'payLink'],
+    body: 'Dear {parentName}, the PTA of {schoolName} requests GHC {balance} from you for {studentName}. Pay via {payLink}. Thank you.',
+  },
+  {
+    key: 'custom',
+    name: 'Custom Message',
+    category: 'custom',
+    requiredTokens: ['balance', 'payLink'],
+    body: 'Dear {parentName}, kindly settle the outstanding balance of GHC {balance} for {studentName} at {schoolName}. Payment link: {payLink}',
+  },
+];
+
+const mockExtractTokens = (body = '') => {
+  const found = [];
+  const pattern = /\{([a-zA-Z][a-zA-Z0-9_]*)\}/g;
+  let match = pattern.exec(String(body));
+  while (match) {
+    if (!found.includes(match[1])) found.push(match[1]);
+    match = pattern.exec(String(body));
+  }
+  return found;
+};
+
+const mockRender = (body = '', values = {}) =>
+  String(body).replace(/\{([a-zA-Z][a-zA-Z0-9_]*)\}/g, (match, token) =>
+    values[token] === undefined || values[token] === null || values[token] === ''
+      ? match
+      : String(values[token])
+  );
+
+const mockSegments = (body = '') => {
+  const text = String(body ?? '');
+  const gsm7 =
+    /^[\x20-\x7E\n\r]*$/.test(text) || /^[\x20-\x7E\n\r@�$�����������]*$/.test(text);
+  const perSegment = gsm7 ? 160 : 70;
+  if (text.length <= perSegment) return 1;
+  return Math.ceil((text.length - perSegment) / (perSegment - 7)) + 1;
+};
+
+/** Mirrors the server's token check, including the message it produces. */
+const assertMockTokens = (body, context = 'Message body') => {
+  const unknown = mockExtractTokens(body).filter((token) => !SMS_TOKENS.includes(token));
+  if (unknown.length) {
+    throw new MockError(
+      400,
+      `${context} uses unknown ${unknown.length === 1 ? 'token' : 'tokens'}: ${unknown
+        .map((t) => `{${t}}`)
+        .join(', ')}. Available tokens: ${SMS_TOKENS.map((t) => `{${t}}`).join(', ')}`,
+      'UNKNOWN_SMS_TOKEN'
+    );
+  }
+};
+
+const GHANA_NETWORK_PREFIXES = {
+  mtn: ['24', '54', '55', '59'],
+  telecel: ['22', '72'],
+  airteltigo: ['20', '26', '27', '57', '58'],
+};
+
+const mockNetwork = (phone) => {
+  const digits = String(phone || '').replace(/\D/g, '');
+  const national = digits.startsWith('233') ? digits.slice(3) : digits.replace(/^0/, '');
+  if (national.length !== 9) return null;
+  const prefix = national.slice(0, 2);
+  for (const [network, prefixes] of Object.entries(GHANA_NETWORK_PREFIXES)) {
+    if (prefixes.includes(prefix)) return network;
+  }
+  return null;
+};
+
+/** Enough shape for the audience preview, without a real aggregation pipeline. */
+const mockSmsStudent = (student, school) => {
+  const parent = student.parents.find((p) => p.isPrimary) || student.parents[0];
+  return {
+    parentName: parent?.parentName || '',
+    phone: parent?.phone || '',
+    studentName: student.studentName,
+    studentClass: student.studentClass,
+    balance: student.balance || 0,
+    payLink: student.payLink || '',
+    schoolName: school.name,
+  };
+};
+
+const mockAudience = ({ schoolId, audience }) => {
+  const school = findSchool(schoolId);
+  if (!school) throw new MockError(404, 'School not found', 'SCHOOL_NOT_FOUND');
+
+  let rows = studentsFor(schoolId).filter((s) => s.status === 'active');
+
+  if (audience.type === 'class') {
+    const wanted = Array.isArray(audience.class) ? audience.class : [audience.class].filter(Boolean);
+    if (!wanted.length) {
+      throw new MockError(422, 'audience.type "class" requires a class name', 'VALIDATION_ERROR');
+    }
+    rows = rows.filter((s) => wanted.includes(s.studentClass));
+  }
+
+  if (audience.type === 'students') {
+    const ids = audience.studentIds || [];
+    if (!ids.length) {
+      throw new MockError(422, 'audience.type "students" requires studentIds', 'VALIDATION_ERROR');
+    }
+    rows = rows.filter((s) => ids.includes(String(s._id)));
+  }
+
+  const floor = audience.minBalance ?? 1;
+  const includeZero = Boolean(audience.includeZeroBalance);
+  rows = rows.filter((s) => (includeZero ? s.balance >= 0 : s.balance >= floor));
+
+  if (audience.type === 'overdue') {
+    const cutoff = Date.now() - (audience.overdueDays ?? 30) * 86400000;
+    rows = rows.filter((s) => s.deadline && new Date(s.deadline).getTime() < cutoff);
+  }
+
+  if (audience.type === 'installment_due_soon' || audience.type === 'at_risk') {
+    // Both rules are properties of a *plan*, not of a student, so they are
+    // resolved from `paymentPlans` and the students intersected in. `at_risk` adds
+    // the slipped branch � a tranche already past its date is the family a chaser
+    // most needs to reach, and dropping them would make the compliance footer
+    // count families its own button will not message.
+    const now = Date.now();
+    const horizon = now + (audience.dueSoonDays ?? 5) * 86400000;
+    const unsettled = ['pending', 'overdue', 'partial'];
+
+    const eligible = new Set(
+      (getDb().paymentPlans || [])
+        .filter((plan) => plan.schoolId === schoolId && ['active', 'defaulted'].includes(plan.planStatus))
+        .filter((plan) =>
+          (plan.installments || []).some((i) => {
+            if (!unsettled.includes(i.status)) return false;
+            const due = new Date(i.dueDate).getTime();
+            return audience.type === 'at_risk' ? due <= horizon : due >= now && due <= horizon;
+          })
+        )
+        .map((plan) => plan.studentId)
+    );
+
+    rows = rows.filter((s) => eligible.has(s._id));
+  }
+
+  const recipients = rows
+    .map((student) => mockSmsStudent(student, school))
+    .filter((entry) => GHANA_PHONE.test(String(entry.phone).replace(/[\s-]/g, '')));
+
+  const skippedInvalid = rows.length - recipients.length;
+  const networkSplit = { mtn: 0, telecel: 0, airteltigo: 0, unknown: 0 };
+  recipients.forEach((entry) => {
+    networkSplit[mockNetwork(entry.phone) || 'unknown'] += 1;
+  });
+
+  const sample = recipients[0]
+    ? {
+        parentName: recipients[0].parentName,
+        phoneDisplay: recipients[0].phone,
+        phoneMasked: `${String(recipients[0].phone).slice(0, 6)} ����� ${String(recipients[0].phone).slice(-3)}`,
+        network: mockNetwork(recipients[0].phone),
+        studentName: recipients[0].studentName,
+        studentClass: recipients[0].studentClass,
+        balance: recipients[0].balance,
+        balanceDisplay: `GHC ${(recipients[0].balance / 100).toFixed(2)}`,
+        payLink: recipients[0].payLink,
+      }
+    : null;
+
+  return {
+    audience,
+    matchCount: recipients.length,
+    studentCount: rows.length,
+    totalBalance: rows.reduce((sum, s) => sum + (s.balance || 0), 0),
+    networkSplit,
+    skipped: { no_match: 0, no_parent: 0, no_balance: 0, opted_out: 0, recent_payer: 0, invalid_number: skippedInvalid },
+    sample,
+  };
+};
+
+const getSmsCreditsHandler = ({ params, user }) => {
+  const schoolId = resolveSchoolId(user, params.schoolId);
+  if (!schoolId) throw new MockError(403, 'No school in scope', 'NO_SCHOOL_SCOPE');
+  const school = findSchool(schoolId);
+  if (!school) throw new MockError(404, 'School not found', 'SCHOOL_NOT_FOUND');
+
+  const sent = getDb().sentSms.filter((m) => m.schoolId === schoolId);
+  const charged = sent.reduce((sum, m) => sum + (m.creditsCharged ?? 1), 0);
+  const refunded = sent.reduce((sum, m) => sum + (m.creditsRefunded ?? 0), 0);
+  const delivered = sent.filter((m) => m.status === 'delivered').length;
+  const submitted = sent.filter((m) => m.status === 'submitted').length;
+  const failed = sent.filter((m) => m.status === 'failed').length;
+  const settled = submitted + delivered;
+  const balance = school.sms?.balance ?? 0;
+
+  return {
+    school: { id: school._id, name: school.name },
+    balance,
+    units: balance,
+    ratePes: SMS_CREDIT_RATE_PES,
+    balancePes: balance * SMS_CREDIT_RATE_PES,
+    balanceCedis: `GHC ${((balance * SMS_CREDIT_RATE_PES) / 100).toFixed(2)}`,
+    provider: school.sms?.provider || 'arke',
+    senderId: school.sms?.senderId || 'SukuuPay',
+    // The scenario that mirrors a deployment with no gateway key, so the
+    // composer's "this will fail" warning is reachable without editing env.
+    canSend: getScenarioId() !== 'sms-no-gateway',
+    gateway: {
+      configured: getScenarioId() !== 'sms-no-gateway',
+      hasSenderId: true,
+      senderIdValid: true,
+      senderIdIssue: null,
+      dlrCallbackConfigured: getScenarioId() !== 'sms-no-gateway',
+    },
+    usage: {
+      charged,
+      refunded,
+      netCharged: Math.max(charged - refunded, 0),
+      sent: submitted,
+      delivered,
+      failed,
+      deliveryRate: settled ? Math.round((delivered / settled) * 1000) / 10 : null,
+    },
+    topUps: (getDb().smsTopUps || []).filter((t) => t.schoolId === schoolId).slice(0, 20),
+  };
+};
+
+const topUpSmsCreditsHandler = ({ body, user }) => {
+  const schoolId = resolveSchoolId(user, body.schoolId);
+  if (!schoolId) throw new MockError(403, 'No school in scope', 'NO_SCHOOL_SCOPE');
+  const school = findSchool(schoolId);
+  if (!school) throw new MockError(404, 'School not found', 'SCHOOL_NOT_FOUND');
+
+  const units = Number(body.units);
+  if (!Number.isInteger(units) || units < 1) {
+    throw new MockError(422, '"units" must be a positive integer', 'VALIDATION_ERROR');
+  }
+
+  const db = getDb();
+  db.smsTopUps = db.smsTopUps || [];
+  const topUp = {
+    _id: objectId(db.smsTopUps.length + 1),
+    schoolId,
+    units,
+    source: body.reference ? 'purchase' : 'grant',
+    createdAt: new Date().toISOString(),
+  };
+  db.smsTopUps.push(topUp);
+  school.sms.balance = (school.sms.balance || 0) + units;
+
+  return { topUp, balance: school.sms.balance };
+};
+
+const previewAudienceHandler = ({ body, user }) => {
+  const schoolId = resolveSchoolId(user, body.schoolId);
+  if (!schoolId) throw new MockError(403, 'No school in scope', 'NO_SCHOOL_SCOPE');
+  return mockAudience({ schoolId, audience: body.audience });
+};
+
+const listSmsTemplatesHandler = ({ query, user }) => {
+  const schoolId = resolveSchoolId(user, query.schoolId);
+  if (!schoolId) throw new MockError(403, 'No school in scope', 'NO_SCHOOL_SCOPE');
+
+  const db = getDb();
+  db.smsTemplates = db.smsTemplates || [];
+  const own = db.smsTemplates.filter((t) => t.schoolId === schoolId && !t.deletedAt);
+
+  // Presets are seeded on read, exactly as the service does, so the mock's
+  // template list cannot drift into "presets appear only after a save".
+  return [
+    ...SMS_PRESETS.map((preset) => ({
+      _id: `preset-${preset.key}`,
+      key: preset.key,
+      name: preset.name,
+      category: preset.category,
+      body: preset.body,
+      tokens: mockExtractTokens(preset.body),
+      requiredTokens: preset.requiredTokens,
+      isPreset: true,
+      schoolId: null,
+      isModifiedPreset: false,
+    })),
+    ...own,
+  ];
+};
+
+const createSmsTemplateHandler = ({ body, user }) => {
+  const schoolId = resolveSchoolId(user, body.schoolId);
+  if (!schoolId) throw new MockError(403, 'No school in scope', 'NO_SCHOOL_SCOPE');
+  assertMockTokens(body.body, 'Template body');
+
+  const db = getDb();
+  db.smsTemplates = db.smsTemplates || [];
+  const key = String(body.name || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+  if (db.smsTemplates.some((t) => t.schoolId === schoolId && t.key === key && !t.deletedAt)) {
+    throw new MockError(409, `You already have a template called "${body.name}".`, 'TEMPLATE_KEY_TAKEN');
+  }
+
+  const template = {
+    _id: objectId(db.smsTemplates.length + 1),
+    key,
+    name: body.name,
+    category: body.category || 'custom',
+    body: body.body,
+    tokens: mockExtractTokens(body.body),
+    requiredTokens: body.requiredTokens || [],
+    isPreset: false,
+    schoolId,
+    deletedAt: null,
+    createdAt: new Date().toISOString(),
+  };
+  db.smsTemplates.push(template);
+  return template;
+};
+
+const updateSmsTemplateHandler = ({ params, body, user }) => {
+  const schoolId = resolveSchoolId(user);
+  if (!schoolId) throw new MockError(403, 'No school in scope', 'NO_SCHOOL_SCOPE');
+
+  const db = getDb();
+  const template = (db.smsTemplates || []).find((t) => t._id === params.templateId);
+  if (!template) throw new MockError(404, 'Template not found', 'TEMPLATE_NOT_FOUND');
+  if (!template.schoolId) {
+    throw new MockError(403, 'This is a platform template and cannot be edited.', 'PRESET_TEMPLATE_IMMUTABLE');
+  }
+  if (template.schoolId !== schoolId) {
+    throw new MockError(403, 'You do not have access to this template', 'SCHOOL_ACCESS_DENIED');
+  }
+  if (body.body !== undefined) {
+    assertMockTokens(body.body, 'Template body');
+    template.body = body.body;
+    template.tokens = mockExtractTokens(body.body);
+  }
+  if (body.name !== undefined) template.name = body.name;
+  if (body.category !== undefined) template.category = body.category;
+  return template;
+};
+
+const deleteSmsTemplateHandler = ({ params, user }) => {
+  const schoolId = resolveSchoolId(user);
+  if (!schoolId) throw new MockError(403, 'No school in scope', 'NO_SCHOOL_SCOPE');
+
+  const db = getDb();
+  const template = (db.smsTemplates || []).find((t) => t._id === params.templateId);
+  if (!template) throw new MockError(404, 'Template not found', 'TEMPLATE_NOT_FOUND');
+  if (!template.schoolId) {
+    throw new MockError(403, 'This is a platform template and cannot be deleted.', 'PRESET_TEMPLATE_IMMUTABLE');
+  }
+  template.deletedAt = new Date().toISOString();
+  return { id: template._id, deletedAt: template.deletedAt };
+};
+
+const previewTemplateHandler = ({ body }) => {
+  const text = body.templateId
+    ? SMS_PRESETS.find((p) => p._id === body.templateId || p.key === body.templateId)?.body
+    : body.body;
+  if (!text) throw new MockError(404, 'Template not found', 'TEMPLATE_NOT_FOUND');
+  assertMockTokens(text, 'Template body');
+
+  const rendered = mockRender(text, {
+    parentName: 'Mr. Mensah',
+    studentName: 'Kwame Mensah',
+    studentClass: 'JHS 2A',
+    balance: '550.00',
+    amountPaid: '0.00',
+    dueDate: '30 Nov 2025',
+    schoolName: 'Prampram Basic School',
+    payLink: 'https://sukuupay.com/pay/STU-8F3K9D2L',
+    term: 'Term 1',
+  });
+
+  return {
+    rendered,
+    segments: mockSegments(rendered),
+    length: rendered.length,
+    tokens: mockExtractTokens(rendered),
+    unresolvedTokens: mockExtractTokens(rendered).filter((t) => rendered.includes(`{${t}}`)),
+    estimatedCost: mockSegments(rendered),
+  };
+};
+
+const bulkSendSmsHandler = ({ body, user }) => {
+  const schoolId = resolveSchoolId(user, body.schoolId);
+  if (!schoolId) throw new MockError(403, 'No school in scope', 'NO_SCHOOL_SCOPE');
+  if (body.scenarioOnly) {
+    throw new MockError(404, 'Cannot POST /sms/bulk', 'NOT_FOUND');
+  }
+
+  const school = findSchool(schoolId);
+  if (!school) throw new MockError(404, 'School not found', 'SCHOOL_NOT_FOUND');
+
+  const text = body.body;
+  if (!text) throw new MockError(400, 'A message body is required', 'BODY_REQUIRED');
+  assertMockTokens(text, 'Message body');
+
+  const { matchCount, totalBalance } = mockAudience({ schoolId, audience: body.audience });
+  if (!matchCount) {
+    throw new MockError(422, 'No parents matched this audience.', 'NO_RECIPIENTS');
+  }
+
+  const segments = mockSegments(mockRender(text, { balance: '0.00', parentName: 'x'.repeat(20) }));
+  const units = segments * matchCount;
+
+  if ((school.sms?.balance ?? 0) < units) {
+    throw new MockError(
+      402,
+      `Insufficient SMS credit: this broadcast costs ${units} credits and the school has ${school.sms?.balance ?? 0} available.`,
+      'INSUFFICIENT_SMS_CREDIT'
+    );
+  }
+  school.sms.balance -= units;
+
+  const db = getDb();
+  const job = {
+    _id: objectId((db.smsJobs?.length || 0) + 1),
+    schoolId,
+    body: text,
+    category: body.category || 'fee_reminder',
+    audienceType: body.audience.type,
+    status: body.scheduledAt ? 'scheduled' : 'queued',
+    progressPercent: 0,
+    recipientsResolved: matchCount,
+    creditsCharged: units,
+    creditsRefunded: 0,
+    totalBalance,
+    scheduledAt: body.scheduledAt || null,
+    createdAt: new Date().toISOString(),
+  };
+  db.smsJobs = db.smsJobs || [];
+  db.smsJobs.unshift(job);
+
+  return {
+    job: {
+      id: job._id,
+      status: job.status,
+      category: job.category,
+      audienceType: job.audienceType,
+      recipients: matchCount,
+      segments,
+      creditsCharged: units,
+      balanceAfter: school.sms.balance,
+      scheduledAt: job.scheduledAt,
+      totalBalance,
+      totalBalanceDisplay: `GHC ${(totalBalance / 100).toFixed(2)}`,
+      skipped: { invalid_number: 0 },
+    },
+  };
+};
+
+const listSmsJobsHandler = ({ query, user }) => {
+  const schoolId = resolveSchoolId(user, query.schoolId);
+  if (!schoolId) throw new MockError(403, 'No school in scope', 'NO_SCHOOL_SCOPE');
+  const jobs = (getDb().smsJobs || []).filter((j) => j.schoolId === schoolId);
+  return { jobs, meta: { page: 1, perPage: 20, total: jobs.length, totalPages: 1 } };
+};
+
+const cancelSmsJobHandler = ({ params, body, user }) => {
+  const schoolId = resolveSchoolId(user);
+  if (!schoolId) throw new MockError(403, 'No school in scope', 'NO_SCHOOL_SCOPE');
+
+  const job = (getDb().smsJobs || []).find((j) => j._id === params.jobId && j.schoolId === schoolId);
+  if (!job) throw new MockError(404, 'Job not found', 'JOB_NOT_FOUND');
+  if (['completed', 'cancelled', 'failed'].includes(job.status)) {
+    throw new MockError(409, `This job is already ${job.status} and cannot be cancelled`, 'JOB_NOT_CANCELLABLE');
+  }
+  if (job.status === 'processing') {
+    throw new MockError(409, 'This broadcast is already sending.', 'JOB_ALREADY_RUNNING');
+  }
+
+  const school = findSchool(schoolId);
+  school.sms.balance = (school.sms.balance || 0) + (job.creditsCharged || 0);
+  job.creditsRefunded = job.creditsCharged || 0;
+  job.status = 'cancelled';
+  job.cancellationReason = body?.reason || '';
+  job.cancelledAt = new Date().toISOString();
+
+  return {
+    jobId: job._id,
+    status: job.status,
+    cancellationReason: job.cancellationReason,
+    cancelledAt: job.cancelledAt,
+    creditsRefunded: job.creditsRefunded,
+    result: job.result || null,
+  };
+};
+
+const listSmsMessagesHandler = ({ query, user }) => {
+  const schoolId = resolveSchoolId(user, query.schoolId);
+  if (!schoolId) throw new MockError(403, 'No school in scope', 'NO_SCHOOL_SCOPE');
+
+  let rows = getDb().sentSms.filter((m) => m.schoolId === schoolId);
+  if (query.status && query.status !== 'all') rows = rows.filter((m) => m.status === query.status);
+  if (query.category && query.category !== 'all') rows = rows.filter((m) => m.category === query.category);
+
+  const statusCounts = rows.reduce((acc, row) => {
+    acc[row.status] = (acc[row.status] || 0) + 1;
+    return acc;
+  }, {});
+
+  return {
+    messages: rows.slice(0, Number(query.perPage) || 20),
+    meta: {
+      page: 1,
+      perPage: Number(query.perPage) || 20,
+      total: rows.length,
+      totalPages: 1,
+      statusCounts,
+    },
+  };
+};
+
+/**
+ * `POST /sms/bulk/:schoolId` � **superseded by `POST /sms/bulk`.**
+ *
+ * Kept for the onboarding wizard, which still posts the old path. It 404s unless
+ * the `sms-enabled` scenario is on, exactly as before, so the wizard's
+ * honest-failure branch still runs.
  */
 const sendBulkSms = ({ params, body, user }) => {
-  // Gated the same way as the payout route: the scenario that mirrors the real
-  // backend (`sms-unsupported`) 404s, and `healthy` lets the send succeed so the
-  // full celebrate → send → count → dashboard path is testable before the
-  // endpoint exists.
   if (!getScenario(getScenarioId()).config?.mockOnlyEnabled) {
     throw new MockError(404, 'Cannot POST /sms/bulk', 'NOT_FOUND');
   }
 
-  const db = getDb();
   const schoolId = resolveSchoolId(user, params.schoolId);
   if (!schoolId) throw new MockError(403, 'No school in scope', 'NO_SCHOOL_SCOPE');
   const school = findSchool(schoolId);
 
   const owing = studentsFor(schoolId)
     .filter((s) => s.balance > 0)
-    // `sms-no-recipients` empties the list without touching the data, so a
-    // tester can switch back and still have the 500-student roster.
     .filter(() => getScenarioId() !== 'sms-no-recipients');
   if (!owing.length) {
     throw new MockError(422, 'No parents have an outstanding balance', 'NO_RECIPIENTS');
@@ -1579,20 +3840,20 @@ const sendBulkSms = ({ params, body, user }) => {
   }
   school.sms.balance -= cost;
 
-  const message = String(body?.message || '');
-  const sent = db.sentSms.concat(
+  const db = getDb();
+  db.sentSms = db.sentSms.concat(
     recipients.map((r) => ({
       id: objectId(db.sentSms.length + recipients.length),
       to: r.phone,
       toName: r.name,
       studentId: r.studentId,
-      message,
+      message: String(body?.message || ''),
+      creditsCharged: 1,
       cost: 4,
       status: 'submitted',
       sentAt: new Date().toISOString(),
     }))
   );
-  db.sentSms = sent;
 
   return { sent: recipients.length, failed: 0, cost, remainingBalance: school.sms.balance };
 };
@@ -1606,7 +3867,7 @@ const getSmsBalance = ({ user }) => {
   return getDb().schools[0].sms;
 };
 
-// ── Users / settings / ads ─────────────────────────────────────────────────
+// -- Users / settings / ads -------------------------------------------------
 
 const updateUser = ({ params, body, user }) => {
   const target = getDb().users.find((u) => u._id === params.userId);
@@ -1649,7 +3910,7 @@ const listSchoolAds = () => ({
     {
       _id: objectId(12),
       schoolName: 'Riverside International',
-      headline: 'Now boarding, grades 1–12',
+      headline: 'Now boarding, grades 1�12',
       imageUrl: 'https://picsum.photos/seed/sukuupay-riverside/960/540',
       imageAlt: 'Riverside International School main gate',
       linkUrl: 'https://example.com/riverside/apply',
@@ -1659,7 +3920,7 @@ const listSchoolAds = () => ({
 
 const health = () => ({ status: 'ok', mock: true, uptimeSeconds: Math.round(process.uptime?.() || 0) });
 
-// ── Route table ────────────────────────────────────────────────────────────
+// -- Route table ------------------------------------------------------------
 
 /**
  * Order matters: the first pattern whose regex matches the path wins, so
@@ -1704,10 +3965,38 @@ export const ROUTES = [
   ['PUT', /^\/schools\/([^/]+)$/, updateSchool],
 
   ['POST', /^\/upload\/school-logo$/, uploadSchoolLogo],
-  ['POST', /^\/upload\/student-photo$/, async ({ data }) => {
-    const file = data instanceof FormData ? data.get('file') : null;
-    if (!file) throw new MockError(400, 'No image file uploaded', 'NO_FILE');
-    return { url: `https://res.cloudinary.com/mock/image/upload/${objectId(21)}` };
+  // Mirrors `uploadStudentImage`: the same MIME and 2MB limits the real service
+  // enforces, and � unlike the previous stub, which returned a URL and wrote
+  // nothing � it persists onto the student when a `studentId` is supplied.
+  //
+  // That matters because the photo field uploads on its own timer and the
+  // roster reads `studentImage` back. A mock that discards the write makes the
+  // upload look like it silently failed: the preview shows the photo, the row
+  // underneath keeps its monogram, and the obvious conclusion is that the app
+  // is broken rather than the mock.
+  ['POST', /^\/upload\/student-photo$/, async ({ data, user }) => {
+    const form = data instanceof FormData ? data : null;
+    const file = form?.get('file');
+    if (!file) throw new MockError(400, 'No file provided', 'NO_FILE');
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      throw new MockError(400, 'Only JPG, PNG, and WebP images are allowed', 'INVALID_MIME');
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      throw new MockError(400, 'Image must be smaller than 2MB', 'FILE_TOO_LARGE');
+    }
+
+    const url = `https://res.cloudinary.com/mock/image/upload/${objectId(21)}`;
+    const studentId = form.get('studentId');
+
+    if (studentId) {
+      const db = getDb();
+      const student = db.students.find((s) => s._id === studentId);
+      if (!student) throw new MockError(404, 'Student not found', 'STUDENT_NOT_FOUND');
+      student.studentImage = url;
+    }
+
+    return { url };
   }],
 
   // Literal segments before the parameter, matching `student.routes.js`. The
@@ -1717,6 +4006,29 @@ export const ROUTES = [
   ['POST', /^\/students\/bulk\/archive$/, bulkDryRun],
   ['POST', /^\/students\/bulk\/status$/, bulkDryRun],
   ['POST', /^\/students\/bulk\/pay-links$/, bulkDryRun],
+  // ID cards. Order matters twice over, mirroring `idCard.routes.js`.
+  //
+  // `/id-cards/qr-links/:schoolId` and `/id-cards/batch/:batchId/pdf` are both
+  // four-segment paths that would otherwise be swallowed by
+  // `/id-cards/:studentId`� which takes two segments and so cannot match them,
+  // but `qr-links` is placed first anyway because it is the one whose first
+  // segment is a literal word, and reading it in the same order as the real
+  // router is what keeps the two files diffable.
+  ['POST', /^\/id-cards\/batch$/, createIdCardBatch],
+  ['GET', /^\/id-cards\/qr-links\/(?<schoolId>[^/]+)$/, getQrLinksExport],
+  ['GET', /^\/id-cards\/batch\/(?<batchId>[^/]+)\/pdf$/, getIdCardBatchPdf],
+  ['GET', /^\/id-cards\/batch\/(?<batchId>[^/]+)$/, getIdCardBatchPreview],
+  ['GET', /^\/id-cards\/(?<studentId>[^/]+)$/, getStudentIdCard],
+
+  // `promote/preview` is a literal two-segment path and must precede
+  // `/students/:id/...`, or the router would read "promote" as the student id
+  // and the wizard's mapping step would 404 on every load.
+  ['POST', /^\/students\/promote\/preview$/, previewPromotion],
+  ['POST', /^\/students\/bulk-graduate\/(?<schoolId>[^/]+)$/, bulkGraduate],
+  ['POST', /^\/students\/(?<id>[^/]+)\/promote$/, promoteStudent],
+  ['POST', /^\/students\/(?<id>[^/]+)\/repeat$/, repeatStudent],
+  ['POST', /^\/students\/(?<id>[^/]+)\/unrepeat$/, clearRepeat],
+  ['POST', /^\/students\/(?<id>[^/]+)\/transfer-out$/, transferOutStudent],
   ['POST', /^\/students\/bulk$/, bulkImport],
   ['POST', /^\/students\/single$/, createStudent],
   ['GET', /^\/students\/stats$/, studentStats],
@@ -1733,7 +4045,7 @@ export const ROUTES = [
   // Two segments for the cohort detail, matching the real route. The mock has the
   // same ordering dependency the Express router does: a single-segment
   // `/cohorts/:id` would be captured by `/cohorts/:schoolId` and the detail
-  // handler would be unreachable — which is exactly how the real route was
+  // handler would be unreachable � which is exactly how the real route was
   // broken.
   ['GET', /^\/cohorts\/detail\/(?<cohortId>[^/]+)$/, getCohortDetail],
   ['GET', /^\/cohorts\/(?<schoolId>[^/]+)$/, listCohorts],
@@ -1744,7 +4056,17 @@ export const ROUTES = [
   ['POST', /^\/pay\/(?<token>[^/]+)\/initiate$/, initiatePay],
   ['POST', /^\/pay\/(?<token>[^/]+)\/verify$/, verifyPay],
   ['GET', /^\/pay\/(?<token>[^/]+)\/receipt\/(?<paymentId>[^/]+)$/, () => ({
-    __raw: { message: 'Receipts are a PDF in production; the mock returns JSON.' },
+    // A deliberate stub, and the message now says so. The real `getReceipt`
+    // returns the same receipt document as the admin route � JSON, not a file �
+    // and this handler no longer claims otherwise: "receipts are a PDF in
+    // production" was false in both modes, and a reader who believed it had no
+    // way to tell a scoped-out stub from a wrong assumption about the endpoint.
+    // The admin receipt, `GET /payments/:paymentId/receipt`, is fully mocked.
+    __raw: {
+      receipt: null,
+      message:
+        'The public receipt route is not mocked. The admin receipt at GET /payments/:paymentId/receipt is.',
+    },
   })],
   ['GET', /^\/pay\/(?<token>[^/]+)$/, getPayView],
 
@@ -1754,6 +4076,54 @@ export const ROUTES = [
   ['POST', /^\/payments\/record$/, recordManualPayment],
   ['GET', /^\/payments$/, listPayments],
 
+  // `/payments/summary` and `/payments/export` ahead of the parameterised detail
+  // route, mirroring `payment.routes.js` and for the reason it puts them there.
+  // This table resolves in order and the first matching pattern wins, so a
+  // `summary` entry listed below `/payments/:paymentId` is not a summary request
+  // at all: "summary" reads as a payment id, the detail handler 404s, and the KPI
+  // band reports "not available" for a school that has taken mobile money all
+  // term. Express has the identical dependency and a louder one �
+  // `paymentIdParamSchema` demands at least five characters, so a request that
+  // reached the detail route would have 422'd with a message about a payment id �
+  // which means a mock that got the order wrong would be testing the wrong
+  // failure and looking correct while doing it.
+  ['GET', /^\/payments\/summary$/, paymentSummary],
+  ['GET', /^\/payments\/export$/, exportPayments],
+
+  // The two-segment routes cannot collide with the single-segment one below
+  // whatever order they sit in, because `[^/]+` cannot span a slash and the
+  // patterns are anchored. Named groups throughout, for the `token` reason above.
+  ['GET', /^\/payments\/(?<paymentId>[^/]+)\/receipt$/, getPaymentReceipt],
+  ['POST', /^\/payments\/(?<paymentId>[^/]+)\/refund$/, refundPayment],
+  ['GET', /^\/payments\/(?<paymentId>[^/]+)$/, getPaymentDetail],
+
+  // Installment plans. The literal `school/:schoolId/compliance` is registered
+  // before `/:studentId` because this table resolves in order � a plan for a
+  // student whose id happens to read "school" is a nice error message, not a
+  // reason to leave the compliance route unreachable.
+  ['GET', /^\/payment-plans\/school\/(?<schoolId>[^/]+)\/compliance$/, getSchoolComplianceHandler],
+  ['POST', /^\/payment-plans\/create\/(?<studentId>[^/]+)$/, createPaymentPlanHandler],
+  ['PUT', /^\/payment-plans\/(?<planId>[^/]+)\/installment\/(?<num>[^/]+)$/, updateInstallmentHandler],
+  ['PUT', /^\/payment-plans\/(?<planId>[^/]+)$/, updatePaymentPlanHandler],
+  ['DELETE', /^\/payment-plans\/(?<planId>[^/]+)$/, cancelPaymentPlanHandler],
+  ['GET', /^\/payment-plans\/(?<studentId>[^/]+)$/, getStudentPlanHandler],
+
+  // SMS. The table resolves in order and dispatches on method as well as path,
+  // so `/sms/credits/top-up` (POST) and `/sms/credits/:schoolId` (GET) coexist
+  // without either shadowing the other � the method is what separates them, not
+  // the position.
+  ['GET', /^\/sms\/credits\/(?<schoolId>[^/]+)$/, getSmsCreditsHandler],
+  ['POST', /^\/sms\/credits\/top-up$/, topUpSmsCreditsHandler],
+  ['POST', /^\/sms\/audience\/preview$/, previewAudienceHandler],
+  ['POST', /^\/sms\/bulk$/, bulkSendSmsHandler],
+  ['GET', /^\/sms\/jobs$/, listSmsJobsHandler],
+  ['POST', /^\/sms\/jobs\/(?<jobId>[^/]+)\/cancel$/, cancelSmsJobHandler],
+  ['GET', /^\/sms\/messages$/, listSmsMessagesHandler],
+  ['POST', /^\/sms\/templates\/preview$/, previewTemplateHandler],
+  ['GET', /^\/sms\/templates$/, listSmsTemplatesHandler],
+  ['POST', /^\/sms\/templates$/, createSmsTemplateHandler],
+  ['PATCH', /^\/sms\/templates\/(?<templateId>[^/]+)$/, updateSmsTemplateHandler],
+  ['DELETE', /^\/sms\/templates\/(?<templateId>[^/]+)$/, deleteSmsTemplateHandler],
   ['POST', /^\/sms\/bulk\/([^/]+)$/, sendBulkSms, { mockOnly: true }],
   ['GET', /^\/admin\/sms-balance$/, getSmsBalance],
 

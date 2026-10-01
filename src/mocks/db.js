@@ -9,6 +9,7 @@
 
 import {
   buildStudents,
+  buildPaymentPlans,
   CLASS_SETS,
   ghanaPhone,
   intBetween,
@@ -251,26 +252,51 @@ function buildWorld({
     createdAt: new Date().toISOString(),
   };
 
+  const students = [
+    ...(studentCount
+      ? buildStudents(schoolId, studentCount, { seed: seed + 3, classes, academicYear: ACADEMIC_YEAR })
+      : []),
+    // Cohorts for the Cohorts and Alumni tabs. Kept separate from the active
+    // roster so `stats.totalStudents` and the scenario's `studentCount` still
+    // describe the current roll call — a leaver is not on the roster.
+    // `completedProfile: false` also means a school that skipped the import
+    // step has a genuinely empty roster *and* no cohorts, which is what the
+    // wizard's empty state promises.
+    ...(studentCount && completedProfile
+      ? buildAlumni(schoolId, { seed: seed + 11, classes, academicYear: ACADEMIC_YEAR })
+      : []),
+  ];
+
   return {
     schools: [school],
     users: [user],
-    students: [
-      ...(studentCount
-        ? buildStudents(schoolId, studentCount, { seed: seed + 3, classes, academicYear: ACADEMIC_YEAR })
-        : []),
-      // Cohorts for the Cohorts and Alumni tabs. Kept separate from the active
-      // roster so `stats.totalStudents` and the scenario's `studentCount` still
-      // describe the current roll call — a leaver is not on the roster.
-      // `completedProfile: false` also means a school that skipped the import
-      // step has a genuinely empty roster *and* no cohorts, which is what the
-      // wizard's empty state promises.
-      ...(studentCount && completedProfile
-        ? buildAlumni(schoolId, { seed: seed + 11, classes, academicYear: ACADEMIC_YEAR })
-        : []),
-    ],
+    students,
+    // Installment plans, built *from* the students rather than authored alongside
+    // them — see `buildPaymentPlans`. A plan whose money is not its student's
+    // balance would make the compliance dashboard's totals disagree with the
+    // Students tab, which is the one comparison a tester makes first.
+    //
+    // Only for a school that has completed onboarding: a new school has no fee
+    // ledger yet, and a compliance dashboard full of plans is a claim the school
+    // has never collected anything.
+    paymentPlans:
+      studentCount && completedProfile
+        ? buildPaymentPlans(schoolId, students, {
+            seed: seed + 23,
+            term: school.academic.currentTerm,
+            academicYear: ACADEMIC_YEAR,
+          })
+        : [],
     payments: [],
     verificationTokens: new Map(),
     sentSms: [],
+    // The SMS Reminders module's own collections. Seeded empty and filled by the
+    // `/sms/*` handlers, so a fresh mock world has a school with credit and no
+    // history — which is the state a real new school is in, and the one the
+    // composer's empty states are written for.
+    smsJobs: [],
+    smsTemplates: [],
+    smsTopUps: [],
     sessions: new Map(),
     // Populated by `POST /schools/join`. Kept on the world rather than in a
     // module-level Map so `setPersona` resets it with everything else.

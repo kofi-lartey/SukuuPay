@@ -4,6 +4,7 @@ import Card from '../dashboard/ui/Card';
 import Badge from '../dashboard/ui/Badge';
 import EmptyState from '../dashboard/EmptyState';
 import { getCohort, listCohorts } from '../../services/students';
+import StudentAvatar from './StudentAvatar';
 import { formatCount } from '../../utils/format';
 
 /**
@@ -194,12 +195,15 @@ const CohortsTab = ({ schoolId }) => {
                           key={student._id}
                           className="flex items-center justify-between gap-3 px-5 py-3"
                         >
-                          <span className="min-w-0">
-                            <span className="block truncate text-[13px] font-extrabold text-ink">
-                              {student.studentName}
-                            </span>
-                            <span className="block text-[11px] font-semibold text-slate-500">
-                              {student.studentId} · {student.studentClass}
+                          <span className="flex min-w-0 items-center gap-3">
+                            <StudentAvatar student={student} size="sm" />
+                            <span className="min-w-0">
+                              <span className="block truncate text-[13px] font-extrabold text-ink">
+                                {student.studentName}
+                              </span>
+                              <span className="block text-[11px] font-semibold text-slate-500">
+                                {student.studentId} · {student.studentClass}
+                              </span>
                             </span>
                           </span>
                           <Badge tone="slate">{student.status?.replace(/_/g, ' ')}</Badge>

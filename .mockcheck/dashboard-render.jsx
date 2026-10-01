@@ -29,6 +29,8 @@ import ActivityLog from '../src/pages/dashboard/ActivityLog.jsx';
 import SettingsPage from '../src/pages/dashboard/Settings.jsx';
 import RosterKpiRow from '../src/components/students/RosterKpiRow.jsx';
 import RosterFilterBar from '../src/components/students/RosterFilterBar.jsx';
+import PaymentKpiRow from '../src/components/payments/PaymentKpiRow.jsx';
+import SettlementBand from '../src/components/payments/SettlementBand.jsx';
 import StudentTable from '../src/components/students/StudentTable.jsx';
 import ClassListEditor from '../src/components/students/ClassListEditor.jsx';
 import BalanceCard from '../src/components/pay/BalanceCard.jsx';
@@ -240,9 +242,19 @@ await check('every module page renders its own content', () => {
     // (effects do not run, and it starts `loading: true` on purpose so a live
     // school never sees a flash of fixture figures). It has its own check below.
     ['/dashboard/students', 'Select all students on this page'],
-    ['/dashboard/payments', 'Refunds'],
-    ['/dashboard/installment-plans', 'Plan timeline'],
-    ['/dashboard/sms-reminders', 'No school-facing SMS send endpoint'],
+    // The needle is a control the built page always renders, not the old
+    // scaffold's "Refunds" placeholder — same reasoning as the SMS entry below.
+    // `Record manual / cash payment` is in the page header, so it is present in
+    // the server render regardless of which state the data layer is in.
+    ['/dashboard/payments', 'Record manual / cash payment'],
+    ['/dashboard/installment-plans', 'Installment Compliance Dashboard'],
+    // The needle is the audience stepper, not the old honest-failure banner. That
+    // banner ("No school-facing SMS send endpoint") is gone because the route
+    // exists now, and a mockcheck that keeps asserting its presence would go green
+    // only while the module was broken. `Select Audience` is rendered on the
+    // server — it is the default tab's first control — so it is the honest thing
+    // to assert.
+    ['/dashboard/sms-reminders', 'Select Audience'],
     ['/dashboard/reports', 'Outstanding balances'],
     ['/dashboard/activity-log', 'Read-only by design'],
     ['/dashboard/settings', 'Academic year and term'],
@@ -262,6 +274,94 @@ await check('Settings is hidden from non-admin roles in the rail', () => {
   if (teacher.includes('Settings')) throw new Error('a teacher can see Settings');
   if (!admin.includes('Settings')) throw new Error('a school admin cannot see Settings');
   return 'teacher 7, school admin 8';
+});
+
+// -- Payments ----------------------------------------------------------------
+//
+// Two decisions on this module are worth a test, because both are the kind that
+// a future redesign quietly reverses: the KPI band aggregates over the whole
+// period rather than the visible page, and the settlement band refuses to show a
+// bank-sweep figure that no backend job produces.
+
+await check('the Payments KPI band aggregates the summary, never the visible rows', () => {
+  const html = renderToString(
+    <PaymentKpiRow
+      summary={{
+        totalInflow: 31800000,
+        totalTransactions: 342,
+        previousTotalInflow: 27840000,
+        trendPercent: 14.2,
+        networks: [
+          { network: 'MTN', label: 'MTN MoMo', amount: 21624000, count: 232, sharePercent: 68, wallets: 232 },
+          { network: 'VODAFONE', label: 'Vodafone Cash', amount: 7000000, count: 60, sharePercent: 22, wallets: 58 },
+          { network: 'AIRTELTELIGO', label: 'AT Money', amount: 3176000, count: 50, sharePercent: 10, wallets: 49 },
+        ],
+        awaitingConfirmation: { amount: 1485000, count: 3 },
+      }}
+      loading={false}
+    />
+  );
+
+  // Every figure below is pesewas on the wire and must render as cedis. The
+  // Overview's check already guards that boundary for `KpiRow`; this one guards
+  // it for `CediValue`, which splits the symbol from the digits.
+  //
+  // The needles are fragments, not whole sentences, on purpose. `renderToString`
+  // separates adjacent text children with `<!-- -->`, so
+  // `{count} successful transaction{s}` never appears as one contiguous
+  // substring — asserting the full phrase would fail against correct output.
+  ['318,000', 'successful transaction', '216,240', 'distinct mobile wallet'].forEach(
+    (needle) => {
+      if (!has(html, needle)) throw new Error(`the KPI band is missing "${needle}"`);
+    }
+  );
+
+  // The band's own vocabulary, so a rename that loses the period framing fails
+  // here rather than in a bursar's head.
+  if (!has(html, 'Total inflow')) throw new Error('the band has no total-inflow tile');
+  if (!has(html, 'Awaiting confirmation'))
+    throw new Error('the band has no awaiting-confirmation tile');
+
+  // The headline case: a sweep badge or a batch figure would mean someone has
+  // started inventing settlement numbers.
+  if (has(html, 'Escrow')) throw new Error('the KPI band is claiming an escrow state');
+  if (has(html, 'sweep')) throw new Error('the KPI band is claiming a bank sweep');
+
+  return 'cedis formatted, 342 from the aggregate, no invented settlement figures';
+});
+
+await check('the settlement band states that no sweep runs', () => {
+  // Wrapped in a Router because the band's settings link is a `react-router`
+  // `Link`, and `Link` reads the router context at render time. The other
+  // sub-component checks here are leaf-presentational and need no provider; this
+  // one crosses into navigation, so it gets the same wrapper the app gives it.
+  const html = renderToString(
+    <MemoryRouter>
+      <SettlementBand
+        school={{
+          payment: {
+            gatewayMode: 'hubtel',
+            bankAccount: {
+              accountName: 'Prampram Basic School',
+              accountNumber: '0123456789',
+              bankName: 'GCB Bank',
+              branch: 'Prampram',
+            },
+          },
+        }}
+      />
+    </MemoryRouter>
+  );
+
+  if (!has(html, 'No automated sweep'))
+    throw new Error('the band does not disclose that no sweep is automated');
+  if (!has(html, '6789')) throw new Error('the masked account number is not rendered');
+  // Only the last four: a payments screen is not where a full account number
+  // should be readable over someone's shoulder.
+  if (has(html, '0123456789')) throw new Error('the full account number is rendered');
+  if (!has(html, 'Hubtel')) throw new Error('the configured gateway is not named');
+
+  return 'gateway named, account masked to last four, sweep disclosed as absent';
 });
 
 // -- Overview ----------------------------------------------------------------
@@ -790,7 +890,7 @@ await check('every JSX component is imported or declared locally', async () => {
 
 // ── Every tab of the Students module renders ────────────────────────────────
 
-await check('all four Students tabs render', () => {
+await check('all six Students tabs render', () => {
   // Each tab is a separate screen behind `?tab=`, and they are all reachable
   // from the module's tab bar. Asserting only the default left three of them
   // unrendered by any test — which is how a missing import survived a green
@@ -810,7 +910,43 @@ await check('all four Students tabs render', () => {
     }
   });
 
-  return 'roster, import, alumni and cohorts all render';
+  // The promotions tab is asserted separately because it is the one Students
+  // screen whose content is *entirely* derived from the school document, and
+  // this harness renders one synchronous pass — so no school has arrived by the
+  // time it renders. Asserting on the class matrix here would therefore be
+  // asserting on something unreachable, and the first-pass frame is a loading
+  // state by design.
+  //
+  // What is worth locking down is that it waits rather than guessing: a tab
+  // that renders "this school has no classes" before the school has loaded is
+  // a confident, wrong, actionable statement, and it is the failure this
+  // assertion exists to prevent.
+  const promotions = renderRoute('/dashboard/students?tab=promotions');
+  if (!has(promotions, 'Promotions &amp; Graduation')) {
+    throw new Error('the promotions tab did not render its heading');
+  }
+  if (has(promotions, 'This school has no classes yet')) {
+    throw new Error(
+      'the promotions tab claimed the school has no classes before the school loaded'
+    );
+  }
+
+  // The ID card studio is the third Students screen whose first frame is a
+  // loading state, because the card grid and the school record both arrive
+  // after the first paint. Asserted on its panel chrome — the batch panel and
+  // the sheet arithmetic are rendered unconditionally, while the grid is still
+  // skeletons — and on the one thing that would be wrong at any point: an
+  // "estimated cost" is quoted before a batch exists, so the panel must not
+  // claim a card count it has not been given.
+  const idCards = renderRoute('/dashboard/students?tab=id-cards');
+  if (!has(idCards, 'Print batch')) {
+    throw new Error('the ID card tab did not render its batch panel');
+  }
+  if (!has(idCards, 'A4 sheets needed')) {
+    throw new Error('the ID card tab did not render its sheet arithmetic');
+  }
+
+  return 'roster, id-cards, promotions, import, alumni and cohorts all render';
 });
 
 console.log(`\n${pass} passed, ${fail} failed.`);

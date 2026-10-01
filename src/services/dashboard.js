@@ -67,15 +67,22 @@ export const getWeeklyCollections = async (schoolId, term) => {
 /**
  * The school's remaining SMS credit, for the topbar pill.
  *
- * NOTE: `GET /admin/sms-balance` is the only balance route and it sits behind
- * `authorize('super_admin')` — it reports the *platform's* master credit, not a
- * school's, so it is doubly wrong for this pill. A school-scoped balance
- * (`GET /sms/balance/:schoolId` or a field on the School model) has to exist
- * before the pill can show a real number. `services/sms.js` already documents a
- * school admin being refused this for the same reason.
+ * Backed by `GET /sms/credits/:schoolId`, which is school-scoped and readable by
+ * a bursar. The route this function used to wait for did not need inventing: the
+ * one that already existed, `GET /admin/sms-balance`, is behind
+ * `authorize('super_admin')` and reports the *platform's* master credit rather
+ * than a school's — which is why the pill stayed hidden. Delegating rather than
+ * re-fetching keeps the header and the SMS Reminders balance on one number; a
+ * pill and a page that can disagree are worse than no pill.
  */
 export const getSmsCredit = async (schoolId) => {
-  throw new Error('A school-scoped SMS balance endpoint does not exist yet.');
+  if (!schoolId) throw new Error('A school must be in scope to read its SMS credit.');
+  try {
+    const { data } = await api.get(`/sms/credits/${schoolId}`);
+    return data.data || data;
+  } catch (error) {
+    throw toApiError(error, 'Your SMS balance could not be loaded.');
+  }
 };
 
 /**

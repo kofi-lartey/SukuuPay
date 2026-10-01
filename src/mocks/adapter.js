@@ -231,19 +231,111 @@ export const mockAdapter = async (config) => {
     // the response, not the response itself. `result.students ?? result` would
     // otherwise replace the whole payload with that array and the client would
     // read `undefined` for `cohort`.
+    // ── A response that IS a file ──
+    //
+    // A CSV download is not a JSON body, and the service that fetches one knows
+    // it: `exportStudents` and `exportPayments` both ask for
+    // `responseType: 'blob'`, read the filename out of `Content-Disposition` and
+    // pass `response.data` straight to `URL.createObjectURL`. A handler returning
+    // an ordinary object put a plain object there, so the download threw a
+    // TypeError against a request the mock had answered 200 — a broken button
+    // whose only visible symptom was a console error.
+    //
+    // `__file` is how a handler says "this response is a Blob with these
+    // headers". `Blob` is global in the browser and in Node 18+, so the same
+    // path works under the mockcheck harness.
+    const file = result && typeof result === 'object' ? result.__file : undefined;
+    if (file) {
+      const type = file.mimeType || 'application/octet-stream';
+      return {
+        data: new Blob([file.body], { type }),
+        status: 200,
+        statusText: 'OK',
+        headers: {
+          'content-type': type,
+          'content-disposition': `attachment; filename="${file.filename}"`,
+        },
+        config,
+      };
+    }
+
+    // `__text` is `__file` for a response whose body is text the client reads as
+    // text. The ID card batch preview is the case: the server sends
+    // `text/html; charset=utf-8`, and the service asks for `responseType: 'text'`
+    // precisely so the markup is not run through a JSON transform.
+    //
+    // `__file` would also "work" for the mock — it builds a Blob — but then
+    // `response.data` is a Blob rather than the string the real endpoint
+    // delivers, so the service's `typeof html === 'string'` check fails and the
+    // preview cannot be shown. A mock that hands back a different *type* than
+    // the API is worse than one that hands back the wrong content, because the
+    // client branches on the type.
+    const text = result && typeof result === 'object' ? result.__text : undefined;
+    if (text) {
+      const type = text.mimeType || 'text/plain; charset=utf-8';
+      return {
+        data: text.body,
+        status: text.status ?? 200,
+        statusText: 'OK',
+        headers: {
+          'content-type': type,
+          'content-disposition': `attachment; filename="${text.filename || 'response'}"`,
+        },
+        config,
+      };
+    }
+
     const raw = result && typeof result === 'object' ? result.__raw : undefined;
+    // The other half of the envelope problem, and `__raw`'s sibling: a
+    // controller that returns `data` as a bare ARRAY with its count in `meta`
+    // (`listPaymentsController` does, and so does `student.controller.js`).
+    //
+    // The hoisting rule below can only produce that for a key literally named
+    // `students`, so the payments handler's `{ payments, meta }` arrived as
+    // `data: { payments, meta }` — an object where `services/payments.js`
+    // expects an array, and its `Array.isArray(data?.data) ? … : []` guard
+    // turned that into an empty table sitting next to a `meta.total` that said
+    // otherwise. `__rows` names the array, so a second collection does not need
+    // its own special case here.
+    const rows = result && typeof result === 'object' ? result.__rows : undefined;
 
     const isPlainObject = result && typeof result === 'object' && !Array.isArray(result);
+    // `__raw` opts out of the `{ ...result }` spread so the handler's own object
+    // is the payload — which is how a `{ data, meta }` controller response is
+    // reproduced. It has to carry `meta` across too: the raw path used to drop it
+    // entirely, so a handler modelled on `createPaymentPlanController` (a plan in
+    // `data` and the parent-notification result in `meta`) had no way to express
+    // both, and its `meta.sms` came back `undefined` on the client.
+    const meta = result && typeof result === 'object' ? result.meta : undefined;
+
     const payload = raw
-      ? { success: true, data: raw }
+      ? { success: true, data: raw, ...(meta ? { meta } : {}) }
+      : rows !== undefined
+      ? { success: true, data: rows, ...(meta ? { meta } : {}) }
       : isPlainObject
-      ? { success: true, ...result, ...(result.meta ? { meta: result.meta } : {}), data: result.students ?? result }
+      ? { success: true, ...result, ...(meta ? { meta } : {}), data: result.students ?? result }
       : { success: true, data: result };
+
+    // `__status` sets a successful non-200 code.
+    //
+    // The adapter answers 200 for every successful handler, which is right for
+    // the CRUD surface but wrong for the two places where the *status code is
+    // the message*: `POST /id-cards/batch` answers 202 because a background job
+    // now owns the work, and the batch preview answers 202 with
+    // `{ status: "pending" }` until the file exists. Both clients branch on the
+    // code — the preview service reads `error.response.status === 202`, and the
+    // studio's poll loop treats it as "still working, retry".
+    //
+    // Forcing those to 200 would make the mock disagree with the real API in
+    // the one place where getting it wrong looks like the app working: the
+    // studio would take its "ready" branch on a pending batch and try to
+    // download a file that does not exist.
+    const status = result && typeof result === 'object' ? result.__status ?? 200 : 200;
 
     return {
       data: payload,
-      status: 200,
-      statusText: 'OK',
+      status,
+      statusText: status === 200 ? 'OK' : 'Accepted',
       headers: {},
       config,
     };

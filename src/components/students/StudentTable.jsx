@@ -4,6 +4,7 @@ import {
   ArrowUp,
   ChevronRight,
   CreditCard,
+  LogOut,
   MessageSquare,
   PencilLine,
   Search,
@@ -13,24 +14,14 @@ import Button from '../common/Button';
 import EmptyState from '../dashboard/EmptyState';
 import { FeeStatusBadge, PlanStatusBadge } from './StudentBadges';
 import Pagination from './Pagination';
+import StudentAvatar from './StudentAvatar';
 import { formatCedis, formatCount } from '../../utils/format';
 import { maskGhanaPhone } from '../../utils/ghanaPhone';
 
-const AVATAR_TONES = [
-  'bg-emerald-100 text-emerald-700',
-  'bg-amber-100 text-amber-700',
-  'bg-blue-100 text-blue-700',
-  'bg-rose-100 text-rose-700',
-  'bg-violet-100 text-violet-700',
-];
-
-const initials = (name) =>
-  String(name || '')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join('');
+// The avatar's monogram and tone now live in `StudentAvatar`, shared with the
+// drawer, the alumni list, the cohorts list and the promotion wizard so a
+// student looks the same in all of them. The row-index tone this replaced made
+// a student's colour change whenever the list was re-sorted or filtered.
 
 const COLUMNS = [
   { key: 'studentName', label: 'Student', sortable: true },
@@ -70,6 +61,7 @@ const StudentTable = ({
   selection,
   onMessage,
   onRegeneratePayLink,
+  onTransferOut,
 }) => {
   const toggleSort = (key) => {
     if (!key) return;
@@ -206,14 +198,7 @@ const StudentTable = ({
                           onClick={() => onOpenProfile(student)}
                           className="group flex items-center gap-3 text-left"
                         >
-                          <span
-                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-extrabold ${
-                              AVATAR_TONES[index % AVATAR_TONES.length]
-                            }`}
-                            aria-hidden="true"
-                          >
-                            {initials(student.studentName)}
-                          </span>
+                          <StudentAvatar student={student} size="md" />
                           <span className="min-w-0">
                             <span className="block truncate text-[13px] font-extrabold text-ink group-hover:text-brand-700">
                               {student.studentName}
@@ -294,6 +279,17 @@ const StudentTable = ({
                           >
                             <CreditCard className="h-4 w-4" aria-hidden="true" />
                           </button>
+                          {onTransferOut && (
+                            <button
+                              type="button"
+                              onClick={() => onTransferOut(student)}
+                              aria-label={`Record a transfer out for ${student.studentName}`}
+                              title="Record transfer out (GES TS-4)"
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-brand-700"
+                            >
+                              <LogOut className="h-4 w-4" aria-hidden="true" />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => onEdit(student)}

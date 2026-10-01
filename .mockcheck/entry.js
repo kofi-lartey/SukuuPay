@@ -30,9 +30,18 @@ const { resetDb, setScenario, getDb, issueToken } = await import('../src/mocks/d
 const { getSchool, updateSchool, updatePayoutAccount, verifyHubtel, provisionMySchool, joinSchoolByCode } = await import('../src/services/school.js');
 const { bulkImport, createStudent, listStudents } = await import('../src/services/students.js');
 const { listCohorts, getCohort, listAlumni } = await import('../src/services/students.js');
+const {
+  createIdCardBatch,
+  getIdCardBatchPreview,
+  downloadIdCardBatchPdf,
+  downloadStudentIdCard,
+  exportQrLinks,
+} = await import('../src/services/idCards.js');
 const { recordManualPayment } = await import('../src/services/payments.js');
 const { getPayView } = await import('../src/services/publicPay.js');
-const { sendBulk } = await import('../src/services/sms.js');
+const { sendBulkSms, previewAudience, getSmsCredits, topUpSmsCredits, listSmsTemplates, countSegments, renderBodyLocally } = await import('../src/services/sms.js');
+const { getSchoolCompliance, createPaymentPlan, cancelPaymentPlan, updateInstallment, projectSchedule } = await import('../src/services/paymentPlans.js');
+const { studentsFor } = await import('../src/mocks/db.js');
 const { getMe } = await import('../src/services/user.js');
 const { login, signup, verifyEmail, resendVerificationEmail } = await import('../src/services/auth.js');
 
@@ -455,51 +464,587 @@ await check('the SMS balance helper is gone, not merely unused', async () => {
   return 'no school-admin call to a super_admin endpoint';
 });
 
-await check('POST /sms/bulk 404s under sms-unsupported (the real API today)', async () => {
-  resetDb('established');
-  const user = await signIn('head.bursary@example.org');
-  setScenario('sms-unsupported');
-  try {
-    await sendBulk(user.schoolId, { owingOnly: true }, 'Reminder');
-    throw new Error('expected a rejection');
-  } catch (error) {
-    expect(error.code === 'SMS_SEND_NOT_SUPPORTED', `expected SMS_SEND_NOT_SUPPORTED, got ${error.code}`);
-  }
-});
+// ?? SMS reminders ??????????????????????????????????????????????????????????
+//
+// These four used to assert that `POST /sms/bulk` did not exist — the old
+// `sendBulk()` helper threw `SMS_SEND_NOT_SUPPORTED` because no school-facing
+// send route was on the server, and the checks pinned that absence so nobody
+// could "fix" it by faking a success. The route is real now, so the same
+// anti-fake intent is carried by four different claims: the send is debited by
+// exactly the priced amount, a short balance is refused with 402 *before* any
+// message exists, an empty audience is a 422 rather than a zero-send success,
+// and the cost arithmetic in the composer's own helpers agrees with what the
+// server charged.
 
-await check('POST /sms/bulk sends, counts and debits under healthy', async () => {
+const GENTLE_PROMPT =
+  'Dear {parentName}, {studentName} owes GHC {balance} for this term at {schoolName}. Please pay via MTN MoMo, Telecel Cash or AirtelTigo: {payLink}';
+
+await check('GET /sms/credits is school-scoped and reports the cedi value', async () => {
+  resetDb('established');
   setScenario('healthy');
   const user = await signIn('head.bursary@example.org');
-  const before = getDb().schools[0].sms.balance;
-  const result = await sendBulk(user.schoolId, { owingOnly: true }, 'Reminder text');
-  expect(result.sent > 0, 'expected at least one recipient');
-  expect(getDb().schools[0].sms.balance < before, 'balance was not debited');
-  expect(getDb().sentSms.length === result.sent, 'sent log does not match the reported count');
-  return `${result.sent} sent, balance ${before} -> ${getDb().schools[0].sms.balance}`;
+  const credits = await getSmsCredits(user.schoolId);
+
+  expect(typeof credits.balance === 'number', 'balance is not a number');
+  expect(credits.ratePes === 12, `expected the 0.12 GHS rate, got ${credits.ratePes}`);
+  // 1 credit is GHC 0.12, so the cedi figure must be exactly balance x 12 pesewas.
+  // The header pill and the composer's cost card both quote this number; a
+  // disagreement between them is the bug this assertion exists to prevent.
+  expect(
+    credits.balancePes === credits.balance * 12,
+    `balancePes ${credits.balancePes} != ${credits.balance} x 12`
+  );
+  expect(credits.canSend === true, 'healthy scenario should be able to send');
+  return `${credits.balance} SMS, ${credits.balanceCedis}`;
 });
 
-await check('POST /sms/bulk refuses when nobody owes', async () => {
+await check('POST /sms/credits/top-up raises the balance and records the grant', async () => {
   const user = await signIn('head.bursary@example.org');
-  setScenario('sms-no-recipients');
+  const before = (await getSmsCredits(user.schoolId)).balance;
+  const result = await topUpSmsCredits({ units: 1000 });
+  expect(result.balance === before + 1000, `expected ${before + 1000}, got ${result.balance}`);
+  // No reference means a support grant, not a purchase. Conflating the two is
+  // what makes a school's credit history unusable for reconciliation.
+  expect(result.topUp.source === 'grant', `expected a grant, got ${result.topUp.source}`);
+  return `+1000 ? ${result.balance}`;
+});
+
+await check('POST /sms/audience/preview sizes a real audience with an operator split', async () => {
+  resetDb('established');
+  setScenario('healthy');
+  const user = await signIn('head.bursary@example.org');
+  const preview = await previewAudience({ type: 'all_owing', minBalance: 1 }, user.schoolId);
+
+  expect(preview.matchCount > 0, 'the established school has students owing');
+  expect(preview.totalBalance > 0, 'no outstanding balance reported');
+  // The split must account for every recipient. A bar that sums to less than the
+  // count with nothing explaining the gap is how a coverage report quietly
+  // under-reports MTN.
+  const splitTotal = Object.values(preview.networkSplit).reduce((sum, n) => sum + n, 0);
+  expect(splitTotal === preview.matchCount, `split sums to ${splitTotal}, expected ${preview.matchCount}`);
+  expect(preview.networkSplit.unknown === 0, 'the fixture generates valid Ghanaian numbers');
+  return `${preview.matchCount} parents, ${preview.totalBalanceDisplay}`;
+});
+
+await check('the preview and the send agree on the recipient count', async () => {
+  // The composer's cost card is built from the preview and the confirmation
+  // dialog from the send response. If those two disagree, a bursar is shown one
+  // number and billed for another — so the check is that they are the same
+  // number, not merely both positive.
+  const user = await signIn('head.bursary@example.org');
+  const audience = { type: 'all_owing', minBalance: 1 };
+  const preview = await previewAudience(audience, user.schoolId);
+  const result = await sendBulkSms({ audience, body: GENTLE_PROMPT, category: 'fee_reminder' });
+  expect(
+    result.job.recipients === preview.matchCount,
+    `preview said ${preview.matchCount}, send queued ${result.job.recipients}`
+  );
+  return `${result.job.recipients} parents`;
+});
+
+await check('POST /sms/bulk debits exactly the priced cost', async () => {
+  resetDb('established');
+  setScenario('healthy');
+  const user = await signIn('head.bursary@example.org');
+  const before = (await getSmsCredits(user.schoolId)).balance;
+
+  const result = await sendBulkSms({
+    audience: { type: 'all_owing', minBalance: 1 },
+    body: GENTLE_PROMPT,
+    category: 'fee_reminder',
+  });
+
+  const expectedCost = result.job.segments * result.job.recipients;
+  expect(
+    result.job.creditsCharged === expectedCost,
+    `charged ${result.job.creditsCharged}, expected ${result.job.segments} x ${result.job.recipients}`
+  );
+  expect(
+    before - result.job.creditsCharged === result.job.balanceAfter,
+    `balance went ${before} -> ${result.job.balanceAfter}, but ${result.job.creditsCharged} was charged`
+  );
+  return `${result.job.recipients} recipients x ${result.job.segments} parts = ${result.job.creditsCharged} SMS`;
+});
+
+await check('POST /sms/bulk refuses a short balance with 402 and sends nothing', async () => {
+  const user = await signIn('head.bursary@example.org');
+  setScenario('healthy');
+  getDb().schools[0].sms.balance = 1;
+  // Snapshot rather than assert zero: earlier checks in this file queue real
+  // broadcasts, and the claim under test is "this refusal added nothing", not
+  // "no job has ever existed".
+  const jobsBefore = (getDb().smsJobs || []).length;
+
   try {
-    await sendBulk(user.schoolId, { owingOnly: true }, 'Reminder text');
+    await sendBulkSms({
+      audience: { type: 'all_owing', minBalance: 1 },
+      body: GENTLE_PROMPT,
+      category: 'fee_reminder',
+    });
     throw new Error('expected a rejection');
   } catch (error) {
-    expect(/outstanding balance/.test(error.message), `unexpected: ${error.message}`);
+    expect(error.status === 402, `expected 402, got ${error.status}`);
+    expect(error.code === 'INSUFFICIENT_SMS_CREDIT', `expected INSUFFICIENT_SMS_CREDIT, got ${error.code}`);
+    // The refusal must not have created a job. A 402 that left a queued
+    // broadcast behind is a broadcast that runs later against a balance that was
+    // refused an hour ago.
+    expect(
+      (getDb().smsJobs || []).length === jobsBefore,
+      'a job was created despite the 402'
+    );
     return error.message;
   }
 });
 
-await check('POST /sms/bulk refuses when the balance is exhausted', async () => {
+await check('POST /sms/bulk refuses an empty audience rather than sending zero', async () => {
   const user = await signIn('head.bursary@example.org');
   setScenario('healthy');
-  getDb().schools[0].sms.balance = 0;
+  getDb().schools[0].sms.balance = 4200;
+  // A rule nothing matches. `minBalance: 0` with `includeZeroBalance` is the
+  // only shape the server accepts as coherent, so this is a real audience that
+  // is genuinely empty — not a malformed request that would pass for a
+  // different test.
   try {
-    await sendBulk(user.schoolId, { owingOnly: true }, 'Reminder text');
+    await sendBulkSms({
+      audience: { type: 'class', class: 'ZZZ 99', minBalance: 1 },
+      body: GENTLE_PROMPT,
+      category: 'fee_reminder',
+    });
     throw new Error('expected a rejection');
   } catch (error) {
-    expect(error.status === 402, `expected 402, got ${error.status}`);
+    expect(error.status === 422, `expected 422, got ${error.status}`);
+    expect(error.code === 'NO_RECIPIENTS', `expected NO_RECIPIENTS, got ${error.code}`);
+    return error.message;
   }
+});
+
+await check('POST /sms/bulk rejects an unknown token before anything is charged', async () => {
+  const user = await signIn('head.bursary@example.org');
+  setScenario('healthy');
+  const before = (await getSmsCredits(user.schoolId)).balance;
+  try {
+    await sendBulkSms({
+      audience: { type: 'all_owing', minBalance: 1 },
+      // A lowercase typo. It would be delivered to every parent as literal text.
+      body: 'Dear {parentname}, you owe {balance}.',
+      category: 'fee_reminder',
+    });
+    throw new Error('expected a rejection');
+  } catch (error) {
+    expect(error.code === 'UNKNOWN_SMS_TOKEN', `expected UNKNOWN_SMS_TOKEN, got ${error.code}`);
+    expect(
+      (await getSmsCredits(user.schoolId)).balance === before,
+      'the balance was debited for a message that was never sent'
+    );
+    return error.message;
+  }
+});
+
+await check('the composer token helpers match what the server accepted', async () => {
+  // `countSegments` and `renderBodyLocally` are a third copy of the server's
+  // logic. The composer's cost card is built from them, so a drift from the
+  // server means the price on screen is not the price charged. Asserted against
+  // a body the server has just accepted at a known segment count.
+  const user = await signIn('head.bursary@example.org');
+  setScenario('healthy');
+  const long = `Dear {parentName}, ${'x'.repeat(200)}`;
+  const result = await sendBulkSms({
+    audience: { type: 'all_owing', minBalance: 1 },
+    body: long,
+    category: 'fee_reminder',
+  });
+  expect(
+    result.job.segments === countSegments(long),
+    `client counts ${countSegments(long)} parts, server charged for ${result.job.segments}`
+  );
+
+  // An unmatched token must survive rendering rather than be blanked: a blank
+  // reads as a message addressed to nobody, and `{dueDate}` is a bug report.
+  const rendered = renderBodyLocally('Hi {parentName}, pay {balance} by {dueDate}', {
+    parentName: 'Mr. Mensah',
+    balance: '550.00',
+    dueDate: '',
+  });
+  expect(rendered.endsWith('{dueDate}'), `blanked the unmatched token: ${rendered}`);
+  return `${result.job.segments} parts, unmatched token preserved`;
+});
+
+await check('GET /sms/templates always returns the four platform presets', async () => {
+  resetDb('established');
+  setScenario('healthy');
+  const user = await signIn('head.bursary@example.org');
+  const templates = await listSmsTemplates({ schoolId: user.schoolId });
+  const presets = templates.filter((t) => t.isPreset).map((t) => t.name).sort();
+  const expected = ['Custom Message', 'Final Warning', 'Gentle Prompt', 'PTA Special'].sort();
+  expect(
+    JSON.stringify(presets) === JSON.stringify(expected),
+    `presets were ${JSON.stringify(presets)}`
+  );
+  // Every preset must be sendable as-is: its tokens have to be real, or a bursar
+  // picks "Gentle Prompt" and cannot send it.
+  templates
+    .filter((t) => t.isPreset)
+    .forEach((t) => {
+      const unknowns = (t.body.match(/\{([a-zA-Z][a-zA-Z0-9_]*)\}/g) || []).filter((tok) =>
+        !/^\{(parentName|studentName|studentClass|balance|amountPaid|dueDate|schoolName|payLink|term)\}$/.test(tok)
+      );
+      expect(unknowns.length === 0, `${t.name} uses unknown tokens: ${unknowns.join(', ')}`);
+    });
+  return presets.join(', ');
+});
+
+// ?? Installment plans ??????????????????????????????????????????????????????
+//
+// The compliance dashboard's numbers are the claims a bursar makes to a head
+// teacher, so the checks below are mostly about *arithmetic* rather than
+// plumbing: that the summary's money is the sum of the plans in each bucket, that
+// the rate's denominator excludes finished plans, and that the create screen's
+// projection is the schedule the server will actually build.
+
+await check('GET /payment-plans/.../compliance summarises a real set of plans', async () => {
+  resetDb('established');
+  setScenario('healthy');
+  const user = await signIn('head.bursary@example.org');
+  const { summary, plans, meta } = await getSchoolCompliance(user.schoolId, { perPage: 5 });
+
+  expect(summary && summary.activePlans > 0, 'the established school has active plans');
+  expect(plans.length > 0, 'the first page returned no plans');
+  // The three in-flight buckets are the denominator. A summary that counted
+  // completed and cancelled plans would report a school that finished everything
+  // it ever wrote as ~40% compliant.
+  expect(
+    summary.activePlans === summary.onTrack + summary.approachingDue + summary.overdue,
+    `activePlans ${summary.activePlans} != ${summary.onTrack} + ${summary.approachingDue} + ${summary.overdue}`
+  );
+  expect(
+    summary.complianceRate === Math.round((summary.onTrack / summary.activePlans) * 1000) / 10,
+    `complianceRate ${summary.complianceRate} is not onTrack/activePlans`
+  );
+  expect(
+    summary.committedAmount ===
+      summary.onTrackValue + summary.approachingDueValue + summary.overdueValue,
+    'committedAmount is not the sum of the three in-flight values'
+  );
+  expect(meta.total === summary.totalPlans, 'the page meta and the summary disagree on the total');
+  return `${summary.activePlans} active (${summary.onTrack} on track, ${summary.approachingDue} due, ${summary.overdue} overdue), rate ${summary.complianceRate}%`;
+});
+
+await check('the compliance page is a subset of the summary, and the summary is not the page', async () => {
+  // The specific bug the money aggregates exist to prevent: a client that totals
+  // the twenty rows it happens to be holding and calls it the school's position.
+  resetDb('established');
+  setScenario('healthy');
+  const user = await signIn('head.bursary@example.org');
+  const { summary, plans } = await getSchoolCompliance(user.schoolId, { perPage: 3 });
+
+  if (summary.totalPlans <= 3) return 'school has too few plans for this to be meaningful';
+
+  const pageValue = plans.reduce((sum, plan) => sum + (plan.outstandingAmount || 0), 0);
+  expect(plans.length === 3, `asked for 3, got ${plans.length}`);
+  expect(
+    pageValue !== summary.committedAmount,
+    'the page total equals the school total — the page is not a subset, so the summary is suspect'
+  );
+  return `page ${pageValue} vs school ${summary.committedAmount} — the aggregates are doing real work`;
+});
+
+await check('a class filter narrows the plans and the totals with it', async () => {
+  resetDb('established');
+  setScenario('healthy');
+  const user = await signIn('head.bursary@example.org');
+  const school = getDb().schools[0];
+  const className = school.academic.classes[0];
+
+  const all = await getSchoolCompliance(user.schoolId, { perPage: 1 });
+  const scoped = await getSchoolCompliance(user.schoolId, { class: className, perPage: 50 });
+
+  expect(scoped.summary.totalPlans < all.summary.totalPlans, 'the filter did not narrow anything');
+  expect(
+    scoped.plans.every((plan) => plan.student.studentClass === className),
+    'a plan from another class came through the class filter'
+  );
+  return `${scoped.summary.totalPlans} of ${all.summary.totalPlans} plans in ${className}`;
+});
+
+await check('a class filter and a search filter intersect rather than replace', async () => {
+  // The bug this guards: applying the search with a fresh `$in` would silently
+  // discard the class filter, so a bursar searching within "JHS 2" would get the
+  // whole school's matches and believe they had narrowed it.
+  resetDb('established');
+  setScenario('healthy');
+  const user = await signIn('head.bursary@example.org');
+  const school = getDb().schools[0];
+  const className = school.academic.classes[0];
+
+  const byClass = await getSchoolCompliance(user.schoolId, { class: className, perPage: 100 });
+  if (!byClass.plans.length) return `${className} has no plans to intersect with`;
+
+  const target = byClass.plans[0].student;
+  // The needle comes from the *parent*, deliberately. The search box's own
+  // placeholder says "student name, ID or parent", and searching a parent name is
+  // the case a bursar actually hits — several children share a guardian, so
+  // "Mensah" should find all of them. It also means this check cannot be
+  // satisfied by asserting only the student's own name, which is the field most
+  // likely to be wired up correctly and the parent field most likely forgotten.
+  const needle = (target.parentName || target.studentName).split(' ')[0];
+
+  const combined = await getSchoolCompliance(user.schoolId, {
+    class: className,
+    search: needle,
+    perPage: 100,
+  });
+
+  const escaped = combined.plans.filter((plan) => {
+    const matchesClass = plan.student.studentClass === className;
+    // Matches *any* of the three searchable fields, exactly as the service does.
+    // A check asserting only the student name would pass against a search that
+    // ignored parents entirely, which is the bug being guarded.
+    const matchesSearch =
+      plan.student.studentName.toLowerCase().includes(needle.toLowerCase()) ||
+      String(plan.student.studentId).toLowerCase().includes(needle.toLowerCase()) ||
+      String(plan.student.parentName || '').toLowerCase().includes(needle.toLowerCase());
+    return !matchesClass || !matchesSearch;
+  });
+
+  expect(combined.plans.length > 0, `the intersection returned nothing for "${needle}"`);
+  expect(
+    escaped.length === 0,
+    `${escaped.length} row(s) escaped both filters, e.g. ${JSON.stringify(escaped[0]?.student)} not ${className}/${needle}`
+  );
+  return `${combined.summary.totalPlans} rows survived both filters (needle "${needle}")`;
+});
+
+await check('a search that matches nothing returns an empty page, not an error', async () => {
+  resetDb('established');
+  setScenario('healthy');
+  const user = await signIn('head.bursary@example.org');
+  const { summary, plans } = await getSchoolCompliance(user.schoolId, {
+    search: 'zzzzznosuchfamily',
+    perPage: 20,
+  });
+
+  expect(summary.totalPlans === 0, `expected no matches, got ${summary.totalPlans}`);
+  expect(plans.length === 0, 'rows came back for a search that matched nothing');
+  expect(summary.complianceRate === null, 'a compliance rate with no plans in scope is not 0 or 100');
+  return 'empty, and the rate is null rather than 0%';
+});
+
+await check('the create projection matches the schedule the server builds', async () => {
+  // The mirror in `services/paymentPlans.js` exists so the projection rail can be
+  // live; this is what fails if the two drift. 30 October + 1 month is 30
+  // November on both sides — the clamped-day case, chosen because it is the one a
+  // naive `setMonth` gets wrong and the one that shows up as a plan a bursar
+  // previewed on the 30th being created on the 1st.
+  resetDb('established');
+  setScenario('healthy');
+  const user = await signIn('head.bursary@example.org');
+  // A student with a balance and **no live plan** — the projection check is about
+  // the schedule arithmetic, so picking one that already has a plan would just
+  // hit the 409 and assert nothing.
+  const student = studentsFor(user.schoolId).find((s) => {
+    if ((s.balance || 0) <= 0 || s.status !== 'active') return false;
+    return !(getDb().paymentPlans || []).some(
+      (p) => p.studentId === s._id && ['active', 'pending_acceptance'].includes(p.planStatus)
+    );
+  });
+  expect(!!student, 'no unplanned student with a balance to plan for');
+
+  const total = student.balance;
+  const count = 3;
+  const startDate = '2026-10-30';
+
+  const projected = projectSchedule({ totalAmount: total, numberOfInstallments: count, startDate, interval: 'monthly' });
+
+  // The remainder lands on the last tranche, not the first, and the tranches must
+  // sum back to the balance exactly.
+  const projectedSum = projected.reduce((sum, t) => sum + t.amount, 0);
+  expect(projectedSum === total, `projection sums to ${projectedSum}, balance is ${total}`);
+  expect(
+    projected[0].amount === Math.floor(total / count),
+    'the first tranche is not the even base'
+  );
+  expect(
+    projected[count - 1].amount === total - Math.floor(total / count) * (count - 1),
+    'the last tranche does not absorb the remainder'
+  );
+
+  const { plan } = await createPaymentPlan(student._id, { numberOfInstallments: count, interval: 'monthly', startDate });
+
+  expect(
+    plan.installments.length === projected.length,
+    `projected ${projected.length} tranches, server built ${plan.installments.length}`
+  );
+  plan.installments.forEach((tranche, index) => {
+    expect(
+      tranche.amount === projected[index].amount,
+      `tranche ${index + 1}: projected ${projected[index].amount}, server ${tranche.amount}`
+    );
+    expect(
+      new Date(tranche.dueDate).toISOString().slice(0, 10) ===
+        projected[index].dueDate.toISOString().slice(0, 10),
+      `tranche ${index + 1} due date: projected ${projected[index].dueDate.toISOString().slice(0, 10)}, server ${tranche.dueDate.slice(0, 10)}`
+    );
+  });
+  return `${count} tranches, ${plan.installments.map((t) => t.dueDate.slice(0, 10)).join(' ? ')}`;
+});
+
+await check('a created plan is planned against the balance, not the gross fee', async () => {
+  // The distinction the create screen's three tiles exist to make. Structuring
+  // `totalOwed` instead of `balance` would ask the family for a deposit they have
+  // already paid, and the arithmetic downstream would be perfectly valid — so
+  // nothing else would catch it.
+  resetDb('established');
+  setScenario('healthy');
+  const user = await signIn('head.bursary@example.org');
+  const student = studentsFor(user.schoolId).find((s) => {
+    if (!(s.balance > 0) || s.totalOwed <= s.balance || s.status !== 'active') return false;
+    return !(getDb().paymentPlans || []).some(
+      (p) => p.studentId === s._id && ['active', 'pending_acceptance'].includes(p.planStatus)
+    );
+  });
+  if (!student) return 'no unplanned student in the fixture has both a deposit and a balance';
+
+  const { plan } = await createPaymentPlan(student._id, {
+    numberOfInstallments: 2,
+    interval: 'monthly',
+    startDate: '2026-11-30',
+  });
+
+  expect(
+    plan.totalAmount === student.balance,
+    `plan total ${plan.totalAmount} is not the balance ${student.balance}`
+  );
+  expect(
+    plan.totalAmount !== student.totalOwed,
+    'the plan was written against the gross fee — the deposit would be collected twice'
+  );
+  return `planned ${plan.totalAmount} of a ${student.totalOwed} fee (${student.totalOwed - student.balance} already paid)`;
+});
+
+await check('a second live plan for the same student is refused', async () => {
+  resetDb('established');
+  setScenario('healthy');
+  const user = await signIn('head.bursary@example.org');
+  const student = studentsFor(user.schoolId).find((s) => {
+    const live = (getDb().paymentPlans || []).some(
+      (p) => p.studentId === s._id && ['active', 'pending_acceptance'].includes(p.planStatus)
+    );
+    return live && s.balance > 0;
+  });
+  if (!student) return 'no student in the fixture already has a live plan';
+
+  try {
+    await createPaymentPlan(student._id, { numberOfInstallments: 2, interval: 'monthly', startDate: '2026-11-30' });
+    throw new Error('expected a rejection');
+  } catch (error) {
+    expect(error.status === 409, `expected 409, got ${error.status}`);
+    expect(error.code === 'PLAN_ALREADY_EXISTS', `expected PLAN_ALREADY_EXISTS, got ${error.code}`);
+    return error.message;
+  }
+});
+
+await check('a settled student cannot be planned for', async () => {
+  resetDb('established');
+  setScenario('healthy');
+  const user = await signIn('head.bursary@example.org');
+  const student = studentsFor(user.schoolId).find((s) => (s.balance || 0) === 0 && !(getDb().paymentPlans || []).some((p) => p.studentId === s._id));
+  if (!student) return 'no fully settled, unplanned student in the fixture';
+
+  try {
+    await createPaymentPlan(student._id, { numberOfInstallments: 2, interval: 'monthly', startDate: '2026-11-30' });
+    throw new Error('expected a rejection');
+  } catch (error) {
+    expect(error.code === 'NO_OUTSTANDING_BALANCE', `expected NO_OUTSTANDING_BALANCE, got ${error.code}`);
+    return error.message;
+  }
+});
+
+await check('marking a tranche paid settles it and does not touch the balance', async () => {
+  // `mark_paid` is a manual reconciliation: it moves the plan's progress and
+  // nothing else. A bursar who assumed it recorded a payment would reconcile
+  // against a collections total that never moved — which is why the drawer says
+  // so on screen and this check pins the behaviour.
+  resetDb('established');
+  setScenario('healthy');
+  const user = await signIn('head.bursary@example.org');
+  const plan = (getDb().paymentPlans || []).find(
+    (p) => p.planStatus === 'active' && (p.installments || []).some((i) => i.status === 'pending')
+  );
+  if (!plan) return 'no active plan with a pending tranche';
+
+  const student = studentsFor(user.schoolId).find((s) => s._id === plan.studentId);
+  const balanceBefore = student.balance;
+  const target = plan.installments.find((i) => i.status === 'pending');
+
+  const updated = await updateInstallment(plan._id, target.installmentNumber, { action: 'mark_paid' });
+  const settled = updated.installments.find((i) => i.installmentNumber === target.installmentNumber);
+
+  expect(settled.status === 'paid', `tranche is ${settled.status}`);
+  expect(settled.amountPaid === target.amount, `amountPaid ${settled.amountPaid} != ${target.amount}`);
+  expect(
+    studentsFor(user.schoolId).find((s) => s._id === plan.studentId).balance === balanceBefore,
+    "the student's balance moved — mark_paid must not create a Payment"
+  );
+  expect(getDb().payments.length === 0, 'a Payment record was created by mark_paid');
+  return `tranche ${target.installmentNumber} paid, balance unchanged at ${balanceBefore}`;
+});
+
+await check('cancelling a plan is soft, and the family is told why', async () => {
+  resetDb('established');
+  setScenario('healthy');
+  const user = await signIn('head.bursary@example.org');
+  const plan = (getDb().paymentPlans || []).find((p) => ['active', 'pending_acceptance'].includes(p.planStatus));
+  if (!plan) return 'no live plan to cancel';
+
+  const reason = 'Parent requested a single payment instead';
+  const cancelled = await cancelPaymentPlan(plan._id, reason);
+
+  expect(cancelled.planStatus === 'cancelled', `status is ${cancelled.planStatus}`);
+  expect(cancelled.cancellationReason === reason, 'the reason was not stored');
+  // Soft: the row stays, because a school has to be able to explain to a family
+  // why their schedule stopped. A hard delete would make that unanswerable.
+  expect(
+    (getDb().paymentPlans || []).some((p) => p._id === plan._id),
+    'the plan row was removed — a cancellation must not erase the history'
+  );
+  return 'cancelled, reason stored, record retained';
+});
+
+await check('at_risk reaches the families the compliance footer promises to chase', async () => {
+  // The footer's count comes from `summary.atRiskPlans` and the button's
+  // recipients come from this audience rule. If the two disagree, the bursar is
+  // told a number and messaged a different one — which is the specific dishonesty
+  // a bulk chaser is capable of.
+  resetDb('established');
+  setScenario('healthy');
+  const user = await signIn('head.bursary@example.org');
+  const { summary } = await getSchoolCompliance(user.schoolId, { perPage: 1 });
+  const audience = await previewAudience({ type: 'at_risk', minBalance: 1, dueSoonDays: 5 }, user.schoolId);
+
+  expect(summary.atRiskPlans > 0, 'the fixture has no at-risk families');
+  expect(
+    audience.matchCount === summary.atRiskPlans,
+    `the button says ${summary.atRiskPlans} but the audience rule matches ${audience.matchCount}`
+  );
+  return `${audience.matchCount} families, matching the ${summary.atRiskPlans} the dashboard states`;
+});
+
+await check('at_risk is a strict superset of installment_due_soon', async () => {
+  // `at_risk` is the union of "slipped a tranche" and "one is coming due". If it
+  // ever stopped being a superset, the chaser would silently stop reaching
+  // approaching families while the compliance table still listed them.
+  resetDb('established');
+  setScenario('healthy');
+  const user = await signIn('head.bursary@example.org');
+
+  const due = await previewAudience({ type: 'installment_due_soon', minBalance: 1, dueSoonDays: 5 }, user.schoolId);
+  const atRisk = await previewAudience({ type: 'at_risk', minBalance: 1, dueSoonDays: 5 }, user.schoolId);
+
+  expect(
+    atRisk.matchCount >= due.matchCount,
+    `at_risk matched ${atRisk.matchCount}, fewer than the ${due.matchCount} due-soon families`
+  );
+  return `${due.matchCount} due soon ? ${atRisk.matchCount} at risk`;
 });
 
 // ?? Scenarios ??????????????????????????????????????????????????????????????
@@ -1299,6 +1844,111 @@ await check('a school that skipped the import step has an empty roster', async (
   expect(cohorts.length === 0, `expected no cohorts for an unpopulated school, got ${cohorts.length}`);
 
   return `${school.name}: 0 students -> Step 4 shows the empty-roster notice`;
+});
+
+// ?? ID card print flow ??????????????????????????????????????????????????????
+//
+// The batch flow is the only place in the app where the *status code* is the
+// message: `POST /id-cards/batch` answers 202 because a background job now owns
+// the work, and the preview and PDF endpoints answer 202 with
+// `{ status: "pending" }` until that job finishes.
+//
+// Axios rejects on 4xx and 5xx but **resolves** 2xx, so a 202 arrives on the
+// success path. A client that branches on `error.response.status` compiles
+// cleanly, passes every happy-path test, and then takes the "ready" branch on
+// a batch that has not been generated — showing a preview that does not exist
+// and downloading a file that 404s. These assertions exist to catch exactly
+// that, by driving the real service through the mock's 202 handshake.
+
+await check('POST /id-cards/batch answers 202, not 200', async () => {
+  // `resetDb` first: the check immediately above this one leaves a freshly
+  // provisioned school with a zero-student roster, and these assertions are
+  // about what happens when there are students to print. `established` is the
+  // scenario with a populated roll — `new-admin` starts empty, which is right
+  // for the onboarding checks above and useless here.
+  resetDb('established');
+  await signIn('head.bursary@example.org');
+  const { rows } = await listStudents({ perPage: 5 });
+  expect(rows.length > 0, 'the seeded school has no students to print');
+
+  const result = await createIdCardBatch(rows.map((s) => s._id));
+  expect(result?.batchId, 'no batchId in the create response');
+  expect(result?.status === 'pending', `expected status "pending", got "${result?.status}"`);
+
+  return `${rows.length} cards -> batchId ${result.batchId}, status pending`;
+});
+
+await check('the batch preview reports pending, then ready', async () => {
+  const { rows } = await listStudents({ perPage: 3 });
+  const { batchId } = await createIdCardBatch(rows.map((s) => s._id));
+
+  const first = await getIdCardBatchPreview(batchId);
+  expect(first.status === 'pending', `first poll: expected "pending", got "${first.status}"`);
+  expect(typeof first.retryAfter === 'number', 'a pending poll should carry retryAfter');
+
+  const second = await getIdCardBatchPreview(batchId);
+  expect(second.status === 'ready', `second poll: expected "ready", got "${second.status}"`);
+  expect(typeof second.html === 'string' && second.html.includes('<'), 'the ready poll should return HTML');
+
+  return '202 on the first poll, HTML on the second';
+});
+
+await check('the batch PDF is pending first, then a real file', async () => {
+  const { rows } = await listStudents({ perPage: 2 });
+  const { batchId } = await createIdCardBatch(rows.map((s) => s._id));
+
+  const pending = await downloadIdCardBatchPdf(batchId);
+  expect(pending?.status === 'pending', `expected a pending marker, got ${JSON.stringify(pending)}`);
+
+  const file = await downloadIdCardBatchPdf(batchId);
+  // The ready branch returns a filename string; a pending branch returns an
+  // object. Asserting on the type is what proves the branch was taken.
+  expect(typeof file === 'string', `expected a filename string, got ${typeof file}`);
+  expect(file.endsWith('.pdf'), `expected a .pdf filename, got "${file}"`);
+
+  return `downloaded ${file}`;
+});
+
+await check('a single student card comes back as a PDF', async () => {
+  const { rows } = await listStudents({ perPage: 1 });
+  expect(rows.length > 0, 'no students to print a single card for');
+  const name = await downloadStudentIdCard(rows[0]._id);
+  expect(typeof name === 'string' && name.endsWith('.pdf'), `expected a .pdf filename, got "${name}"`);
+  return name;
+});
+
+await check('the QR links export is CSV with a header row', async () => {
+  // `getSchool()` with no argument would request `/schools/undefined`; the id
+  // comes from the signed-in user, which is where every other scoped call gets
+  // it from too.
+  const user = await signIn('head.bursary@example.org');
+  const name = await exportQrLinks(user.schoolId, { perPage: 10 });
+  expect(name.endsWith('.csv'), `expected a .csv filename, got "${name}"`);
+  return name;
+});
+
+await check('a batch refuses students outside the school', async () => {
+  // The all-zeros id is well-formed hex but belongs to nobody, which is the
+  // case `INVALID_STUDENTS` exists for: a stale id from another school must
+  // fail loudly rather than silently printing a short batch.
+  const { rows } = await listStudents({ perPage: 1 });
+  expect(rows.length > 0, 'no students to build a batch from');
+
+  let seen = null;
+  try {
+    await createIdCardBatch([rows[0]._id, '000000000000000000000000']);
+  } catch (error) {
+    seen = error;
+  }
+  expect(seen, 'a foreign student id was accepted');
+  // Asserted on the code rather than the message: the code is the stable part
+  // of the contract, and a message assertion here would break the first time
+  // the wording is improved.
+  expect(
+    seen.code === 'INVALID_STUDENTS',
+    `expected INVALID_STUDENTS, got code="${seen.code}" status=${seen.status} message="${seen.message}"`
+  );
+  return `rejected with ${seen.code}`;
 });
 
 console.log(`\n${pass} passed, ${fail} failed.`);

@@ -15,6 +15,7 @@ import Card from '../dashboard/ui/Card';
 import Badge from '../dashboard/ui/Badge';
 import ProgressBar from '../dashboard/charts/ProgressBar';
 import { FeeStatusBadge, PlanStatusBadge, StatusBadge } from './StudentBadges';
+import StudentAvatar from './StudentAvatar';
 import { getStudentProfile } from '../../services/students';
 import { formatCedi, formatCediShort, formatPercent } from '../../utils/format';
 import { formatGhanaPhone } from '../../utils/ghanaPhone';
@@ -105,7 +106,15 @@ const StudentProfileDrawer = ({ open, studentId, onClose, onArchived }) => {
       >
         <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur">
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
+            <div className="flex min-w-0 items-start gap-3">
+              {/* The drawer is the detail view for one student, so it is the
+                  last place a photo should be missing. `xl` rather than a
+                  larger bespoke size: `StudentAvatar` owns its sizes so the
+                  roster, drawer and wizard stay consistent. */}
+              <span className="mt-0.5">
+                <StudentAvatar student={student} size="xl" />
+              </span>
+              <div className="min-w-0">
               {loading && <div className="h-6 w-48 animate-pulse rounded bg-slate-200" />}
               {student && (
                 <>
@@ -128,6 +137,7 @@ const StudentProfileDrawer = ({ open, studentId, onClose, onArchived }) => {
                   {error.message}
                 </p>
               )}
+              </div>
             </div>
 
             <button
