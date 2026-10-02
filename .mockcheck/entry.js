@@ -53,6 +53,9 @@ const {
   listPlatformUsers,
   listSchoolAds,
   reviewSchoolAd,
+  getRevenueSeries,
+  getPlatformSettings,
+  updatePlatformSettings,
 } = await import('../src/services/admin.js');
 
 installMockApi();
@@ -2210,6 +2213,155 @@ await check('an ordinary role change still works, and still records both sides',
     'a removed account is still on the platform user list'
   );
   return `${before} reassigned, then removed; the owner is untouched`;
+});
+
+await check('the revenue series has no gaps — an empty month is a zero, not a hole', async () => {
+  // The whole point of `/admin/revenue/series`: a chart that draws a straight line
+  // across a month nobody paid presents zero revenue as growth. The contract is that
+  // the empty month comes back as an explicit `0`, so the frontend can plot the
+  // response directly with no gap handling of its own.
+  resetDb('super-admin');
+  await signIn('admin@example.com');
+
+  const result = await getRevenueSeries({ period: 'all', bucket: 'month' });
+  expect(result.series.length > 2, `expected several months, got ${result.series.length}`);
+
+  const keys = result.series.map((point) => point.period);
+  expect(new Set(keys).size === keys.length, 'the series repeats a period');
+
+  // Zero-padded to match `$dateToString`'s "%Y-%m". An unpadded "2026-3" would not
+  // match the aggregation key and every month would read as zero.
+  for (const key of keys) {
+    expect(/^\d{4}-\d{2}$/.test(key), `period "${key}" is not YYYY-MM`);
+  }
+
+  const zeros = result.series.filter((point) => point.totalRevenue === 0);
+  expect(zeros.length > 0, 'the fixture leaves gaps empty, so this proves gaps are emitted');
+  for (const zero of zeros) {
+    expect(zero.totalPayments === 0, `an empty period reported ${zero.totalPayments} payments`);
+  }
+
+  const revenue = result.series.reduce((sum, point) => sum + point.totalRevenue, 0);
+  expect(revenue === result.totals.totalRevenue, 'the totals disagree with the series');
+  return `${keys.length} months, ${zeros.length} explicitly zero, totals agree`;
+});
+
+await check('daily buckets are requested when the window is short', async () => {
+  resetDb('super-admin');
+  await signIn('admin@example.com');
+
+  const daily = await getRevenueSeries({ period: 'last30', bucket: 'day' });
+  expect(daily.filters.bucket === 'day', 'the bucket was not echoed');
+  expect(
+    daily.series.every((point) => /^\d{4}-\d{2}-\d{2}$/.test(point.period)),
+    'a day bucket did not produce a YYYY-MM-DD period'
+  );
+
+  // Not a test of the mock's own defaults but of the two requests being genuinely
+  // distinct: 30 daily points against 12 monthly ones. If the bucket were dropped
+  // somewhere, both would come back identical.
+  const monthly = await getRevenueSeries({ period: 'last30', bucket: 'month' });
+  expect(
+    daily.series.length !== monthly.series.length,
+    'day and month buckets returned the same number of points'
+  );
+  return `day ${daily.series.length} points, month ${monthly.series.length} points`;
+});
+
+await check('platform settings round-trip as a patch', async () => {
+  resetDb('super-admin');
+  await signIn('admin@example.com');
+
+  const before = await getPlatformSettings();
+  expect(before.singletonKey === 'platform', 'the settings are not the singleton');
+  expect(before.features?.selfSignupEnabled === true, 'unexpected defaults');
+
+  // One field. A PUT that sent the whole document back could overwrite a change made
+  // in another tab, which is why the endpoint is a patch and this asserts it.
+  const saved = await updatePlatformSettings({ features: { selfSignupEnabled: false } });
+  expect(saved.changed?.length === 1, `expected one changed path, got ${saved.changed?.length}`);
+  expect(saved.changed[0].path === 'features.selfSignupEnabled', `got "${saved.changed[0]?.path}"`);
+  expect(saved.changed[0].from === true && saved.changed[0].to === false, 'the diff lost a side');
+
+  // The patch must not have blanked the fields it did not mention — the bug a
+  // shallow merge would introduce, and the reason the real endpoint merges per branch.
+  const after = await getPlatformSettings();
+  expect(after.features?.adsEnabled === true, 'a patch blanked features.adsEnabled');
+  expect(after.maintenance?.mode === 'off', 'a patch blanked maintenance.mode');
+  expect(after.features?.selfSignupEnabled === false, 'the change did not persist');
+
+  // A second identical write changes nothing, and reports nothing — so a client that
+  // saves on every page load cannot bury the one entry that matters in the audit.
+  const noop = await updatePlatformSettings({ features: { selfSignupEnabled: false } });
+  expect(noop.changed?.length === 0, `a no-op write reported ${noop.changed?.length} changes`);
+  return 'one path changed, nothing else touched, no-op reports nothing';
+});
+
+await check('the feature flags actually refuse requests, not just record them', async () => {
+  // The whole point of the settings page. Storing a flag nobody reads is how a
+  // settings console becomes a decoration, so each flag is asserted to change the
+  // shape of a real request.
+  resetDb('super-admin');
+  await signIn('admin@example.com');
+
+  // selfSignupEnabled off ? signup refuses, with the code the client routes on.
+  await updatePlatformSettings({ features: { selfSignupEnabled: false } });
+  await expectStatus(
+    signup({ name: 'New Bursar', email: 'bursar2@example.org', phone: '0241234567', password: 'LongEnough1' }),
+    503,
+    'POST /auth/signup with self-signup off'
+  );
+
+  // adsEnabled off ? the public slider returns an empty list and says so.
+  await updatePlatformSettings({ features: { adsEnabled: false } });
+  const { data: slider } = await api.get('/public/school-ads');
+  expect(slider.adsEnabled === false, 'the public slider did not report itself disabled');
+  expect(
+    Array.isArray(slider.ads) && slider.ads.length === 0,
+    'a disabled slider still returned ads'
+  );
+
+  // maintenance readonly ? writes refused, reads still answered.
+await updatePlatformSettings({ maintenance: { mode: 'readonly', message: 'Upgrading until 6am.' } });
+  // A write to a *different* endpoint. `PUT /admin/settings` is deliberately exempt —
+  // it is the switch itself, and a kill switch cannot be behind itself — so proving
+  // "readonly refuses writes" with it would prove nothing.
+  const { rows: anySchools } = await listSchools({ perPage: 1 });
+  await expectStatus(
+    suspendSchool(anySchools[0]._id, 'A reason long enough to satisfy the schema'),
+    503,
+    'PUT /admin/schools/:id/suspend while read-only'
+  );
+  // A read still works, which is the entire reason the mode exists: a migration can
+  // run with every page still loading.
+  const stillReadable = await getPlatformSettings();
+  expect(stillReadable.maintenance.mode === 'readonly', 'a read failed during read-only maintenance');
+  expect(stillReadable.features.adsEnabled === false, 'a read returned the wrong flags');
+
+  // maintenance on ? reads refused too — but `/admin/settings` still answers, because
+  // otherwise the platform could never be brought back.
+  await updatePlatformSettings({ maintenance: { mode: 'on' } });
+  await expectStatus(getDashboardKpis(), 503, 'GET /admin/dashboard while fully down');
+
+  // The refusal carries the operator's own words — errorHandler.js replaces a 5xx
+  // message with "Something went wrong", so this is why the guard answers inline.
+  let refusal = null;
+  try {
+    await getDashboardKpis();
+  } catch (error) {
+    refusal = error;
+  }
+  expect(refusal?.code, 'the maintenance refusal has no machine-readable code');
+  expect(
+    String(refusal?.message || '').includes('Upgrading until 6am'),
+    `the operator's message was lost: "${refusal?.message}"`
+  );
+
+  // Back to normal, so the checks after this one are not run against a dead platform.
+  await updatePlatformSettings({ maintenance: { mode: 'off' }, features: { selfSignupEnabled: true, adsEnabled: true } });
+  const recovered = await getPlatformSettings();
+  expect(recovered.maintenance.mode === 'off', 'the platform did not come back up');
+  return 'all four flags enforced; platform recovered';
 });
 
 console.log(`\n${pass} passed, ${fail} failed.`);

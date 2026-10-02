@@ -3,7 +3,7 @@ import { renderToString } from "react-dom/server";
 import { useLocation, Link, Outlet, Navigate, useSearchParams, MemoryRouter, Routes, Route } from "react-router-dom";
 import React, { createContext, useState, useEffect, useCallback, useContext, useRef, useMemo, useId } from "react";
 import axios from "axios";
-import { Info, TriangleAlert, CircleAlert, CircleCheck, X, Settings, Megaphone, Users, Building2, Gauge, Menu, Globe, Search, User, ChevronDown, LogOut, ShieldAlert, ArrowLeft, LoaderCircle, TrendingUp, Banknote, PiggyBank, HandCoins, ArrowUpRight, MessageSquare, UserCog, RotateCcw, ChevronLeft, ChevronRight, Phone, CalendarClock, ShieldCheck, Trash2, Check, ServerCog, Save, Compass, LifeBuoy } from "lucide-react";
+import { Info, TriangleAlert, CircleAlert, CircleCheck, X, Settings, Megaphone, Users, Building2, Gauge, Menu, Globe, Search, User, ChevronDown, LogOut, ShieldAlert, ArrowLeft, LoaderCircle, TrendingUp, Banknote, PiggyBank, HandCoins, ArrowUpRight, MessageSquare, UserCog, RotateCcw, ChevronLeft, ChevronRight, Phone, CalendarClock, ShieldCheck, Trash2, Check, Save, ServerCog, Compass, LifeBuoy } from "lucide-react";
 import { createPortal } from "react-dom";
 const API_BASE_URL = "http://localhost:2345/api";
 const clearSession = () => {
@@ -1270,15 +1270,213 @@ const KpiRow = ({ kpis }) => {
     )
   ] });
 };
+const monotonePath = (points) => {
+  if (points.length === 0) return "";
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+  if (points.length === 2) {
+    return `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}`;
+  }
+  const secants = points.slice(0, -1).map((p, i) => {
+    const next = points[i + 1];
+    return (next.y - p.y) / (next.x - p.x);
+  });
+  const tangents = new Array(points.length);
+  tangents[0] = secants[0];
+  tangents[points.length - 1] = secants[secants.length - 1];
+  for (let i = 1; i < points.length - 1; i += 1) {
+    const before = secants[i - 1];
+    const after = secants[i];
+    if (before * after <= 0) {
+      tangents[i] = 0;
+    } else {
+      const w1 = 2 * (points[i + 1].x - points[i].x) + (points[i].x - points[i - 1].x);
+      const w2 = points[i + 1].x - points[i].x + 2 * (points[i].x - points[i - 1].x);
+      tangents[i] = (w1 + w2) / (w1 / before + w2 / after);
+    }
+  }
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const p0 = points[i];
+    const p1 = points[i + 1];
+    const h = (p1.x - p0.x) / 3;
+    d += ` C ${p0.x + h} ${p0.y + tangents[i] * h}, ${p1.x - h} ${p1.y - tangents[i + 1] * h}, ${p1.x} ${p1.y}`;
+  }
+  return d;
+};
+const AreaChart = ({
+  series = [],
+  formatValue,
+  formatAxis,
+  peakIndex = -1,
+  height = 260,
+  className = ""
+}) => {
+  const gradientId = useId();
+  const [hover, setHover] = useState(null);
+  const width = 800;
+  const pad = { top: 28, right: 16, bottom: 30, left: 16 };
+  const plotW = width - pad.left - pad.right;
+  const plotH = height - pad.top - pad.bottom;
+  const { points, linePath, areaPath, ticks, max } = useMemo(() => {
+    if (!series.length) {
+      return { points: [], linePath: "", areaPath: "", ticks: [], max: 0 };
+    }
+    const values = series.map((d) => d.value);
+    const rawMax = Math.max(...values, 0);
+    const max2 = rawMax === 0 ? 1 : rawMax * 1.08;
+    const pts = series.map((d, i) => ({
+      x: pad.left + (series.length === 1 ? plotW / 2 : i / (series.length - 1) * plotW),
+      y: pad.top + plotH - d.value / max2 * plotH,
+      label: d.label,
+      value: d.value
+    }));
+    const line = monotonePath(pts);
+    const area = `${line} L ${pts[pts.length - 1].x} ${pad.top + plotH} L ${pts[0].x} ${pad.top + plotH} Z`;
+    const gridCount = 4;
+    const grid = Array.from({ length: gridCount + 1 }, (_, i) => {
+      const ratio = i / gridCount;
+      return {
+        y: pad.top + plotH * (1 - ratio),
+        value: max2 * ratio
+      };
+    });
+    return { points: pts, linePath: line, areaPath: area, ticks: grid, max: max2 };
+  }, [series, plotH, plotW]);
+  if (!series.length) {
+    return /* @__PURE__ */ jsx("div", { className: `flex items-center justify-center text-sm font-semibold text-slate-400 ${className}`, children: "No collection data for this period." });
+  }
+  const activeIndex = hover ?? (peakIndex >= 0 ? peakIndex : -1);
+  const active = activeIndex >= 0 ? points[activeIndex] : null;
+  const onMove = (event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const vbX = (event.clientX - rect.left) / rect.width * width;
+    const ratio = (vbX - pad.left) / plotW;
+    const index = Math.round(ratio * (points.length - 1));
+    setHover(Math.min(points.length - 1, Math.max(0, index)));
+  };
+  return /* @__PURE__ */ jsxs("div", { className: `relative ${className}`, children: [
+    /* @__PURE__ */ jsxs(
+      "svg",
+      {
+        viewBox: `0 0 ${width} ${height}`,
+        className: "h-auto w-full touch-pan-y",
+        role: "img",
+        "aria-label": `Collections by week. ${series.map((d) => `${d.label}: ${formatValue(d.value)}`).join(", ")}.`,
+        onMouseMove: onMove,
+        onMouseLeave: () => setHover(null),
+        children: [
+          /* @__PURE__ */ jsx("defs", { children: /* @__PURE__ */ jsxs("linearGradient", { id: gradientId, x1: "0", y1: "0", x2: "0", y2: "1", children: [
+            /* @__PURE__ */ jsx("stop", { offset: "0%", stopColor: "#12B76A", stopOpacity: "0.28" }),
+            /* @__PURE__ */ jsx("stop", { offset: "100%", stopColor: "#12B76A", stopOpacity: "0.02" })
+          ] }) }),
+          ticks.map((tick) => /* @__PURE__ */ jsxs("g", { children: [
+            /* @__PURE__ */ jsx(
+              "line",
+              {
+                x1: pad.left,
+                x2: width - pad.right,
+                y1: tick.y,
+                y2: tick.y,
+                stroke: "#E2E8F0",
+                strokeWidth: "1",
+                strokeDasharray: "4 5"
+              }
+            ),
+            /* @__PURE__ */ jsx(
+              "text",
+              {
+                x: pad.left,
+                y: tick.y - 6,
+                fill: "#94A3B8",
+                fontSize: "11",
+                fontWeight: "700",
+                children: formatAxis ? formatAxis(tick.value) : tick.value
+              }
+            )
+          ] }, tick.y)),
+          /* @__PURE__ */ jsx("path", { d: areaPath, fill: `url(#${gradientId})` }),
+          /* @__PURE__ */ jsx(
+            "path",
+            {
+              d: linePath,
+              fill: "none",
+              stroke: "#0F5132",
+              strokeWidth: "2.5",
+              strokeLinecap: "round",
+              strokeLinejoin: "round"
+            }
+          ),
+          points.map((p, i) => /* @__PURE__ */ jsx(
+            "circle",
+            {
+              cx: p.x,
+              cy: p.y,
+              r: i === activeIndex ? 5 : 3.5,
+              fill: i === activeIndex ? "#0F5132" : "#FFFFFF",
+              stroke: "#0F5132",
+              strokeWidth: "2"
+            },
+            p.label
+          )),
+          points.map((p, i) => /* @__PURE__ */ jsx(
+            "text",
+            {
+              x: p.x,
+              y: height - 8,
+              textAnchor: "middle",
+              fill: i === activeIndex ? "#0F5132" : "#64748B",
+              fontSize: "12",
+              fontWeight: i === activeIndex ? "800" : "600",
+              children: p.label
+            },
+            p.label
+          ))
+        ]
+      }
+    ),
+    active && /* @__PURE__ */ jsx(
+      "div",
+      {
+        className: "pointer-events-none absolute -translate-x-1/2 -translate-y-full rounded-lg bg-ink px-2.5 py-1.5 text-[11px] font-extrabold text-white shadow-lift",
+        style: {
+          left: `${active.x / width * 100}%`,
+          top: `${active.y / height * 100}%`,
+          marginTop: "-8px"
+        },
+        children: formatValue(active.value)
+      }
+    )
+  ] });
+};
 const REVENUE_PERIODS = [
-  { value: "all", label: "All time" },
-  { value: "last30", label: "Last 30 days" },
-  { value: "mtd", label: "This month" },
-  { value: "ytd", label: "This year" }
+  { value: "mtd", label: "This month", bucket: "day" },
+  { value: "last30", label: "Last 30 days", bucket: "day" },
+  { value: "ytd", label: "This year", bucket: "month" },
+  { value: "all", label: "All time", bucket: "month" }
 ];
-const RevenueCard = ({ revenue, period, onPeriodChange, loading, error }) => {
+const axisLabel = (period, bucket) => {
+  const [year, month, day] = period.split("-").map(Number);
+  const monthName = new Date(year, month - 1, 1).toLocaleString("en-GB", { month: "short" });
+  return bucket === "day" ? `${day} ${monthName}` : monthName;
+};
+const RevenueCard = ({ revenue, series, period, onPeriodChange, loading, seriesLoading, error }) => {
   const summary = revenue?.summary || {};
   const filters = revenue?.filters || {};
+  const active = REVENUE_PERIODS.find((option) => option.value === period) || REVENUE_PERIODS[2];
+  const bucket = active.bucket;
+  const points = useMemo(() => {
+    const rows = Array.isArray(series?.series) ? series.series : [];
+    return rows.map((row) => ({ label: axisLabel(row.period, bucket), value: Number(row.totalRevenue) || 0 }));
+  }, [series, bucket]);
+  const peakIndex = useMemo(() => {
+    if (points.length === 0) return -1;
+    let best = 0;
+    points.forEach((point, index) => {
+      if (point.value > points[best].value) best = index;
+    });
+    return best;
+  }, [points]);
+  const isFlat = points.length > 1 && points.every((point) => point.value === 0);
   return /* @__PURE__ */ jsxs(Card, { padding: "p-5", className: "flex flex-col", children: [
     /* @__PURE__ */ jsxs("div", { className: "flex flex-wrap items-start justify-between gap-3", children: [
       /* @__PURE__ */ jsxs("div", { children: [
@@ -1316,17 +1514,40 @@ const RevenueCard = ({ revenue, period, onPeriodChange, loading, error }) => {
           /* @__PURE__ */ jsx("dd", { className: "text-[13px] font-extrabold text-brand-700", children: formatCedi(summary.platformMarkupRevenue) })
         ] })
       ] }),
-      /* @__PURE__ */ jsx("div", { className: "mt-auto border-t border-slate-100 pt-4", children: /* @__PURE__ */ jsxs("p", { className: "flex items-start gap-2 text-[11px] font-semibold leading-relaxed text-slate-400", children: [
+      /* @__PURE__ */ jsx("div", { className: "mt-auto border-t border-slate-100 pt-4", children: seriesLoading && points.length === 0 ? /* @__PURE__ */ jsx("div", { className: "h-[180px] animate-pulse rounded-xl bg-slate-200/50" }) : isFlat ? /* @__PURE__ */ jsxs("p", { className: "flex items-start gap-2 text-[11px] font-semibold leading-relaxed text-slate-400", children: [
         /* @__PURE__ */ jsx(Info, { className: "mt-px h-3.5 w-3.5 shrink-0", "aria-hidden": "true" }),
         /* @__PURE__ */ jsxs("span", { children: [
-          "A revenue trend needs a platform-wide time series. The analytics endpoints are school-scoped, so",
-          " ",
-          /* @__PURE__ */ jsx("code", { className: "rounded bg-slate-100 px-1 font-mono text-[10px] text-slate-500", children: "GET /admin/revenue/series" }),
-          " ",
-          "does not exist yet — and a curve drawn through these totals would be invented.",
-          filters.period ? ` Showing ${filters.period}.` : ""
+          "No completed payments in this ",
+          bucket === "day" ? "window" : "period",
+          ". The figures above are the same totals, not a missing reading."
         ] })
-      ] }) })
+      ] }) : points.length > 1 ? /* @__PURE__ */ jsxs(Fragment, { children: [
+        /* @__PURE__ */ jsxs("div", { className: "mb-1 flex items-center justify-between gap-3", children: [
+          /* @__PURE__ */ jsxs("span", { className: "text-[11px] font-extrabold uppercase tracking-wider text-slate-400", children: [
+            "Collected per ",
+            bucket === "day" ? "day" : "month"
+          ] }),
+          /* @__PURE__ */ jsx("span", { className: "text-[11px] font-extrabold text-ink", children: formatCediShort(series?.totals?.totalRevenue) })
+        ] }),
+        /* @__PURE__ */ jsx(
+          AreaChart,
+          {
+            series: points,
+            formatValue: (value) => formatCedi(value),
+            formatAxis: (value) => formatCediShort(value),
+            peakIndex
+          }
+        ),
+        /* @__PURE__ */ jsx("p", { className: "mt-2 text-[10px] font-semibold text-slate-400", children: "A month or day with no completed payment is shown as zero, not omitted." })
+      ] }) : null }),
+      filters.period ? /* @__PURE__ */ jsxs("p", { className: "mt-3 text-[10px] font-semibold text-slate-400", children: [
+        "Server applied period ",
+        /* @__PURE__ */ jsx("code", { className: "font-mono", children: filters.period }),
+        ", bucket",
+        " ",
+        /* @__PURE__ */ jsx("code", { className: "font-mono", children: bucket }),
+        "."
+      ] }) : null
     ] })
   ] });
 };
@@ -1626,11 +1847,53 @@ const reviewSchoolAd = async (adId, { status, rejectedReason = "" } = {}) => {
     throw toApiError(error, "This creative could not be reviewed.");
   }
 };
+const getRevenueSeries = async ({
+  bucket = "month",
+  period = "ytd",
+  startDate,
+  endDate,
+  plan = "",
+  region = ""
+} = {}) => {
+  try {
+    const { data } = await api.get("/admin/revenue/series", {
+      params: {
+        bucket,
+        period,
+        startDate: startDate || void 0,
+        endDate: endDate || void 0,
+        plan: plan || void 0,
+        region: region || void 0
+      }
+    });
+    return data.data || { series: [], filters: {}, totals: {} };
+  } catch (error) {
+    throw toApiError(error, "The revenue trend could not be loaded.");
+  }
+};
+const getPlatformSettings = async () => {
+  try {
+    const { data } = await api.get("/admin/settings");
+    return data.data || {};
+  } catch (error) {
+    throw toApiError(error, "Platform settings could not be loaded.");
+  }
+};
+const updatePlatformSettings = async (patch) => {
+  try {
+    const { data } = await api.put("/admin/settings", patch);
+    return data.data || {};
+  } catch (error) {
+    throw toApiError(error, "Platform settings could not be saved.");
+  }
+};
+const bucketForPeriod = (period) => period === "mtd" || period === "last30" ? "day" : "month";
 const useAdminDashboard = (reloadKey = 0) => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const period = searchParams.get("period") || "all";
+  const period = searchParams.get("period") || "ytd";
   const [kpis, setKpis] = useState({ data: null, loading: true, error: null });
   const [revenue, setRevenue] = useState({ data: null, loading: true, error: null });
+  const [series, setSeries] = useState({ data: null, loading: true, error: null });
   useEffect(() => {
     let active = true;
     setKpis((current) => ({ ...current, loading: true, error: null }));
@@ -1647,12 +1910,20 @@ const useAdminDashboard = (reloadKey = 0) => {
       active = false;
     };
   }, [period, reloadKey]);
+  useEffect(() => {
+    let active = true;
+    setSeries({ data: null, loading: true, error: null });
+    getRevenueSeries({ period, bucket: bucketForPeriod(period) }).then((data) => active && setSeries({ data, loading: false, error: null })).catch((error) => active && setSeries({ data: null, loading: false, error }));
+    return () => {
+      active = false;
+    };
+  }, [period, reloadKey]);
   const setPeriod = useCallback(
     (next) => {
       setSearchParams(
         (current) => {
           const params = new URLSearchParams(current);
-          if (!next || next === "all") params.delete("period");
+          if (!next || next === "ytd") params.delete("period");
           else params.set("period", next);
           return params;
         },
@@ -1662,8 +1933,8 @@ const useAdminDashboard = (reloadKey = 0) => {
     [setSearchParams]
   );
   return useMemo(
-    () => ({ kpis, revenue, period, setPeriod }),
-    [kpis, revenue, period, setPeriod]
+    () => ({ kpis, revenue, series, period, setPeriod }),
+    [kpis, revenue, series, period, setPeriod]
   );
 };
 const EMPTY_ADMIN_KPIS = {
@@ -1696,7 +1967,7 @@ const EMPTY_ADMIN_KPIS = {
   recentSchools: []
 };
 const AdminOverview = () => {
-  const { kpis, revenue, period, setPeriod } = useAdminDashboard();
+  const { kpis, revenue, series, period, setPeriod } = useAdminDashboard();
   const [reloadKey, setReloadKey] = useState(0);
   const refresh = useCallback(() => setReloadKey((key) => key + 1), []);
   const failed = Boolean(kpis.error);
@@ -1754,9 +2025,11 @@ const AdminOverview = () => {
           RevenueCard,
           {
             revenue: revenue.data,
+            series: series.data,
             period,
             onPeriodChange: setPeriod,
             loading: revenue.loading,
+            seriesLoading: series.loading,
             error: revenue.error
           }
         ) }),
@@ -3182,81 +3455,284 @@ const AdminContent = () => {
     )
   ] });
 };
-const Row = ({ label, value, hint }) => /* @__PURE__ */ jsxs("div", { className: "flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-slate-50 py-3 last:border-0", children: [
+const MAINTENANCE_MODES = [
+  { value: "off", label: "Off", blurb: "Everything works normally." },
+  { value: "readonly", label: "Read-only", blurb: "Every page loads; nothing can be changed. The safe state for a migration." },
+  { value: "on", label: "Fully down", blurb: "The API refuses reads as well as writes. Only for a release that must not serve traffic at all." }
+];
+const Row = ({ label, hint, value }) => /* @__PURE__ */ jsxs("div", { className: "flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-slate-50 py-3 last:border-0", children: [
   /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
     /* @__PURE__ */ jsx("p", { className: "text-[13px] font-extrabold text-ink", children: label }),
     hint && /* @__PURE__ */ jsx("p", { className: "text-[11px] font-semibold text-slate-400", children: hint })
   ] }),
   /* @__PURE__ */ jsx("p", { className: "shrink-0 text-[13px] font-extrabold tabular-nums text-ink", children: value })
 ] });
-const DisabledControl = ({ label, reason }) => /* @__PURE__ */ jsxs("div", { className: "flex flex-wrap items-center justify-between gap-3 border-b border-slate-50 py-3 last:border-0", children: [
-  /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
-    /* @__PURE__ */ jsx("p", { className: "text-[13px] font-extrabold text-slate-400", children: label }),
-    /* @__PURE__ */ jsx("p", { className: "text-[11px] font-semibold text-slate-400", children: reason })
-  ] }),
-  /* @__PURE__ */ jsx(Badge, { tone: "slate", children: "Not available yet" })
-] });
+const Toggle = ({ checked, onChange, disabled, label }) => /* @__PURE__ */ jsx(
+  "button",
+  {
+    type: "button",
+    role: "switch",
+    "aria-checked": checked,
+    "aria-label": label,
+    disabled,
+    onClick: () => onChange(!checked),
+    className: `relative h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40 disabled:cursor-not-allowed disabled:opacity-60 ${checked ? "bg-brand-700" : "bg-slate-300"}`,
+    children: /* @__PURE__ */ jsx(
+      "span",
+      {
+        "aria-hidden": "true",
+        className: `absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${checked ? "translate-x-[1.375rem]" : "translate-x-0.5"}`
+      }
+    )
+  }
+);
 const AdminSettings = () => {
-  const [state, setState] = useState({ kpis: null, sms: null, loading: true, error: null });
+  const toast = useToast();
+  const [standing, setStanding] = useState({ kpis: null, sms: null, loading: true, error: null });
+  const [settings, setSettings] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [formError, setFormError] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const load = useCallback(() => {
     let active = true;
-    setState((current) => ({ ...current, loading: true, error: null }));
-    Promise.all([
-      getDashboardKpis().catch(() => null),
-      getPlatformSmsBalance().catch(() => null)
-    ]).then(([kpis, sms2]) => {
-      if (active) setState({ kpis, sms: sms2, loading: false, error: null });
-    }).catch((error) => {
-      if (active) setState({ kpis: null, sms: null, loading: false, error });
+    setStanding((current) => ({ ...current, loading: true, error: null }));
+    getDashboardKpis().then((kpis) => active && setStanding((c) => ({ ...c, kpis, loading: false }))).catch(() => active && setStanding((c) => ({ ...c, kpis: null, loading: false })));
+    getPlatformSmsBalance().then((sms2) => active && setStanding((c) => ({ ...c, sms: sms2 }))).catch(() => {
     });
     return () => {
       active = false;
     };
   }, []);
+  const loadSettings = useCallback(() => {
+    let active = true;
+    getPlatformSettings().then((data) => {
+      if (!active) return;
+      setSettings(data);
+      setDraft({
+        defaultMarkupPercent: data.defaultMarkupPercent ?? 5,
+        features: {
+          adsEnabled: data.features?.adsEnabled !== false,
+          selfSignupEnabled: data.features?.selfSignupEnabled !== false,
+          trialDays: data.features?.trialDays ?? 30
+        },
+        maintenance: {
+          mode: data.maintenance?.mode || "off",
+          message: data.maintenance?.message || ""
+        }
+      });
+    }).catch((error) => active && setFormError(error));
+    return () => {
+      active = false;
+    };
+  }, []);
   useEffect(() => load(), [load]);
-  const schools = state.kpis?.schools || {};
-  const payments = state.kpis?.payments || {};
-  const sms = state.sms || {};
+  useEffect(() => loadSettings(), [loadSettings]);
+  const schools = standing.kpis?.schools || {};
+  const payments = standing.kpis?.payments || {};
+  const sms = standing.sms || {};
+  const patch = useMemo(() => {
+    if (!settings || !draft) return {};
+    const body = {};
+    if (draft.defaultMarkupPercent !== settings.defaultMarkupPercent) {
+      body.defaultMarkupPercent = draft.defaultMarkupPercent;
+    }
+    const features = {};
+    if (draft.features.adsEnabled !== settings.features?.adsEnabled) features.adsEnabled = draft.features.adsEnabled;
+    if (draft.features.selfSignupEnabled !== settings.features?.selfSignupEnabled) {
+      features.selfSignupEnabled = draft.features.selfSignupEnabled;
+    }
+    if (draft.features.trialDays !== settings.features?.trialDays) features.trialDays = draft.features.trialDays;
+    if (Object.keys(features).length) body.features = features;
+    const maintenance = {};
+    if (draft.maintenance.mode !== settings.maintenance?.mode) maintenance.mode = draft.maintenance.mode;
+    if (draft.maintenance.message !== (settings.maintenance?.message || "")) {
+      maintenance.message = draft.maintenance.message;
+    }
+    if (Object.keys(maintenance).length) body.maintenance = maintenance;
+    return body;
+  }, [settings, draft]);
+  const isDirty = Object.keys(patch).length > 0;
+  const enteringMaintenance = patch.maintenance?.mode && patch.maintenance.mode !== "off";
+  const save = async () => {
+    setSaving(true);
+    setFormError(null);
+    try {
+      const saved = await updatePlatformSettings(patch);
+      const changed = Array.isArray(saved.changed) ? saved.changed : [];
+      setSettings(saved);
+      setConfirming(false);
+      loadSettings();
+      toast.success(
+        changed.length ? changed.map((entry) => `${entry.path} → ${entry.to}`).join(", ") : "Nothing had changed."
+      );
+    } catch (error) {
+      setFormError(error.message || "Those settings could not be saved.");
+    } finally {
+      setSaving(false);
+    }
+  };
   return /* @__PURE__ */ jsxs(Fragment, { children: [
     /* @__PURE__ */ jsx(
       PageHeader,
       {
         eyebrow: "Platform console",
         title: "Settings",
-        description: "The platform's standing state. Nothing here can be changed yet — the endpoints that would accept a change do not exist.",
-        actions: /* @__PURE__ */ jsx(Badge, { tone: "amber", icon: Info, children: "Read-only" })
+        description: "Configuration for SukuuPay itself — not for any one school. Every change is recorded in the activity log.",
+        actions: /* @__PURE__ */ jsxs(Fragment, { children: [
+          isDirty && /* @__PURE__ */ jsx(Badge, { tone: "amber", icon: TriangleAlert, children: "Unsaved" }),
+          /* @__PURE__ */ jsxs(
+            "button",
+            {
+              type: "button",
+              onClick: () => setConfirming(true),
+              disabled: !isDirty || saving,
+              className: "inline-flex items-center gap-2 rounded-xl bg-brand-700 px-3.5 py-2 text-[13px] font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40",
+              children: [
+                /* @__PURE__ */ jsx(Save, { className: "h-4 w-4", "aria-hidden": "true" }),
+                "Save changes"
+              ]
+            }
+          )
+        ] })
       }
     ),
-    state.error ? /* @__PURE__ */ jsx(
+    formError && !draft ? /* @__PURE__ */ jsx(
       EmptyState,
       {
         icon: ServerCog,
         title: "Platform settings could not be loaded",
-        description: state.error.message
+        description: formError.message || String(formError)
       }
-    ) : state.loading ? /* @__PURE__ */ jsx("div", { className: "space-y-4", children: [0, 1].map((card) => /* @__PURE__ */ jsx("div", { className: "h-56 animate-pulse rounded-2xl bg-slate-200/70" }, card)) }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+    ) : draft ? /* @__PURE__ */ jsxs(Fragment, { children: [
+      formError && /* @__PURE__ */ jsx("div", { className: "mb-4", children: /* @__PURE__ */ jsx(FormAlert, { tone: "error", children: formError.message || String(formError) }) }),
       /* @__PURE__ */ jsxs(Card, { padding: "p-5", children: [
+        /* @__PURE__ */ jsx("h2", { className: "text-[13px] font-extrabold text-ink", children: "Fees" }),
+        /* @__PURE__ */ jsx("p", { className: "mt-0.5 text-[11px] font-semibold text-slate-500", children: "What a newly provisioned school is given. Existing schools keep the rate they already have." }),
+        /* @__PURE__ */ jsx("div", { className: "mt-4 max-w-xs", children: /* @__PURE__ */ jsx(
+          Field,
+          {
+            label: "Default platform markup",
+            type: "number",
+            min: 0,
+            max: 100,
+            step: 0.5,
+            value: draft.defaultMarkupPercent,
+            onChange: (event) => setDraft((current) => ({
+              ...current,
+              defaultMarkupPercent: Number(event.target.value)
+            })),
+            hint: "percent"
+          }
+        ) })
+      ] }),
+      /* @__PURE__ */ jsxs(Card, { padding: "p-5", className: "mt-4", children: [
+        /* @__PURE__ */ jsx("h2", { className: "text-[13px] font-extrabold text-ink", children: "Feature flags" }),
+        /* @__PURE__ */ jsx("p", { className: "mt-0.5 text-[11px] font-semibold text-slate-500", children: "Things that were previously hard-coded and needed a redeploy to change." }),
+        /* @__PURE__ */ jsxs("div", { className: "mt-4 space-y-4", children: [
+          /* @__PURE__ */ jsxs("div", { className: "flex items-start justify-between gap-4", children: [
+            /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
+              /* @__PURE__ */ jsx("p", { className: "text-[13px] font-extrabold text-ink", children: "Public creative slider" }),
+              /* @__PURE__ */ jsx("p", { className: "text-[11px] font-semibold text-slate-500", children: "Schools’ creatives on the login and signup pages. Turn off to hide them platform-wide." })
+            ] }),
+            /* @__PURE__ */ jsx(
+              Toggle,
+              {
+                label: "Public creative slider",
+                checked: draft.features.adsEnabled,
+                onChange: (adsEnabled) => setDraft((current) => ({ ...current, features: { ...current.features, adsEnabled } }))
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "flex items-start justify-between gap-4", children: [
+            /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
+              /* @__PURE__ */ jsx("p", { className: "text-[13px] font-extrabold text-ink", children: "Self-signup" }),
+              /* @__PURE__ */ jsx("p", { className: "text-[11px] font-semibold text-slate-500", children: "Whether a new account can be created without an invitation. Turning this off leaves existing accounts untouched." })
+            ] }),
+            /* @__PURE__ */ jsx(
+              Toggle,
+              {
+                label: "Self-signup",
+                checked: draft.features.selfSignupEnabled,
+                onChange: (selfSignupEnabled) => setDraft((current) => ({
+                  ...current,
+                  features: { ...current.features, selfSignupEnabled }
+                }))
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsx("div", { className: "max-w-xs", children: /* @__PURE__ */ jsx(
+            Field,
+            {
+              label: "Trial length",
+              type: "number",
+              min: 0,
+              max: 365,
+              value: draft.features.trialDays,
+              onChange: (event) => setDraft((current) => ({
+                ...current,
+                features: { ...current.features, trialDays: Number(event.target.value) }
+              })),
+              hint: "days"
+            }
+          ) })
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxs(Card, { padding: "p-5", className: "mt-4", children: [
+        /* @__PURE__ */ jsx("h2", { className: "text-[13px] font-extrabold text-ink", children: "Maintenance" }),
+        /* @__PURE__ */ jsx("p", { className: "mt-0.5 text-[11px] font-semibold text-slate-500", children: "The only way to take SukuuPay quiet. Confirmed separately, because the three modes are not degrees of the same thing." }),
+        /* @__PURE__ */ jsx("div", { className: "mt-4 space-y-2", children: MAINTENANCE_MODES.map((mode) => /* @__PURE__ */ jsxs(
+          "label",
+          {
+            className: "flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 px-3.5 py-3 transition-colors hover:bg-slate-50 has-[:checked]:border-brand-700 has-[:checked]:bg-brand-50",
+            children: [
+              /* @__PURE__ */ jsx(
+                "input",
+                {
+                  type: "radio",
+                  name: "maintenance-mode",
+                  value: mode.value,
+                  checked: draft.maintenance.mode === mode.value,
+                  onChange: () => setDraft((current) => ({ ...current, maintenance: { ...current.maintenance, mode: mode.value } })),
+                  className: "mt-0.5 h-4 w-4 shrink-0 accent-brand-700"
+                }
+              ),
+              /* @__PURE__ */ jsxs("span", { className: "min-w-0", children: [
+                /* @__PURE__ */ jsx("span", { className: "block text-[13px] font-extrabold text-ink", children: mode.label }),
+                /* @__PURE__ */ jsx("span", { className: "block text-[11px] font-semibold text-slate-500", children: mode.blurb })
+              ] })
+            ]
+          },
+          mode.value
+        )) }),
+        draft.maintenance.mode !== "off" && /* @__PURE__ */ jsxs("div", { className: "mt-4", children: [
+          /* @__PURE__ */ jsx(
+            Field,
+            {
+              label: "Message shown to users",
+              value: draft.maintenance.message,
+              maxLength: 500,
+              onChange: (event) => setDraft((current) => ({
+                ...current,
+                maintenance: { ...current.maintenance, message: event.target.value }
+              })),
+              placeholder: "We are upgrading SukuuPay and will be back shortly.",
+              hint: `${draft.maintenance.message.length}/500`
+            }
+          ),
+          /* @__PURE__ */ jsx("p", { className: "mt-1.5 text-[11px] font-semibold text-slate-400", children: "Optional. Empty means the platform says nothing about itself." })
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxs(Card, { padding: "p-5", className: "mt-4", children: [
         /* @__PURE__ */ jsx("h2", { className: "text-[13px] font-extrabold text-ink", children: "Platform standing" }),
         /* @__PURE__ */ jsx("p", { className: "mt-0.5 text-[11px] font-semibold text-slate-500", children: "Live figures, from the same endpoints the Overview reads." }),
         /* @__PURE__ */ jsxs("div", { className: "mt-3", children: [
-          /* @__PURE__ */ jsx(
-            Row,
-            {
-              label: "Schools registered",
-              hint: "All lifecycle states combined",
-              value: formatCount(schools.total)
-            }
-          ),
+          /* @__PURE__ */ jsx(Row, { label: "Schools registered", hint: "All lifecycle states combined", value: formatCount(schools.total) }),
           /* @__PURE__ */ jsx(Row, { label: "Active", value: formatCount(schools.active) }),
           /* @__PURE__ */ jsx(Row, { label: "On trial", value: formatCount(schools.onTrial) }),
           /* @__PURE__ */ jsx(Row, { label: "Suspended", value: formatCount(schools.suspended) }),
           /* @__PURE__ */ jsx(Row, { label: "Archived", value: formatCount(schools.archived) }),
-          /* @__PURE__ */ jsx(Row, { label: "Accounts", hint: "Staff and parents", value: formatCount(state.kpis?.users?.total) })
-        ] })
-      ] }),
-      /* @__PURE__ */ jsxs(Card, { padding: "p-5", className: "mt-4", children: [
-        /* @__PURE__ */ jsx("h2", { className: "text-[13px] font-extrabold text-ink", children: "Money and messaging" }),
-        /* @__PURE__ */ jsxs("div", { className: "mt-3", children: [
+          /* @__PURE__ */ jsx(Row, { label: "Accounts", hint: "Staff and parents", value: formatCount(standing.kpis?.users?.total) }),
           /* @__PURE__ */ jsx(Row, { label: "Platform markup earned", value: formatCedi(payments.platformMarkup) }),
           /* @__PURE__ */ jsx(Row, { label: "Pending payouts", value: formatCedi(payments.pendingPayouts) }),
           /* @__PURE__ */ jsx(
@@ -3269,54 +3745,73 @@ const AdminSettings = () => {
           )
         ] })
       ] }),
-      /* @__PURE__ */ jsxs(Card, { padding: "p-5", className: "mt-4", children: [
-        /* @__PURE__ */ jsxs("div", { className: "flex items-start justify-between gap-3", children: [
-          /* @__PURE__ */ jsxs("div", { children: [
-            /* @__PURE__ */ jsx("h2", { className: "text-[13px] font-extrabold text-ink", children: "Not configurable yet" }),
-            /* @__PURE__ */ jsx("p", { className: "mt-0.5 text-[11px] font-semibold text-slate-500", children: "Each of these needs a server endpoint that does not exist." })
-          ] }),
-          /* @__PURE__ */ jsx("span", { className: "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400", children: /* @__PURE__ */ jsx(Save, { className: "h-[18px] w-[18px]", "aria-hidden": "true" }) })
+      /* @__PURE__ */ jsx(Card, { padding: "p-5", className: "mt-4", children: /* @__PURE__ */ jsxs("div", { className: "flex items-start justify-between gap-3", children: [
+        /* @__PURE__ */ jsxs("div", { children: [
+          /* @__PURE__ */ jsx("h2", { className: "text-[13px] font-extrabold text-ink", children: "Last saved" }),
+          /* @__PURE__ */ jsx("p", { className: "mt-0.5 text-[11px] font-semibold text-slate-500", children: settings?.updatedAt ? new Date(settings.updatedAt).toLocaleString("en-GB") : "These are the defaults. Nothing has been saved yet." })
         ] }),
-        /* @__PURE__ */ jsxs("div", { className: "mt-3", children: [
+        /* @__PURE__ */ jsx("span", { className: "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400", children: /* @__PURE__ */ jsx(Check, { className: "h-[18px] w-[18px]", "aria-hidden": "true" }) })
+      ] }) })
+    ] }) : /* @__PURE__ */ jsx("div", { className: "space-y-4", children: [0, 1, 2].map((card) => /* @__PURE__ */ jsx("div", { className: "h-56 animate-pulse rounded-2xl bg-slate-200/70" }, card)) }),
+    /* @__PURE__ */ jsxs(
+      Modal,
+      {
+        open: confirming,
+        onClose: () => setConfirming(false),
+        title: enteringMaintenance ? "Put SukuuPay into maintenance?" : "Save these settings?",
+        description: enteringMaintenance ? MAINTENANCE_MODES.find((mode) => mode.value === draft?.maintenance?.mode)?.blurb : "The change takes effect immediately for every school on the platform.",
+        footer: /* @__PURE__ */ jsxs(Fragment, { children: [
           /* @__PURE__ */ jsx(
-            DisabledControl,
+            "button",
             {
-              label: "Default platform markup",
-              reason: "PUT /admin/settings — no endpoint accepts it"
+              type: "button",
+              onClick: () => setConfirming(false),
+              disabled: saving,
+              className: "rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60",
+              children: "Cancel"
             }
           ),
           /* @__PURE__ */ jsx(
-            DisabledControl,
+            "button",
             {
-              label: "Feature flags",
-              reason: "Self-signup, the public ad slider, trial length — all hard-coded server-side"
-            }
-          ),
-          /* @__PURE__ */ jsx(
-            DisabledControl,
-            {
-              label: "Maintenance mode",
-              reason: "No way to put the platform in a read-only state for a migration"
-            }
-          ),
-          /* @__PURE__ */ jsx(
-            DisabledControl,
-            {
-              label: "SMS provider and sender ID",
-              reason: "Configured per school; there is no platform-level default"
-            }
-          ),
-          /* @__PURE__ */ jsx(
-            DisabledControl,
-            {
-              label: "Platform revenue trend",
-              reason: "GET /admin/revenue/series — the analytics routes are school-scoped"
+              type: "button",
+              onClick: save,
+              disabled: saving,
+              className: `rounded-xl px-4 py-2.5 text-sm font-extrabold text-white shadow-lift transition-colors disabled:opacity-60 ${enteringMaintenance ? "bg-amber-600 hover:bg-amber-700" : "bg-brand-700 hover:bg-brand-800"}`,
+              children: saving ? "Saving…" : enteringMaintenance ? "Enter maintenance" : "Save changes"
             }
           )
         ] }),
-        /* @__PURE__ */ jsx("p", { className: "mt-4 rounded-lg bg-slate-50 px-3 py-2.5 text-[11px] font-semibold leading-relaxed text-slate-500", children: "When these are built, each write belongs in the audit log. No administrative action on this platform is currently recorded — suspending a school changes every user account in it and leaves no trace anyone can read back." })
-      ] })
-    ] })
+        children: [
+          /* @__PURE__ */ jsx("ul", { className: "space-y-1.5", children: Object.entries(patch).map(
+            ([group, value]) => typeof value === "object" && value !== null ? Object.entries(value).map(([key, next]) => /* @__PURE__ */ jsxs("li", { className: "flex items-baseline justify-between gap-3 text-[12px]", children: [
+              /* @__PURE__ */ jsxs("code", { className: "font-mono font-bold text-slate-600", children: [
+                group,
+                ".",
+                key
+              ] }),
+              /* @__PURE__ */ jsxs("span", { className: "text-[11px] font-extrabold text-ink", children: [
+                String(settings?.[group]?.[key] ?? "—"),
+                " → ",
+                String(next)
+              ] })
+            ] }, `${group}.${key}`)) : /* @__PURE__ */ jsxs("li", { className: "flex items-baseline justify-between gap-3 text-[12px]", children: [
+              /* @__PURE__ */ jsx("code", { className: "font-mono font-bold text-slate-600", children: group }),
+              /* @__PURE__ */ jsxs("span", { className: "text-[11px] font-extrabold text-ink", children: [
+                String(settings?.[group] ?? "—"),
+                " → ",
+                String(value)
+              ] })
+            ] }, group)
+          ) }),
+          draft?.maintenance?.message?.trim() && /* @__PURE__ */ jsxs("p", { className: "mt-3 rounded-lg bg-slate-50 px-3 py-2.5 text-[11px] font-semibold leading-relaxed text-slate-500", children: [
+            "Users will be shown: “",
+            draft.maintenance.message.trim(),
+            "”"
+          ] })
+        ]
+      }
+    )
   ] });
 };
 const shortenPath = (pathname) => {

@@ -1,37 +1,73 @@
-import React from 'react';
-import { ChartColumn, Info } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Info } from 'lucide-react';
 import Card from '../../../components/dashboard/ui/Card';
-import { formatCedi, formatCount } from '../../../utils/format';
+import AreaChart from '../../../components/dashboard/charts/AreaChart';
+import { formatCedi, formatCediShort, formatCount } from '../../../utils/format';
 
 /**
- * `GET /admin/revenue?period=…` — platform revenue for a chosen window.
+ * `GET /admin/revenue?period=…` plus `GET /admin/revenue/series` — platform revenue
+ * for a chosen window, and its shape over time.
  *
- * **Totals only, and that is the honest shape of the data.** `getRevenue` returns
- * a `summary`; there is no platform time series behind it. All ten
- * `/api/analytics/*` endpoints are school-scoped (`analytics.routes.js:47-112` —
- * every path ends `/:schoolId`), so `revenue-chart` can plot one school and not
- * the platform.
+ * **The trend is real, and that took an endpoint.** The card previously showed the
+ * totals and an empty state explaining that a trend needed a platform-wide time
+ * series — `GET /admin/revenue` returns aggregates and every `/api/analytics/*` route
+ * is school-scoped, so nothing in the API could plot platform revenue. The
+ * alternative was a curve through `mtdRevenue` and `ytdRevenue`, which is invented
+ * data wearing a chart's clothes.
  *
- * That is why the chart slot below is an **empty state with the reason in it**
- * rather than a chart. The tempting move is to plot `mtdRevenue` and `ytdRevenue`
- * as two points and call it a trend; a curve through two aggregates is invented
- * data, and this codebase has already shipped a page that read as measurement
- * while being decoration. `GET /admin/revenue/series` would fix it properly.
+ * **Gaps come back as zeros and are plotted as such.** The server's
+ * `buildCalendarSeries` walks the calendar rather than mapping its aggregation rows,
+ * so a month nobody paid is an explicit `0` and renders as a dip to the baseline
+ * instead of a straight line across the hole. That distinction is the reason the
+ * chart is trustworthy, so nothing here "smooths over" a zero — and `peakIndex` is
+ * computed from the real maximum rather than assumed to be the last point.
  *
- * The period selector is in the URL (`?period=`), so a revenue window is
- * linkable and survives a reload — the same reason every other filter in the app
- * lives in the query string.
+ * The period selector is in the URL (`?period=`), so a revenue window is linkable
+ * and survives a reload — the same reason every other filter in the app lives in
+ * the query string.
  */
 const REVENUE_PERIODS = [
-  { value: 'all', label: 'All time' },
-  { value: 'last30', label: 'Last 30 days' },
-  { value: 'mtd', label: 'This month' },
-  { value: 'ytd', label: 'This year' },
+  { value: 'mtd', label: 'This month', bucket: 'day' },
+  { value: 'last30', label: 'Last 30 days', bucket: 'day' },
+  { value: 'ytd', label: 'This year', bucket: 'month' },
+  { value: 'all', label: 'All time', bucket: 'month' },
 ];
 
-const RevenueCard = ({ revenue, period, onPeriodChange, loading, error }) => {
+/** `2026-03` → `Mar`, `2026-03-01` → `1 Mar`. The axis is a date, not an id. */
+const axisLabel = (period, bucket) => {
+  const [year, month, day] = period.split('-').map(Number);
+  const monthName = new Date(year, month - 1, 1).toLocaleString('en-GB', { month: 'short' });
+  return bucket === 'day' ? `${day} ${monthName}` : monthName;
+};
+
+const RevenueCard = ({ revenue, series, period, onPeriodChange, loading, seriesLoading, error }) => {
   const summary = revenue?.summary || {};
   const filters = revenue?.filters || {};
+
+  // The active period decides the bucket, so "this month" and "last 30 days" are
+  // daily and "this year"/"all time" are monthly. Chosen from the same table that
+  // renders the buttons, so the two cannot disagree.
+  const active = REVENUE_PERIODS.find((option) => option.value === period) || REVENUE_PERIODS[2];
+  const bucket = active.bucket;
+
+  const points = useMemo(() => {
+    const rows = Array.isArray(series?.series) ? series.series : [];
+    return rows.map((row) => ({ label: axisLabel(row.period, bucket), value: Number(row.totalRevenue) || 0 }));
+  }, [series, bucket]);
+
+  const peakIndex = useMemo(() => {
+    if (points.length === 0) return -1;
+    let best = 0;
+    points.forEach((point, index) => {
+      if (point.value > points[best].value) best = index;
+    });
+    return best;
+  }, [points]);
+
+  // A series where every point is zero is not a trend, and drawing a flat line along
+  // the axis as though it were one is the same mistake as drawing a line through two
+  // aggregates. It gets a sentence instead.
+  const isFlat = points.length > 1 && points.every((point) => point.value === 0);
 
   return (
     <Card padding="p-5" className="flex flex-col">
@@ -95,26 +131,55 @@ const RevenueCard = ({ revenue, period, onPeriodChange, loading, error }) => {
           </dl>
 
           {/*
-            The empty state is load-bearing and states its own cause. A chart that
-            is missing because no endpoint exists looks identical to a chart that
-            failed to load unless the copy says which, and "a trend chart is coming"
-            is the difference between a reviewer filing it and a reviewer assuming
-            this card is finished.
+            The chart, or the sentence saying why there isn't one.
+
+            Two states are handled separately and neither is "no endpoint yet" any
+            more: a flat series (real data, nothing collected in the window) and a
+            missing one (the request failed or is still in flight). A failed request
+            renders nothing at all here rather than an empty axis, because an axis
+            with no points behind it reads as "revenue was zero" and is not the same
+            fact.
           */}
           <div className="mt-auto border-t border-slate-100 pt-4">
-            <p className="flex items-start gap-2 text-[11px] font-semibold leading-relaxed text-slate-400">
-              <Info className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span>
-                A revenue trend needs a platform-wide time series. The analytics endpoints are
-                school-scoped, so{' '}
-                <code className="rounded bg-slate-100 px-1 font-mono text-[10px] text-slate-500">
-                  GET /admin/revenue/series
-                </code>{' '}
-                does not exist yet — and a curve drawn through these totals would be invented.
-                {filters.period ? ` Showing ${filters.period}.` : ''}
-              </span>
-            </p>
+            {seriesLoading && points.length === 0 ? (
+              <div className="h-[180px] animate-pulse rounded-xl bg-slate-200/50" />
+            ) : isFlat ? (
+              <p className="flex items-start gap-2 text-[11px] font-semibold leading-relaxed text-slate-400">
+                <Info className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span>
+                  No completed payments in this {bucket === 'day' ? 'window' : 'period'}. The figures
+                  above are the same totals, not a missing reading.
+                </span>
+              </p>
+            ) : points.length > 1 ? (
+              <>
+                <div className="mb-1 flex items-center justify-between gap-3">
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+                    Collected per {bucket === 'day' ? 'day' : 'month'}
+                  </span>
+                  <span className="text-[11px] font-extrabold text-ink">
+                    {formatCediShort(series?.totals?.totalRevenue)}
+                  </span>
+                </div>
+                <AreaChart
+                  series={points}
+                  formatValue={(value) => formatCedi(value)}
+                  formatAxis={(value) => formatCediShort(value)}
+                  peakIndex={peakIndex}
+                />
+                <p className="mt-2 text-[10px] font-semibold text-slate-400">
+                  A month or day with no completed payment is shown as zero, not omitted.
+                </p>
+              </>
+            ) : null}
           </div>
+
+          {filters.period ? (
+            <p className="mt-3 text-[10px] font-semibold text-slate-400">
+              Server applied period <code className="font-mono">{filters.period}</code>, bucket{' '}
+              <code className="font-mono">{bucket}</code>.
+            </p>
+          ) : null}
         </>
       )}
     </Card>

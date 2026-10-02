@@ -13,9 +13,9 @@ import { EMPTY_ADMIN_KPIS } from '../../data/adminEmpty';
  * The platform console's Overview.
  *
  * One request for the standing figures (`GET /admin/dashboard`), one for the
- * period card (`GET /admin/revenue`), issued independently by
- * `useAdminDashboard`. Neither is merged into the other, and a failure in either
- * blanks only its own card.
+ * period totals (`GET /admin/revenue`), one for the trend
+ * (`GET /admin/revenue/series`), issued independently by `useAdminDashboard`.
+ * None is merged into another, and a failure in any blanks only its own card.
  *
  * That is the whole design difference from the school Overview, and it is a
  * response to a specific failure: `useDashboardOverview` fires six requests in one
@@ -25,13 +25,9 @@ import { EMPTY_ADMIN_KPIS } from '../../data/adminEmpty';
  * numbers are worse when wrong, not better — a platform admin who reads a wrong
  * figure acts on it for every school at once — so nothing here is ever derived
  * across cards and nothing falls back to a default.
- *
- * What is deliberately *absent* is a platform revenue chart. See `RevenueCard`:
- * the endpoint returns totals, every analytics route is school-scoped, and a curve
- * through `mtdRevenue` and `ytdRevenue` would be invented.
  */
 const AdminOverview = () => {
-  const { kpis, revenue, period, setPeriod } = useAdminDashboard();
+  const { kpis, revenue, series, period, setPeriod } = useAdminDashboard();
   const [reloadKey, setReloadKey] = useState(0);
 
   const refresh = useCallback(() => setReloadKey((key) => key + 1), []);
@@ -102,9 +98,11 @@ const AdminOverview = () => {
             <div className="lg:col-span-2">
               <RevenueCard
                 revenue={revenue.data}
+                series={series.data}
                 period={period}
                 onPeriodChange={setPeriod}
                 loading={revenue.loading}
+                seriesLoading={series.loading}
                 error={revenue.error}
               />
             </div>

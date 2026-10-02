@@ -179,6 +179,19 @@ const login = ({ body }) => {
 
 
 const signup = ({ body }) => {
+  // `features.selfSignupEnabled`, checked **before** the duplicate-email probe below
+  // — the same ordering the real handler uses, and for the same reason: with
+  // registration closed, a probe that runs first is an oracle answering "does this
+  // email have an account here?" to anyone who can fill in a form.
+  const settings = currentPlatformSettings();
+  if (settings.features.selfSignupEnabled === false) {
+    throw new MockError(
+      503,
+      'Registration is closed at the moment. A school administrator can invite you by email.',
+      'SELF_SIGNUP_DISABLED'
+    );
+  }
+
   const name = String(body?.name || '').trim();
   const email = String(body?.email || '').trim().toLowerCase();
   const phone = String(body?.phone || '').trim();
@@ -4243,6 +4256,155 @@ const PLATFORM_ADS = [
   { _id: objectId(34), schoolName: 'Ashanti Grove School', headline: 'Scholarships available', placement: 'auth_aside', status: 'rejected', imageAlt: 'Ashanti Grove School scholarship advert', linkUrl: 'https://example.com/grove/scholarship', sortWeight: 0, endsAt: '2026-09-30T00:00:00.000Z', rejectedReason: 'The creative names a fee discount. Fee terms cannot be advertised without the school confirming them in writing.' },
 ];
 
+/**
+ * `GET /admin/revenue/series`
+ *
+ * Reproduces the one behaviour that matters and is easy to get wrong: **the series
+ * has no gaps.** A month nobody paid is an explicit `0`, not a missing point, because
+ * a chart that draws a straight line across a month of no revenue presents nothing as
+ * growth. The calendar is walked rather than the totals mapped, for that reason.
+ *
+ * Every fifth month is deliberately left empty, so the gap-filling is observable in
+ * development and not only in a test.
+ */
+const adminRevenueSeries = ({ user, query }) => {
+  requireSuperAdmin(user);
+
+  const now = new Date();
+  const bucket = query.bucket === 'day' ? 'day' : 'month';
+  const period = query.period || 'ytd';
+
+  let from;
+  if (period === 'mtd') from = new Date(now.getFullYear(), now.getMonth(), 1);
+  else if (period === 'last30') from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  else if (period === 'all') from = new Date(now.getFullYear() - 2, 0, 1);
+  else from = new Date(now.getFullYear(), 0, 1);
+
+  const to = new Date(now.getFullYear(), now.getMonth(), 15);
+  const rng = makeRng(4242);
+  const totals = new Map();
+  const pad = (value) => String(value).padStart(2, '0');
+  const keyFor = (date) =>
+    bucket === 'day'
+      ? `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+      : `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
+
+  const series = [];
+  const walk = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  let index = 0;
+  while (walk <= to && series.length < (bucket === 'day' ? 400 : 120)) {
+    index += 1;
+    const empty = index % 5 === 3;
+    if (!empty) {
+      const entry = totals.get(keyFor(walk)) || { totalRevenue: 0, totalPayments: 0 };
+      entry.totalRevenue += 180000 + Math.round(rng() * 420000);
+      entry.totalPayments += 1;
+      totals.set(keyFor(walk), entry);
+    }
+    const entry = totals.get(keyFor(walk)) || { totalRevenue: 0, totalPayments: 0 };
+    series.push({ period: keyFor(walk), totalRevenue: entry.totalRevenue, totalPayments: entry.totalPayments });
+    if (bucket === 'day') walk.setDate(walk.getDate() + 1);
+    else walk.setMonth(walk.getMonth() + 1);
+  }
+
+  return {
+    series,
+    filters: { bucket, period, startDate: from, endDate: to, plan: null, region: null },
+    totals: {
+      totalRevenue: series.reduce((sum, point) => sum + point.totalRevenue, 0),
+      totalPayments: series.reduce((sum, point) => sum + point.totalPayments, 0),
+    },
+  };
+};
+
+/**
+ * `GET`/`PUT /admin/settings`
+ *
+ * A module-level singleton keyed the same way the platform schools are: rebuilt when
+ * the mock world is, and mutated in place between calls, because a settings write
+ * that resets on every read is a settings page that appears to save nothing.
+ */
+let platformSettingsState = null;
+let platformSettingsKey = null;
+
+const currentPlatformSettings = () => {
+  const key = getDb()?.schools?.[0]?._id || 'none';
+  if (platformSettingsState && platformSettingsKey === key) return platformSettingsState;
+
+  platformSettingsKey = key;
+  platformSettingsState = {
+    _id: objectId(1),
+    singletonKey: 'platform',
+    defaultMarkupPercent: 5,
+    features: { adsEnabled: true, selfSignupEnabled: true, trialDays: 30 },
+    maintenance: { mode: 'off', message: '' },
+    updatedBy: null,
+    updatedAt: null,
+  };
+  return platformSettingsState;
+};
+
+/**
+ * The mock's platform settings, for `adapter.js`'s maintenance check.
+ *
+ * Exported because the adapter is the only place every request passes through, and
+ * the mock has no middleware chain to hang the rule on.
+ */
+export const getMockPlatformSettings = () => currentPlatformSettings();
+
+const adminGetSettings = ({ user }) => {
+  requireSuperAdmin(user);
+  return currentPlatformSettings();
+};
+
+const adminUpdateSettings = ({ user, body }) => {
+  requireSuperAdmin(user);
+
+  const current = currentPlatformSettings();
+  // Deep-merged per branch, mirroring the server: a patch that omits `features` must
+  // not blank it. A shallow merge here is the bug the real endpoint is shaped to
+  // avoid, and reproducing it here would teach the frontend to send whole documents.
+  const next = {
+    ...current,
+    ...body,
+    features: { ...current.features, ...(body?.features || {}) },
+    maintenance: { ...current.maintenance, ...(body?.maintenance || {}) },
+    updatedAt: new Date().toISOString(),
+    updatedBy: user?._id || null,
+  };
+
+  // Bookkeeping fields are excluded from the diff, as they are on the server: `before`
+  // has `updatedAt: null` and `after` carries the stamp mongoose just wrote, so
+  // without this every save would report `updatedAt` and `updatedBy` alongside the
+  // field that actually changed — and the real change is the one being looked for.
+  const DIFF_EXCLUDED = new Set([
+    '_id',
+    '__v',
+    'createdAt',
+    'updatedAt',
+    'updatedBy',
+    'singletonKey',
+  ]);
+
+  const changed = [];
+  const walk = (before, after, path) => {
+    if (path && DIFF_EXCLUDED.has(path.split('.').pop())) return;
+    if (before && after && typeof before === 'object' && typeof after === 'object') {
+      Object.keys({ ...before, ...after }).forEach((key) =>
+        walk(before[key], after[key], path ? `${path}.${key}` : key)
+      );
+      return;
+    }
+    if (String(before ?? '') !== String(after ?? '')) {
+      changed.push({ path, from: before ?? null, to: after ?? null });
+    }
+  };
+  walk(current, next, '');
+
+  platformSettingsState = next;
+  return { ...next, changed };
+};
+
 const adminListSchoolAds = ({ user, query }) => {
   requireSuperAdmin(user);
 
@@ -4471,8 +4633,20 @@ const getSettings = ({ params, user }) => {
   };
 };
 
-const listSchoolAds = () => ({
-  ads: [
+/**
+ * `GET /public/school-ads`
+ *
+ * Honours `features.adsEnabled`, exactly as the real handler does: an **empty list
+ * with `adsEnabled: false`**, never an error. The login page's only "no ads" state
+ * today is an empty array, and a mock that answered with a 503 here would give it a
+ * failure mode it does not have against the real API.
+ */
+const listSchoolAds = () => {
+  const settings = currentPlatformSettings();
+  if (settings.features.adsEnabled === false) return { ads: [], adsEnabled: false };
+
+  return {
+    ads: [
     {
       _id: objectId(11),
       schoolName: 'Greenfield Academy',
@@ -4489,8 +4663,10 @@ const listSchoolAds = () => ({
       imageAlt: 'Riverside International School main gate',
       linkUrl: 'https://example.com/riverside/apply',
     },
-  ],
-});
+    ],
+    adsEnabled: true,
+  };
+};
 
 const health = () => ({ status: 'ok', mock: true, uptimeSeconds: Math.round(process.uptime?.() || 0) });
 
@@ -4715,7 +4891,10 @@ export const ROUTES = [
   ['PUT', /^\/admin\/school-ads\/(?<adId>[^/]+)\/approve$/, adminReviewSchoolAd],
   ['GET', /^\/admin\/schools$/, adminListSchools],
   ['GET', /^\/admin\/school-ads$/, adminListSchoolAds],
+  ['GET', /^\/admin\/revenue\/series$/, adminRevenueSeries],
   ['GET', /^\/admin\/revenue$/, adminRevenue],
+  ['GET', /^\/admin\/settings$/, adminGetSettings],
+  ['PUT', /^\/admin\/settings$/, adminUpdateSettings],
   ['GET', /^\/admin\/dashboard$/, adminDashboard],
 
   // `GET /users` was absent from this table, which meant the school console's

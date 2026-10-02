@@ -366,6 +366,84 @@ export const deleteSchoolAd = async (adId) => {
   }
 };
 
+/**
+ * `GET /admin/revenue/series` — platform revenue over time, bucketed.
+ *
+ * `bucket` is `month` or `day` and is sent explicitly rather than left to the
+ * server: 30 daily points for "last 30 days" and 24 monthly points for "this year"
+ * are different charts, and a caller that let the server choose would get a shape
+ * it did not ask for.
+ *
+ * The series has **no gaps by contract** — a month nobody paid comes back as an
+ * explicit `0` rather than being omitted. That is the difference between a chart
+ * that dips to the baseline and one that draws a straight line across a month of no
+ * revenue and calls it growth, and it is why `RevenueCard` can plot the response
+ * directly with no gap handling of its own.
+ *
+ * Money is pesewas, like every other figure on this router.
+ */
+export const getRevenueSeries = async ({
+  bucket = 'month',
+  period = 'ytd',
+  startDate,
+  endDate,
+  plan = '',
+  region = '',
+} = {}) => {
+  try {
+    const { data } = await api.get('/admin/revenue/series', {
+      params: {
+        bucket,
+        period,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        plan: plan || undefined,
+        region: region || undefined,
+      },
+    });
+    return data.data || { series: [], filters: {}, totals: {} };
+  } catch (error) {
+    throw toApiError(error, 'The revenue trend could not be loaded.');
+  }
+};
+
+/**
+ * `GET /admin/settings` — platform configuration.
+ *
+ * The server merges its defaults under whatever is stored, so this returns real
+ * values before any settings document exists and there is no "not configured yet"
+ * state for the page to handle.
+ */
+export const getPlatformSettings = async () => {
+  try {
+    const { data } = await api.get('/admin/settings');
+    return data.data || {};
+  } catch (error) {
+    throw toApiError(error, 'Platform settings could not be loaded.');
+  }
+};
+
+/**
+ * `PUT /admin/settings` — patch platform configuration.
+ *
+ * A **patch**: send only the keys being changed. The server's schema has every
+ * field optional for exactly this reason, so a caller that read the document, edited
+ * one flag and wrote the whole thing back cannot blank the settings it did not mean
+ * to touch.
+ *
+ * The response carries `changed` — flat leaf paths with both sides of each — which
+ * is the honest record of what the write actually did, and what the activity log
+ * entry was built from.
+ */
+export const updatePlatformSettings = async (patch) => {
+  try {
+    const { data } = await api.put('/admin/settings', patch);
+    return data.data || {};
+  } catch (error) {
+    throw toApiError(error, 'Platform settings could not be saved.');
+  }
+};
+
 export default {
   SUBSCRIPTION_PLANS,
   SCHOOL_STATUSES,
@@ -377,6 +455,7 @@ export default {
   suspendSchool,
   unsuspendSchool,
   getRevenue,
+  getRevenueSeries,
   getPlatformSmsBalance,
   listPlatformUsers,
   listSchoolAds,
@@ -384,4 +463,6 @@ export default {
   updateSchoolAd,
   reviewSchoolAd,
   deleteSchoolAd,
+  getPlatformSettings,
+  updatePlatformSettings,
 };

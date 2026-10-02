@@ -177,6 +177,55 @@ export const mockAdapter = async (config) => {
   try {
     await applyScenario(method, path);
 
+    /*
+     * Maintenance mode, applied before route resolution.
+     *
+     * On the real server this is `middleware/maintenance.js`, mounted on `/api`
+     * between `healthRoute` and every other router. The mock has no middleware chain,
+     * so the rule is reproduced at the one point every request passes through — and
+     * it is worth reproducing, because without it an operator toggling
+     * `maintenance.mode` in the platform console would watch a switch do nothing.
+     *
+     * The exemptions and method rules are copied, not approximated: `/api/health`
+     * stays reachable because the keep-alive probe hits it, and `readonly` refuses
+     * writes while letting reads through.
+     *
+     * `/api/webhooks/*` is deliberately **not** exempted here, because the real guard
+     * does not exempt it either — providers are configured against a root URL that
+     * never reaches this adapter. Mocking an exemption the server does not have would
+     * hide a genuine difference.
+     *
+     * `/api/admin/settings` **is** exempted, because the real guard exempts it. Without
+     * that, maintenance mode is a one-way door: turning it on refuses every write,
+     * including the one that would turn it off.
+     */
+    const { getMockPlatformSettings } = await import('./handlers.js');
+    const maintenance = getMockPlatformSettings().maintenance || {};
+    if (maintenance.mode && maintenance.mode !== 'off') {
+      const cleanPath = path.replace(/\/$/, '') || '/';
+      const isRead = ['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase());
+      const exempt =
+        cleanPath === '/api/health' ||
+        cleanPath === '/health' ||
+        // `toPath` returns whatever the client's baseURL produces, so this may or
+        // may not carry the `/api` prefix depending on `VITE_API_BASE_URL`. Matching
+        // the suffix rather than an exact string keeps the exemption working in both
+        // shapes — and an exemption that silently stops matching in the mock is
+        // exactly how a one-way door gets reintroduced unnoticed.
+        cleanPath.endsWith('/admin/settings');
+
+      if (!exempt && (maintenance.mode === 'on' || !isRead)) {
+        throw new MockError(
+          503,
+          maintenance.message ||
+            (maintenance.mode === 'readonly'
+              ? 'SukuuPay is in maintenance mode. You can read everything as normal, but changes are paused.'
+              : 'SukuuPay is down for maintenance. Please try again shortly.'),
+          maintenance.mode === 'readonly' ? 'MAINTENANCE_READONLY' : 'MAINTENANCE_MODE'
+        );
+      }
+    }
+
     const route = resolveRoute(method, path);
     if (!route) {
       // An unrouted call is a real finding, not a shrug: it means the frontend
