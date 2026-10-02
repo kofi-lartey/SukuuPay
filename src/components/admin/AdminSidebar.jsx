@@ -1,14 +1,24 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
+  Activity,
   Building2,
+  Eye,
+  FileBarChart,
   Gauge,
+  Images,
   Megaphone,
+  MessageSquare,
+  Receipt,
+  ScrollText,
   Settings,
+  TrendingUp,
   Users,
+  Wallet,
   X,
 } from 'lucide-react';
 import { ROUTES, isNavItemActive, visibleAdminNav } from '../../utils/constants';
+import { useImpersonation } from '../../hooks/useImpersonation';
 
 /**
  * lucide name → component, resolving the strings in `ADMIN_NAV`.
@@ -19,13 +29,27 @@ import { ROUTES, isNavItemActive, visibleAdminNav } from '../../utils/constants'
  * out of is harder to follow than two short tables that each name what they use.
  * The *config* is shared — `ADMIN_NAV` and `DASHBOARD_NAV` follow one contract —
  * which is where drift would actually hurt.
+ *
+ * Every icon named in `ADMIN_NAV` must appear here. `ICONS[item.icon] || Gauge` means
+ * a missing entry renders the platform glyph rather than crashing, which is the
+ * right failure for the rail but a silent one — so the fallback is deliberately the
+ * least misleading icon available rather than something plausible-looking.
  */
 const ICONS = {
-  Gauge,
+  Activity,
   Building2,
-  Users,
+  Eye,
+  FileBarChart,
+  Gauge,
+  Images,
   Megaphone,
+  MessageSquare,
+  Receipt,
+  ScrollText,
   Settings,
+  TrendingUp,
+  Users,
+  Wallet,
 };
 
 /**
@@ -44,8 +68,33 @@ const ICONS = {
  */
 const AdminSidebar = ({ variant = 'fixed', className = '', onClose }) => {
   const { pathname } = useLocation();
+  const { isImpersonating, session } = useImpersonation();
   const groups = visibleAdminNav('super_admin');
   const isDrawer = variant === 'drawer';
+
+  /*
+   * **The rail is NOT filtered during an impersonation**, and the reason it used to
+   * be is the whole argument.
+   *
+   * It hid every platform-wide module so the rail would "agree with the guard". But
+   * the server does not agree — it deliberately serves platform-wide reads during a
+   * support session and records each one against
+   * `ImpersonationSession.actionsCount`. Hiding the links while the API would happily
+   * answer them is the same incoherence as the guard's redirect: a restriction
+   * enforced in one of two places, which reads as a product decision and is actually
+   * an accident of layering.
+   *
+   * It was also the more annoying of the two. An owner mid-support-call who needs a
+   * platform figure would have found six modules missing and no explanation, and
+   * every workaround costs one of ten hourly impersonation starts.
+   *
+   * The risk that motivated it — an operator not realising they had left the school —
+   * is handled where it actually matters: `ImpersonationBanner` reads "Platform data"
+   * instead of "Viewing as" whenever the current path is outside the impersonated
+   * school. Telling someone the truth in the one place they cannot miss is better
+   * than preventing them from seeing it.
+   */
+  const visibleGroups = groups;
 
   return (
     <aside
@@ -89,7 +138,7 @@ const AdminSidebar = ({ variant = 'fixed', className = '', onClose }) => {
 
       <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
         <ul className="flex flex-col gap-1">
-          {groups.flatMap((group) => group.items).map((item) => {
+          {visibleGroups.flatMap((group) => group.items).map((item) => {
             const Icon = ICONS[item.icon] || Gauge;
             const active = isNavItemActive(pathname, item);
 
@@ -139,6 +188,22 @@ const AdminSidebar = ({ variant = 'fixed', className = '', onClose }) => {
         >
           Back to website
         </Link>
+
+        {/*
+          Which school, while impersonating.
+
+          Only the school name, and deliberately nothing about the other modules —
+          they are all reachable now, and this rail does not pretend otherwise. The
+          banner at the top of the viewport carries the state (and changes wording
+          when the operator is off the school's pages); this repeats the one fact that
+          belongs next to the navigation, because the rail is what the eye follows
+          down and the banner can be scrolled past a long payments table.
+        */}
+        {isImpersonating && session?.schoolName && (
+          <p className="mt-2 truncate px-1 text-center text-[11px] font-bold text-amber-700">
+            {session.schoolName}
+          </p>
+        )}
       </div>
     </aside>
   );

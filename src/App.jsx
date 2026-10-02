@@ -37,10 +37,38 @@ import Step3ImportStudents from './pages/onboarding/Step3ImportStudents';
 import Step4SendReminder from './pages/onboarding/Step4SendReminder';
 import AdminLayout from './components/admin/AdminLayout';
 import AdminOverview from './pages/admin/AdminOverview';
-import AdminSchools from './pages/admin/AdminSchools';
-import AdminUsers from './pages/admin/AdminUsers';
 import AdminContent from './pages/admin/AdminContent';
-import AdminSettings from './pages/admin/AdminSettings';
+import SchoolsList from './pages/admin/schools/SchoolsList';
+import SchoolDetail from './pages/admin/schools/SchoolDetail';
+import SchoolCreate from './pages/admin/schools/SchoolCreate';
+import UsersList from './pages/admin/users/UsersList';
+import UserDetail from './pages/admin/users/UserDetail';
+import PaymentsList from './pages/admin/payments/PaymentsList';
+import PaymentDetail from './pages/admin/payments/PaymentDetail';
+import FinanceOverview from './pages/admin/finance/FinanceOverview';
+import LedgerList from './pages/admin/finance/LedgerList';
+import DisbursementsList from './pages/admin/finance/DisbursementsList';
+import DisbursementDetail from './pages/admin/finance/DisbursementDetail';
+import Reconciliation from './pages/admin/finance/Reconciliation';
+import InvoicesList from './pages/admin/finance/InvoicesList';
+import SmsOverview from './pages/admin/sms/SmsOverview';
+import SmsCredits from './pages/admin/sms/SmsCredits';
+import SmsLogs from './pages/admin/sms/SmsLogs';
+import AnnouncementsList from './pages/admin/announcements/AnnouncementsList';
+import AnnouncementCreate from './pages/admin/announcements/AnnouncementCreate';
+import AnnouncementEdit from './pages/admin/announcements/AnnouncementEdit';
+import AuditLogList from './pages/admin/auditLogs/AuditLogList';
+import AuditLogDetail from './pages/admin/auditLogs/AuditLogDetail';
+import AnalyticsDashboard from './pages/admin/analytics/AnalyticsDashboard';
+import RevenueAnalytics from './pages/admin/analytics/RevenueAnalytics';
+import SchoolsAnalytics from './pages/admin/analytics/SchoolsAnalytics';
+import CollectionRateAnalytics from './pages/admin/analytics/CollectionRateAnalytics';
+import SystemHealth from './pages/admin/health/SystemHealth';
+import ReportsCenter from './pages/admin/reports/ReportsCenter';
+import PlatformSettings from './pages/admin/settings/PlatformSettings';
+import ImpersonationHistory, {
+  ImpersonationSessionDetail,
+} from './pages/admin/impersonation/ImpersonationHistory';
 import { Terms, Privacy } from './pages/Legal';
 import NotFound from './pages/NotFound';
 
@@ -171,14 +199,70 @@ function App() {
               Five modules, one guard, one nav definition — same contract as
               /dashboard, so a new console module is one <Route> plus one entry in
               `ADMIN_NAV`.
+
+              **The console is now eighteen modules**, and the ordering below is not
+              alphabetical — it is the order the rail groups them in (`ADMIN_NAV`),
+              so that a route added here is added in the place a reader would look for
+              it. Two placement rules are load-bearing and both are about Express-
+              shaped patterns under React Router, which matches in declaration order:
+
+                - **`schools/new` before `schools/:schoolId`.** Reversed, `new` is read
+                  as a school id, and the create form becomes a school detail page for
+                  a school named "new".
+                - **`announcements/new` before `announcements/:id`,** for the same
+                  reason, and **disbursements/:batchId` last** among its siblings so it
+                  cannot shadow the list.
+
+              `AdminGuard` does more than check the role: while an impersonation
+              session is open it redirects every path outside the impersonated
+              school's scope back to that school. The server enforces the read-only
+              half; this is the half that stops an operator wandering into everyone's
+              finance while wearing one school's banner.
             */}
             <Route element={<AdminGuard />}>
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<AdminOverview />} />
-                <Route path="schools" element={<AdminSchools />} />
-                <Route path="users" element={<AdminUsers />} />
+
+                <Route path="schools" element={<SchoolsList />} />
+                <Route path="schools/new" element={<SchoolCreate />} />
+                <Route path="schools/:schoolId" element={<SchoolDetail />} />
+
+                <Route path="users" element={<UsersList />} />
+                <Route path="users/:userId" element={<UserDetail />} />
+
+                <Route path="payments" element={<PaymentsList />} />
+                <Route path="payments/:paymentId" element={<PaymentDetail />} />
+
+                <Route path="finance" element={<FinanceOverview />} />
+                <Route path="finance/ledger" element={<LedgerList />} />
+                <Route path="finance/disbursements" element={<DisbursementsList />} />
+                <Route path="finance/disbursements/:batchId" element={<DisbursementDetail />} />
+                <Route path="finance/reconciliation" element={<Reconciliation />} />
+                <Route path="finance/invoices" element={<InvoicesList />} />
+
+                <Route path="sms" element={<SmsOverview />} />
+                <Route path="sms/credits" element={<SmsCredits />} />
+                <Route path="sms/logs" element={<SmsLogs />} />
+
+                <Route path="announcements" element={<AnnouncementsList />} />
+                <Route path="announcements/new" element={<AnnouncementCreate />} />
+                <Route path="announcements/:id" element={<AnnouncementEdit />} />
+
+                <Route path="audit-logs" element={<AuditLogList />} />
+                <Route path="audit-logs/:id" element={<AuditLogDetail />} />
+                <Route path="impersonation" element={<ImpersonationHistory />} />
+                <Route path="impersonation/:sessionId" element={<ImpersonationSessionDetail />} />
+
+                <Route path="analytics" element={<AnalyticsDashboard />} />
+                <Route path="analytics/revenue" element={<RevenueAnalytics />} />
+                <Route path="analytics/schools" element={<SchoolsAnalytics />} />
+                <Route path="analytics/collection-rate" element={<CollectionRateAnalytics />} />
+
+                <Route path="health" element={<SystemHealth />} />
+                <Route path="reports" element={<ReportsCenter />} />
                 <Route path="content" element={<AdminContent />} />
-                <Route path="settings" element={<AdminSettings />} />
+                <Route path="settings" element={<PlatformSettings />} />
+
                 <Route path="*" element={<NotFound variant="admin" />} />
               </Route>
             </Route>

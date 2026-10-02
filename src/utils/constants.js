@@ -40,6 +40,61 @@ export const ROUTES = {
   ADMIN_USERS: '/admin/users',
   ADMIN_CONTENT: '/admin/content',
   ADMIN_SETTINGS: '/admin/settings',
+  ADMIN_PAYMENTS: '/admin/payments',
+  ADMIN_FINANCE: '/admin/finance',
+  ADMIN_SMS: '/admin/sms',
+  ADMIN_ANNOUNCEMENTS: '/admin/announcements',
+  ADMIN_AUDIT_LOGS: '/admin/audit-logs',
+  ADMIN_ANALYTICS: '/admin/analytics',
+  ADMIN_HEALTH: '/admin/health',
+  ADMIN_REPORTS: '/admin/reports',
+  ADMIN_IMPERSONATION: '/admin/impersonation',
+};
+
+/**
+ * Every platform-console path in one object.
+ *
+ * `ROUTES` above is flat and is what components actually import. This is the same
+ * thing grouped by subject, for the two places that want the whole console
+ * enumerated at once rather than a single path: the impersonation banner's "leave
+ * and go back to where you were" behaviour, and the tests that assert every nav
+ * entry resolves to a real route.
+ *
+ * The two must not drift. `ADMIN_ROUTES` is the single source for the grouped form
+ * and every value here is written out longhand rather than derived, because a
+ * derived map cannot be checked against the router — and a nav entry pointing at a
+ * route that was never registered is a dead link that renders perfectly.
+ */
+export const ADMIN_ROUTES = {
+  OVERVIEW: ROUTES.ADMIN,
+  SCHOOLS: ROUTES.ADMIN_SCHOOLS,
+  USERS: ROUTES.ADMIN_USERS,
+  PAYMENTS: ROUTES.ADMIN_PAYMENTS,
+  FINANCE: ROUTES.ADMIN_FINANCE,
+  SMS: ROUTES.ADMIN_SMS,
+  ANNOUNCEMENTS: ROUTES.ADMIN_ANNOUNCEMENTS,
+  AUDIT_LOGS: ROUTES.ADMIN_AUDIT_LOGS,
+  ANALYTICS: ROUTES.ADMIN_ANALYTICS,
+  HEALTH: ROUTES.ADMIN_HEALTH,
+  SETTINGS: ROUTES.ADMIN_SETTINGS,
+  REPORTS: ROUTES.ADMIN_REPORTS,
+
+  // Nested paths, split out rather than concatenated at each call site so a
+  // `/admin/finance/disbursements/:id` route is written once.
+  SCHOOL_DETAIL: `${ROUTES.ADMIN_SCHOOLS}/:schoolId`,
+  USER_DETAIL: `${ROUTES.ADMIN_USERS}/:userId`,
+  PAYMENT_DETAIL: `${ROUTES.ADMIN_PAYMENTS}/:paymentId`,
+  LEDGER: `${ROUTES.ADMIN_FINANCE}/ledger`,
+  DISBURSEMENTS: `${ROUTES.ADMIN_FINANCE}/disbursements`,
+  DISBURSEMENT_DETAIL: `${ROUTES.ADMIN_FINANCE}/disbursements/:batchId`,
+  RECONCILIATION: `${ROUTES.ADMIN_FINANCE}/reconciliation`,
+  INVOICES: `${ROUTES.ADMIN_FINANCE}/invoices`,
+  SMS_CREDITS: `${ROUTES.ADMIN_SMS}/credits`,
+  SMS_LOGS: `${ROUTES.ADMIN_SMS}/logs`,
+  REVENUE_ANALYTICS: `${ROUTES.ADMIN_ANALYTICS}/revenue`,
+  SCHOOLS_ANALYTICS: `${ROUTES.ADMIN_ANALYTICS}/schools`,
+  COLLECTION_RATE_ANALYTICS: `${ROUTES.ADMIN_ANALYTICS}/collection-rate`,
+  IMPERSONATION_SESSION: `${ROUTES.ADMIN_IMPERSONATION}/:sessionId`,
 };
 
 export const APP_NAME = 'SukuuPay';
@@ -371,16 +426,99 @@ export const ADMIN_NAV = [
     label: 'Platform',
     items: [
       {
+        to: ROUTES.ADMIN_ANALYTICS,
+        label: 'Analytics',
+        icon: 'TrendingUp',
+        description: 'Revenue, schools and collection rate across the platform.',
+      },
+      {
+        to: ROUTES.ADMIN_REPORTS,
+        label: 'Reports',
+        icon: 'FileBarChart',
+        description: 'Platform, school-performance, growth and churn reports.',
+      },
+      {
+        to: ROUTES.ADMIN_SMS,
+        label: 'SMS',
+        icon: 'MessageSquare',
+        description: 'Platform SMS credits, delivery history and broadcasts.',
+      },
+      {
+        to: ROUTES.ADMIN_ANNOUNCEMENTS,
+        label: 'Announcements',
+        icon: 'Megaphone',
+        description: 'Notices shown to every school, or to selected schools.',
+      },
+    ],
+  },
+  {
+    id: 'money',
+    label: 'Money',
+    items: [
+      {
+        to: ROUTES.ADMIN_PAYMENTS,
+        label: 'Payments',
+        icon: 'Receipt',
+        description: 'Every payment taken on the platform, and refunds.',
+      },
+      {
+        to: ROUTES.ADMIN_FINANCE,
+        label: 'Finance',
+        icon: 'Wallet',
+        description: 'Platform revenue, the ledger, and school disbursements.',
+      },
+    ],
+  },
+  {
+    id: 'oversight',
+    label: 'Oversight',
+    items: [
+      {
+        to: ROUTES.ADMIN_AUDIT_LOGS,
+        label: 'Audit log',
+        icon: 'ScrollText',
+        description: 'Who changed what, across every school and every admin.',
+      },
+      {
+        /*
+          Not a generic oversight module like the two above it. Impersonation is the
+          only way the platform owner can see a tenant's records as that tenant sees
+          them, so "has anyone been inside a school, and what did they look at" is
+          a question a school admin is entitled to ask about their own data and
+          deserves a dedicated screen with the reason and the action count on it.
+
+          Listed beside the audit log rather than inside it because the audit log
+          filters by action and would need `admin.impersonate_start` plumbed through
+          three filters to show the same rows with less context.
+        */
+        to: ROUTES.ADMIN_IMPERSONATION,
+        label: 'Impersonation',
+        icon: 'Eye',
+        description: 'Every session opened on a school, and what was looked at.',
+      },
+      {
+        to: ROUTES.ADMIN_HEALTH,
+        label: 'Health',
+        icon: 'Activity',
+        description: 'Databases, gateways, SMS provider and scheduled jobs.',
+      },
+    ],
+  },
+  {
+    id: 'configuration',
+    label: 'Configuration',
+    items: [
+      {
         to: ROUTES.ADMIN_CONTENT,
         label: 'Content',
-        icon: 'Megaphone',
+        icon: 'Images',
         description: 'Review the creatives shown on the public pages.',
       },
       {
         to: ROUTES.ADMIN_SETTINGS,
         label: 'Settings',
         icon: 'Settings',
-        description: 'Platform defaults and service health.',
+        description: 'Platform defaults, commission, disbursement and support.',
       },
     ],
   },

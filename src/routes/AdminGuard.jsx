@@ -62,6 +62,38 @@ const AdminGuard = () => {
     );
   }
 
+  /*
+   * Impersonation does **not** narrow the routes.
+   *
+   * This used to redirect any path outside the impersonated school back to it, and
+   * `AdminSidebar` used to hide the platform-wide rail entries to match. Both are
+   * gone, deliberately, and the reasoning is worth keeping because the instinct that
+   * produced them is reasonable and wrong:
+   *
+   * The server deliberately *serves* platform-wide reads during an impersonation
+   * and records every one against `ImpersonationSession.actionsCount`
+   * (`middleware/impersonation.js`, and three services written against that rule).
+   * So a client-side block was never a security boundary — it was a suggestion, and
+   * it contradicted the layer that actually decides. Containment enforced in only
+   * one of two places is the defect, not the safety.
+   *
+   * What it cost: ending and restarting a session burns one of ten hourly
+   * impersonation starts (`rateLimit` on `/admin/impersonate/:schoolId`), and
+   * somebody checking a number mid-support-call has to pay that. What it bought was
+   * protection against a confusion the platform pages largely prevent themselves —
+   * `/admin/finance` is titled "Platform revenue" and `/admin/payments` says "All
+   * payments", so neither reads as one school's data.
+   *
+   * The genuine risk — an operator not realising they had left the school — is now
+   * handled by `ImpersonationBanner`, which says which school they are acting as
+   * *and*, when the path is platform-wide, that what they are looking at is
+   * platform data rather than that school's. Saying the true thing beats refusing
+   * to let them see it.
+   *
+   * The boundary that *is* real is unchanged: every write is refused server-side
+   * while impersonating, except `POST /admin/impersonate/end`.
+   */
+
   return <Outlet />;
 };
 

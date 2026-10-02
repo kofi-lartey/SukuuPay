@@ -76,6 +76,27 @@ api.interceptors.response.use(
     }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      /*
+       * An ended impersonation, and it must not reach the refresh branch.
+       *
+       * The impersonation middleware answers a request carrying a dead session
+       * with `401 { impersonationEnded: true }` — see
+       * `Backend/src/middleware/impersonation.js`. Letting that fall through to the
+       * refresh below would be actively wrong twice over: the refresh token was
+       * minted for the operator's *real* session, so the replay would be re-issued
+       * a full platform token and carry on with platform access that nobody asked
+       * for; and the impersonation is over, so the console the operator is sitting
+       * in is not the one those tokens belong to.
+       *
+       * The token is cleared and the app reloads to `/login`, which re-runs the
+       * guards from scratch against a clean identity. That is the honest outcome:
+       * an impersonation ends by ending the session.
+       */
+      if (error.response?.data?.impersonationEnded) {
+        clearSession();
+        return Promise.reject(error);
+      }
+
       originalRequest._retry = true;
       try {
         const refreshToken = localStorage.getItem('refresh_token');

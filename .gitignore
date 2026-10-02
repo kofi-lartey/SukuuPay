@@ -42,6 +42,11 @@ build/
 # commit-eligible — and that bundle inlines the mock fixtures and the
 # harness's own PAY_STUDENT record into a compiled asset.
 .mockcheck/out-dashboard/
+# Same reasoning for the finance harness's SSR bundle.
+.mockcheck/out-finance/
+# And for the platform console one — `npm run check:admin` was already writing
+# an unignored bundle before this line existed.
+.mockcheck/out-admin/
 
 # Editor
 .vscode/*
@@ -58,3 +63,7 @@ Thumbs.db
 # Test + coverage output
 coverage/
 .nyc_output/
+.mockcheck/out-banner/
+.mockcheck/out-cards/
+.mockcheck/out-console/
+

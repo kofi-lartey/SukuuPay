@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import AdminSidebar from './AdminSidebar';
 import AdminTopbar from './AdminTopbar';
+import ImpersonationBanner from './ImpersonationBanner';
 import { useAuth } from '../../context/AuthContext';
 
 /**
@@ -90,6 +91,19 @@ const AdminLayout = () => {
             navOpen={drawerOpen}
             onOpenNav={() => setDrawerOpen(true)}
           />
+
+          {/*
+            One banner for the whole console, above the content and below the
+            header.
+
+            Rendered here rather than in each page because it is a property of the
+            *session*, not of any screen, and a per-page banner would flash on every
+            navigation — a flashing warning is a warning people stop reading.
+            `sticky top-16` pins it under the 4rem header, so it stays in view down
+            a long payments table, which is exactly where an operator stops
+            remembering they are in someone else's school.
+          */}
+          <ImpersonationBanner />
 
           {/*
             `min-w-0` is load-bearing, not defensive: a grid child defaults to

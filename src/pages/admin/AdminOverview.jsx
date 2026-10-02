@@ -5,32 +5,58 @@ import EmptyState from '../../components/dashboard/EmptyState';
 import KpiRow from './overview/KpiRow';
 import RevenueCard from './overview/RevenueCard';
 import RecentSchoolsCard from './overview/RecentSchoolsCard';
+import EconomicsRow from './overview/EconomicsRow';
+import AtRiskCard from './overview/AtRiskCard';
+import HealthCard from './overview/HealthCard';
+import DisbursementQueueCard, {
+  TopSchoolsCard,
+} from './overview/DisbursementQueueCard';
 import { PlatformCompositionCard, SmsBalanceCard } from './overview/PlatformCompositionCard';
 import { useAdminDashboard } from '../../hooks/useAdminDashboard';
+import { usePlatformOverview } from '../../hooks/usePlatformOverview';
 import { EMPTY_ADMIN_KPIS } from '../../data/adminEmpty';
 
 /**
  * The platform console's Overview.
  *
- * One request for the standing figures (`GET /admin/dashboard`), one for the
- * period totals (`GET /admin/revenue`), one for the trend
- * (`GET /admin/revenue/series`), issued independently by `useAdminDashboard`.
- * None is merged into another, and a failure in any blanks only its own card.
+ * Two data layers, eight requests, and **not one of them is merged into another**.
  *
- * That is the whole design difference from the school Overview, and it is a
- * response to a specific failure: `useDashboardOverview` fires six requests in one
- * `Promise.allSettled`, merges them by hand into a synthetic object, and treats a
- * failed request as zero. The result was a live bursar's screen showing a school
- * that did not exist and revenue that had never been collected. An operator's
- * numbers are worse when wrong, not better — a platform admin who reads a wrong
- * figure acts on it for every school at once — so nothing here is ever derived
- * across cards and nothing falls back to a default.
+ * `useAdminDashboard` owns the three it always had — standing KPIs, period totals,
+ * the revenue series. `usePlatformOverview` owns the five that arrived with the
+ * platform-owner work: subscription economics, at-risk schools, top schools, the
+ * payout queue, the recent-payment feed, and the health summary.
+ *
+ * They are separate hooks for the reason the original three are separate requests:
+ * a failure in one blanks only its own card. The six transaction KPIs come from
+ * `GET /admin/dashboard`; MRR, ARR, churn and growth come from `GET /admin/overview`.
+ * A database hiccup can fail the health probe while the payment totals still answer,
+ * and an operator needs the second more than the first. Merged into one
+ * `Promise.all`, a failing health probe would take every number on this page with
+ * it — which is precisely the failure `useDashboardOverview` had on the school
+ * Overview, where a dropped request rendered as zero and a bursar read it as truth.
+ *
+ * So: nothing here falls back to a default, nothing is derived across cards, and
+ * the one genuinely headline request (`GET /admin/dashboard`) is the only one whose
+ * failure takes over the page.
  */
 const AdminOverview = () => {
   const { kpis, revenue, series, period, setPeriod } = useAdminDashboard();
+  const platform = usePlatformOverview();
   const [reloadKey, setReloadKey] = useState(0);
 
-  const refresh = useCallback(() => setReloadKey((key) => key + 1), []);
+  /*
+   * One refresh for both layers.
+   *
+   * Bumping `reloadKey` only re-runs `useAdminDashboard` (it takes the key as a
+   * dependency), so `platform.refresh()` is what re-runs the second hook's tick.
+   * Both are counters rather than a shared value because they are independent fetch
+   * groups — the point of the split above — and a refresh that had to coordinate
+   * them would be a step towards merging them again.
+   */
+  const refresh = useCallback(() => {
+    setReloadKey((key) => key + 1);
+    platform.refresh();
+  }, [platform.refresh]);
 
   const failed = Boolean(kpis.error);
 
@@ -109,6 +135,18 @@ const AdminOverview = () => {
             <PlatformCompositionCard kpis={kpis.data || EMPTY_ADMIN_KPIS} />
           </div>
 
+          {/*
+            Subscription economics, below the payment KPIs and above everything
+            else. The band above is transaction-shaped and moves daily; this one is
+            the recurring base and moves monthly, and mixing them into one row of
+            six would invite comparing a churn *rate* against a collections
+            *total*. See `EconomicsRow` for why ARR is labelled a projection in the
+            tile rather than in a comment.
+          */}
+          <div className="mt-4">
+            <EconomicsRow state={platform.overview} />
+          </div>
+
           <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="lg:col-span-2">
               <RecentSchoolsCard
@@ -117,6 +155,24 @@ const AdminOverview = () => {
                 error={kpis.error}
               />
             </div>
+            <AtRiskCard state={platform.atRisk} />
+          </div>
+
+          {/*
+            Four panels of equal weight, two-by-two at `lg` and four-across at `xl`.
+            `xl:grid-cols-4` rather than three because the SMS balance is a standing
+            figure that belonged in this row before any of these panels existed —
+            dropping it to make room for the new ones would have removed a number an
+            operator uses every day. The payout queue sits beside the health summary
+            deliberately: the queue is the one card on this page that can move money,
+            and the health summary is the one that explains why a payout might be
+            failing. An operator triaging a stuck batch should have both in one
+            glance, not one screen apart.
+          */}
+          <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4">
+            <TopSchoolsCard state={platform.topSchools} />
+            <DisbursementQueueCard state={platform.pendingApprovals} />
+            <HealthCard state={platform.health} />
             <SmsBalanceCard kpis={kpis.data || EMPTY_ADMIN_KPIS} />
           </div>
         </>
