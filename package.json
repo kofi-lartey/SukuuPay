@@ -13,7 +13,8 @@
     "preview:mock": "vite preview --mode mock",
     "check:mock": "vite build --config .mockcheck/vite.config.js --ssr .mockcheck/entry.js --outDir .mockcheck/out --emptyOutDir --logLevel error && node .mockcheck/run.mjs",
     "check:auth": "vite build --config .mockcheck/vite.config.js --ssr .mockcheck/auth-render.jsx --outDir .mockcheck/out-auth --emptyOutDir --logLevel error && node .mockcheck/run-auth-render.mjs",
-    "check:dashboard": "vite build --config .mockcheck/vite.config.js --ssr .mockcheck/dashboard-render.jsx --outDir .mockcheck/out-dashboard --emptyOutDir --logLevel error && node .mockcheck/run-dashboard-render.mjs"
+    "check:dashboard": "vite build --config .mockcheck/vite.config.js --ssr .mockcheck/dashboard-render.jsx --outDir .mockcheck/out-dashboard --emptyOutDir --logLevel error && node .mockcheck/run-dashboard-render.mjs",
+    "check:admin": "vite build --config .mockcheck/vite.config.js --ssr .mockcheck/admin-render.jsx --outDir .mockcheck/out-admin --emptyOutDir --logLevel error && node .mockcheck/run-admin-render.mjs"
   },
   "dependencies": {
     "axios": "^1.6.0",

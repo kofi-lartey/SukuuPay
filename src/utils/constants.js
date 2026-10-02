@@ -24,6 +24,22 @@ export const ROUTES = {
   DASHBOARD_USERS: '/dashboard/user-management',
   DASHBOARD_SETTINGS: '/dashboard/settings',
   ONBOARDING: '/onboarding',
+
+  // The platform console. A sibling of DASHBOARD, not a child of it, and the
+  // path matches the API's base path (`/api/admin`) exactly — so the service
+  // layer below maps one-to-one onto `Backend/src/routes/admin.routes.js` with no
+  // prefix translation, and a route in one is findable in the other by name.
+  //
+  // Separate rather than nested for a structural reason: `DashboardLayout` binds
+  // to school data (`useDashboardOverview(user?.schoolId)`, the school-scoped SMS
+  // pill, the school card in the rail), and a `super_admin` has `schoolId: null`
+  // by design. Nested under /dashboard it would mount a school console around a
+  // platform admin and read "Your school" forever.
+  ADMIN: '/admin',
+  ADMIN_SCHOOLS: '/admin/schools',
+  ADMIN_USERS: '/admin/users',
+  ADMIN_CONTENT: '/admin/content',
+  ADMIN_SETTINGS: '/admin/settings',
 };
 
 export const APP_NAME = 'SukuuPay';
@@ -253,12 +269,24 @@ export const canAccessNavItem = (role, item) => {
   return item.roles.includes(role);
 };
 
+/**
+ * Applies role visibility to a nav tree.
+ *
+ * Generic over the tree so the dashboard rail and the platform console rail
+ * cannot grow different hiding rules — they are the same rule applied to two
+ * lists, and a second implementation is how one of them ends up hiding entries
+ * the other shows.
+ */
+export const visibleNav = (nav, role) =>
+  nav
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => canAccessNavItem(role, item)),
+    }))
+    .filter((group) => group.items.length > 0);
+
 /** Flattens `DASHBOARD_NAV` to a single list, honouring role visibility. */
-export const visibleDashboardNav = (role) =>
-  DASHBOARD_NAV.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => canAccessNavItem(role, item)),
-  })).filter((group) => group.items.length > 0);
+export const visibleDashboardNav = (role) => visibleNav(DASHBOARD_NAV, role);
 
 /**
  * Whether `pathname` is inside `item`'s module.
@@ -272,15 +300,97 @@ export const visibleDashboardNav = (role) =>
 export const isNavItemActive = (pathname, item) =>
   item.exact ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`);
 
-/** The nav entry for the current route, or null for an unmatched path. */
-export const activeDashboardItem = (pathname, role) => {
-  const groups = visibleDashboardNav(role);
+/**
+ * The nav entry for the current route in `nav`, or null for an unmatched path.
+ *
+ * The active match is also what a shell's header describes itself with, so the
+ * search runs over the *visible* entries rather than the raw tree: naming the
+ * module a user cannot open would contradict the rail directly beneath it.
+ */
+export const activeNavItem = (nav, pathname, role) => {
+  const groups = visibleNav(nav, role);
   for (const group of groups) {
     const match = group.items.find((item) => isNavItemActive(pathname, item));
     if (match) return match;
   }
   return null;
 };
+
+/** The nav entry for the current route, or null for an unmatched path. */
+export const activeDashboardItem = (pathname, role) =>
+  activeNavItem(DASHBOARD_NAV, pathname, role);
+
+// ── Platform console navigation ─────────────────────────────────────────────
+
+/**
+ * The platform console's navigation, as one definition.
+ *
+ * Same contract as `DASHBOARD_NAV` — grouped, lucide names rather than
+ * components, `description` for the tooltip — so `AdminSidebar` is a straight
+ * adaptation of `DashboardSidebar` rather than a second idea about what a rail
+ * is. It carries no `roles` keys because the entire tree sits behind
+ * `AdminGuard`, which admits `super_admin` and nothing else. Role filtering is
+ * still applied on the way out (via `visibleNav`), so the day a second role is
+ * granted the console the rail already does the right thing; the guard is what
+ * has to be widened deliberately, not the config.
+ */
+export const ADMIN_NAV = [
+  {
+    id: 'overview',
+    label: null,
+    items: [
+      {
+        to: ROUTES.ADMIN,
+        label: 'Platform',
+        icon: 'Gauge',
+        exact: true,
+        description: 'Schools, revenue and the platform SMS balance.',
+      },
+    ],
+  },
+  {
+    id: 'tenants',
+    label: 'Tenants',
+    items: [
+      {
+        to: ROUTES.ADMIN_SCHOOLS,
+        label: 'Schools',
+        icon: 'Building2',
+        description: 'Every school on the platform, and its lifecycle.',
+      },
+      {
+        to: ROUTES.ADMIN_USERS,
+        label: 'Users',
+        icon: 'Users',
+        description: 'Every account on the platform, across every school.',
+      },
+    ],
+  },
+  {
+    id: 'platform',
+    label: 'Platform',
+    items: [
+      {
+        to: ROUTES.ADMIN_CONTENT,
+        label: 'Content',
+        icon: 'Megaphone',
+        description: 'Review the creatives shown on the public pages.',
+      },
+      {
+        to: ROUTES.ADMIN_SETTINGS,
+        label: 'Settings',
+        icon: 'Settings',
+        description: 'Platform defaults and service health.',
+      },
+    ],
+  },
+];
+
+/** `ADMIN_NAV`, honouring role visibility. */
+export const visibleAdminNav = (role) => visibleNav(ADMIN_NAV, role);
+
+/** The platform-console nav entry for the current route. */
+export const activeAdminItem = (pathname, role) => activeNavItem(ADMIN_NAV, pathname, role);
 
 /**
  * Company contact details.
@@ -386,6 +496,26 @@ export const SIGNUP_ROLES = [
 
 /** Mirrors the `role` enum on the User model. */
 export const USER_ROLES = ['super_admin', 'school_admin', 'accountant', 'teacher', 'viewer'];
+
+/**
+ * How each role is written when the app names one to a person.
+ *
+ * Promoted out of `DashboardTopbar` because two shells now have to say the same
+ * words: the school console's account menu and the platform console's, plus the
+ * 403 page explaining which role was required. A per-shell copy is how the
+ * product ends up calling the same person "Platform admin" in one header and
+ * "Super admin" in another.
+ */
+export const ROLE_LABELS = {
+  super_admin: 'Platform admin',
+  school_admin: 'School administrator',
+  accountant: 'School bursar',
+  teacher: 'Teacher',
+  viewer: 'Viewer',
+};
+
+/** `ROLE_LABELS[role]`, with a truthful fallback for an unknown or absent role. */
+export const roleLabel = (role) => ROLE_LABELS[role] || 'Signed in';
 
 /**
  * Only `school_admin` may create a school through `POST /schools/me`.

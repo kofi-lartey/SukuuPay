@@ -1,0 +1,406 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Check, Megaphone, X } from 'lucide-react';
+import PageHeader from '../../components/dashboard/PageHeader';
+import EmptyState from '../../components/dashboard/EmptyState';
+import Pagination from '../../components/students/Pagination';
+import Badge from '../../components/dashboard/ui/Badge';
+import Card from '../../components/dashboard/ui/Card';
+import Modal from '../../components/common/Modal';
+import { Field, SelectField, FormAlert } from '../../components/common/FormField';
+import { useToast } from '../../hooks/useToast';
+import { AD_PLACEMENTS, AD_STATUSES, listSchoolAds, reviewSchoolAd } from '../../services/admin';
+import { formatCount } from '../../utils/format';
+
+const STATUS_TONES = {
+  draft: 'slate',
+  pending: 'amber',
+  approved: 'green',
+  rejected: 'red',
+  expired: 'slate',
+};
+
+const PLACEMENT_LABELS = {
+  auth_aside: 'Login & signup aside',
+  home_hero: 'Homepage hero',
+  dashboard_sidebar: 'School dashboard sidebar',
+};
+
+/**
+ * The creative moderation queue.
+ *
+ * Backed end to end by `/api/admin/school-ads`. These five routes are the **only**
+ * content surface in the product and the only ones that are **undocumented** —
+ * Module 18 of `Backend/docs/MODULES_13_TO_17.md` stops at
+ * `/admin/schools/:id/unsuspend` — so `services/admin.js` is currently the only
+ * written record of their contract. Worth writing down before this grows.
+ *
+ * Two rules from the API shape the whole page:
+ *
+ *   - **Approve is the only status transition available**, and it is a body field
+ *     on `PUT /admin/school-ads/:id/approve`, not a route per decision. So Approve
+ *     and Reject are one dialog with a decision, and there is no status control on
+ *     an edit form — `updateSchoolAdSchema` omits `status` deliberately, so an
+ *     edit that tried to set it would be silently discarded and the operator would
+ *     believe a creative had gone live.
+ *   - **Rejecting requires a reason** (`approveSchoolAdSchema` 422s without one),
+ *     because that reason is what gets told to the school that submitted it. So
+ *     the field is required in the dialog rather than optional and regrettable.
+ *
+ * There is no placement filter by default and that is not an oversight: the schema
+ * defaults `placement` to `auth_aside`, and a moderation queue that only ever showed
+ * one placement would be a queue with the other two invisible.
+ */
+const AdminContent = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const toast = useToast();
+  const [reloadKey, setReloadKey] = useState(0);
+  const [review, setReview] = useState(null);
+  const [decision, setDecision] = useState('approved');
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState(null);
+
+  const filters = useMemo(
+    () => ({
+      status: searchParams.get('status') || '',
+      placement: searchParams.get('placement') || '',
+      page: Number(searchParams.get('page')) || 1,
+      perPage: Number(searchParams.get('perPage')) || 20,
+    }),
+    [searchParams]
+  );
+
+  const [state, setState] = useState({ rows: [], meta: null, loading: true, error: null });
+
+  const refresh = useCallback(() => setReloadKey((key) => key + 1), []);
+
+  useEffect(() => {
+    let active = true;
+    setState((current) => ({ ...current, loading: true, error: null }));
+    listSchoolAds(filters)
+      .then((result) => active && setState({ rows: result.rows, meta: result.meta, loading: false, error: null }))
+      .catch((error) => active && setState({ rows: [], meta: null, loading: false, error }));
+    return () => {
+      active = false;
+    };
+  }, [filters, reloadKey]);
+
+  const setFilter = useCallback(
+    (key, value) => {
+      setSearchParams(
+        (current) => {
+          const params = new URLSearchParams(current);
+          if (!value) params.delete(key);
+          else params.set(key, value);
+          if (key !== 'page') params.delete('page');
+          return params;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
+
+  const openReview = (ad, nextDecision) => {
+    setReview(ad);
+    setDecision(nextDecision);
+    setReason('');
+    setFormError(null);
+  };
+
+  const submitReview = async () => {
+    if (!review) return;
+    // Checked here for a better message than the server's 422, not instead of it:
+    // the server is still the boundary, this just says which field is empty
+    // instead of "A reason is required when rejecting an ad".
+    if (decision === 'rejected' && reason.trim().length === 0) {
+      setFormError('A rejection needs a reason. It is what the school is told.');
+      return;
+    }
+    if (decision === 'rejected' && reason.trim().length > 300) {
+      setFormError('Keep the reason under 300 characters.');
+      return;
+    }
+
+    setBusy(true);
+    setFormError(null);
+    try {
+      await reviewSchoolAd(review._id, {
+        status: decision,
+        rejectedReason: decision === 'rejected' ? reason.trim() : '',
+      });
+      setReview(null);
+      refresh();
+      toast.success(
+        decision === 'approved'
+          ? `${review.schoolName}’s creative is now live.`
+          : `${review.schoolName}’s creative was rejected and the reason recorded.`
+      );
+    } catch (error) {
+      setFormError(error.message || 'This creative could not be reviewed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const hasFilters = Boolean(filters.status || filters.placement);
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Platform console"
+        title="Content"
+        description="The school creatives shown on the public pages. A creative is filed pending and goes live only when you approve it."
+      />
+
+      <Card padding="p-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <SelectField
+            label="Status"
+            value={filters.status}
+            onChange={(event) => setFilter('status', event.target.value)}
+          >
+            <option value="">All statuses</option>
+            {AD_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </SelectField>
+
+          <SelectField
+            label="Placement"
+            value={filters.placement}
+            onChange={(event) => setFilter('placement', event.target.value)}
+          >
+            {/*
+              "All placements" is an empty value, and an empty value means the
+              query param is *omitted* — not sent as `placement=`. The API's schema
+              defaults the parameter, so sending anything would narrow the queue to
+              one slot and hide the rest of the submissions.
+            */}
+            <option value="">All placements</option>
+            {AD_PLACEMENTS.map((placement) => (
+              <option key={placement} value={placement}>
+                {PLACEMENT_LABELS[placement] || placement}
+              </option>
+            ))}
+          </SelectField>
+        </div>
+      </Card>
+
+      <div className="mt-4">
+        {state.error ? (
+          <EmptyState
+            icon={Megaphone}
+            title="The content queue could not be loaded"
+            description={state.error.message}
+            action={
+              <button
+                type="button"
+                onClick={refresh}
+                className="rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800"
+              >
+                Try again
+              </button>
+            }
+          />
+        ) : state.loading && state.rows.length === 0 ? (
+          <div className="space-y-3">
+            {[0, 1, 2].map((row) => (
+              <div key={row} className="h-28 animate-pulse rounded-2xl bg-slate-200/70" />
+            ))}
+          </div>
+        ) : state.rows.length === 0 ? (
+          <EmptyState
+            icon={Megaphone}
+            title={hasFilters ? 'Nothing in the queue for these filters' : 'No creatives submitted yet'}
+            description={
+              hasFilters
+                ? 'Try a different status or placement.'
+                : 'Schools can submit a creative for the public pages; each one arrives here for review.'
+            }
+          />
+        ) : (
+          <>
+            <ul className="flex flex-col gap-3">
+              {state.rows.map((ad) => (
+                <li key={ad._id}>
+                  <Card padding="p-4">
+                    <div className="flex flex-col gap-4 sm:flex-row">
+                      {/*
+                        The creative itself, not a filename. The whole point of a
+                        moderation queue is judging the image, and `imageAlt` is
+                        shown beside it because the alt text is the only thing
+                        describing this image to a screen reader on the login page.
+                      */}
+                      <div className="flex shrink-0 items-start gap-3 sm:w-[15rem]">
+                        {ad.imageUrl ? (
+                          <img
+                            src={ad.imageUrl}
+                            alt={ad.imageAlt || ''}
+                            className="h-20 w-32 rounded-xl border border-slate-200 object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <span className="flex h-20 w-32 items-center justify-center rounded-xl border border-dashed border-slate-200 text-[10px] font-bold text-slate-400">
+                            No creative
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <h2 className="text-[13px] font-extrabold leading-tight text-ink">
+                              {ad.headline || 'Untitled creative'}
+                            </h2>
+                            <p className="text-[11px] font-semibold text-slate-500">{ad.schoolName}</p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Badge tone="slate">{PLACEMENT_LABELS[ad.placement] || ad.placement}</Badge>
+                            <Badge tone={STATUS_TONES[ad.status] || 'slate'} dot>
+                              {ad.status}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
+                          <div className="flex gap-2 text-[11px]">
+                            <dt className="font-semibold text-slate-400">Alt text</dt>
+                            <dd className="min-w-0 truncate font-bold text-slate-600">
+                              {ad.imageAlt || '— missing —'}
+                            </dd>
+                          </div>
+                          <div className="flex gap-2 text-[11px]">
+                            <dt className="font-semibold text-slate-400">Ends</dt>
+                            <dd className="font-bold text-slate-600">
+                              {ad.endsAt ? new Date(ad.endsAt).toLocaleDateString('en-GB') : '—'}
+                            </dd>
+                          </div>
+                          <div className="flex gap-2 text-[11px] sm:col-span-2">
+                            <dt className="shrink-0 font-semibold text-slate-400">Links to</dt>
+                            <dd className="min-w-0 truncate font-mono font-bold text-slate-600">
+                              {ad.linkUrl || '—'}
+                            </dd>
+                          </div>
+                        </dl>
+
+                        {ad.rejectedReason && (
+                          <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-700">
+                            Rejected: {ad.rejectedReason}
+                          </p>
+                        )}
+
+                        {/*
+                          The action row is gated on status, not shown-then-disabled.
+                          Only `pending` creatives can move — an approved creative
+                          has no further status to reach — and a disabled Approve on
+                          a live row implies a permission problem where there is a
+                          lifecycle one.
+                        */}
+                        <div className="mt-4 flex flex-wrap items-center gap-2">
+                          {ad.status === 'pending' ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => openReview(ad, 'approved')}
+                                className="inline-flex items-center gap-1.5 rounded-xl bg-brand-700 px-3.5 py-2 text-[13px] font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40"
+                              >
+                                <Check className="h-4 w-4" aria-hidden="true" />
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openReview(ad, 'rejected')}
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-[13px] font-extrabold text-slate-700 transition-colors hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40"
+                              >
+                                <X className="h-4 w-4" aria-hidden="true" />
+                                Reject
+                              </button>
+                            </>
+                          ) : (
+                            <p className="text-[11px] font-semibold text-slate-400">
+                              This creative is {ad.status}. Only pending creatives can be reviewed.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-4">
+              <Pagination
+                meta={state.meta}
+                itemLabel="creatives"
+                onPageChange={(page) => setFilter('page', String(page))}
+                onPerPageChange={(perPage) => {
+                  setFilter('perPage', String(perPage));
+                  setFilter('page', '1');
+                }}
+              />
+            </div>
+          </>
+        )}
+      </div>
+
+      <Modal
+        open={Boolean(review)}
+        onClose={() => setReview(null)}
+        title={decision === 'approved' ? 'Approve this creative' : 'Reject this creative'}
+        description={
+          review
+            ? `${review.schoolName} — “${review.headline}”. ${
+                decision === 'approved'
+                  ? 'It becomes visible on the public pages immediately.'
+                  : 'The school is shown the reason you give.'
+              }`
+            : ''
+        }
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setReview(null)}
+              disabled={busy}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={submitReview}
+              disabled={busy}
+              className={`rounded-xl px-4 py-2.5 text-sm font-extrabold text-white shadow-lift transition-colors disabled:opacity-60 ${
+                decision === 'approved' ? 'bg-brand-700 hover:bg-brand-800' : 'bg-red-600 hover:bg-red-700'
+              }`}
+            >
+              {busy ? 'Saving…' : decision === 'approved' ? 'Approve and publish' : 'Reject'}
+            </button>
+          </>
+        }
+      >
+        {formError && <FormAlert tone="error">{formError}</FormAlert>}
+
+        {decision === 'rejected' && (
+          <Field
+            label="Reason"
+            required
+            value={reason}
+            maxLength={300}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="What has to change before this can run?"
+            hint={`${reason.trim().length}/300`}
+            className={formError ? 'mt-3' : ''}
+          />
+        )}
+      </Modal>
+    </>
+  );
+};
+
+export default AdminContent;

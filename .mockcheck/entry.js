@@ -42,8 +42,18 @@ const { getPayView } = await import('../src/services/publicPay.js');
 const { sendBulkSms, previewAudience, getSmsCredits, topUpSmsCredits, listSmsTemplates, countSegments, renderBodyLocally } = await import('../src/services/sms.js');
 const { getSchoolCompliance, createPaymentPlan, cancelPaymentPlan, updateInstallment, projectSchedule } = await import('../src/services/paymentPlans.js');
 const { studentsFor } = await import('../src/mocks/db.js');
-const { getMe } = await import('../src/services/user.js');
+const { getMe, inviteUser, removeUser, updateMe, updateUserRole } = await import('../src/services/user.js');
 const { login, signup, verifyEmail, resendVerificationEmail } = await import('../src/services/auth.js');
+const {
+  getDashboardKpis,
+  listSchools,
+  getRevenue,
+  getPlatformSmsBalance,
+  suspendSchool,
+  listPlatformUsers,
+  listSchoolAds,
+  reviewSchoolAd,
+} = await import('../src/services/admin.js');
 
 installMockApi();
 
@@ -1949,6 +1959,257 @@ await check('a batch refuses students outside the school', async () => {
     `expected INVALID_STUDENTS, got code="${seen.code}" status=${seen.status} message="${seen.message}"`
   );
   return `rejected with ${seen.code}`;
+});
+
+// ?? Platform console (/api/admin/*) ???????????????????????????????????
+//
+// The super-admin surface. Three things are worth proving here that a render test
+// cannot:
+//
+// 1. the role boundary — `admin.routes.js` applies `authorize("super_admin")` at
+//    the router level, and the frontend's `AdminGuard` is presentation, so the
+//    mock is the only place a school admin gets to find out the server refuses;
+// 2. the *scoping* of `GET /users`, which is the load-bearing finding behind the
+//    console's user page needing no new endpoint;
+// 3. the pagination envelope, because there are now four shapes of it in the
+//    product and only one of them is what `Pagination` takes.
+
+await check('GET /admin/dashboard returns the documented platform payload', async () => {
+  resetDb('super-admin');
+  await signIn('admin@example.com');
+
+  const kpis = await getDashboardKpis();
+  for (const key of ['schools', 'users', 'payments', 'sms']) {
+    expect(kpis[key], `no "${key}" block`);
+  }
+  for (const key of ['total', 'active', 'suspended', 'archived', 'onTrial', 'paid']) {
+    expect(typeof kpis.schools[key] === 'number', `schools.${key} is not a number`);
+  }
+  for (const key of ['totalRevenue', 'mtdRevenue', 'ytdRevenue', 'platformMarkup', 'pendingPayouts']) {
+    expect(typeof kpis.payments[key] === 'number', `payments.${key} is not a number`);
+  }
+  expect(Array.isArray(kpis.recentSchools), 'recentSchools is not an array');
+
+  // Money crosses the wire as integer pesewas. A figure already in cedis here
+  // would make every tile in the console read 100× too large, and nothing else
+  // in the system would catch it.
+  expect(Number.isInteger(kpis.payments.totalRevenue), 'revenue is not an integer pesewa figure');
+  return `${kpis.schools.total} schools, GH? ${(kpis.payments.totalRevenue / 100).toLocaleString('en-GB')}`;
+});
+
+await check('the whole /admin surface is refused to a school admin', async () => {
+  // `new-admin` is the persona whose login *is* `bursar@example.org`;
+  // `personaEmail` maps each persona to its own address, so an unknown persona id
+  // falls through to a world with a different one and the sign-in fails first.
+  resetDb('new-admin');
+  await signIn('bursar@example.org');
+
+  await expectStatus(getDashboardKpis(), 403, 'GET /admin/dashboard');
+  await expectStatus(listSchools(), 403, 'GET /admin/schools');
+  await expectStatus(getRevenue(), 403, 'GET /admin/revenue');
+  await expectStatus(getPlatformSmsBalance(), 403, 'GET /admin/sms-balance');
+  await expectStatus(listSchoolAds(), 403, 'GET /admin/school-ads');
+  return 'every route answered 403';
+});
+
+await check('listSchools normalises the pagination envelope for the shared pager', async () => {
+  resetDb('super-admin');
+  await signIn('admin@example.com');
+
+  const { rows, meta } = await listSchools({ perPage: 5 });
+  expect(rows.length === 5, `expected 5 rows, got ${rows.length}`);
+
+  // The API says `pages`; `Pagination` reads `totalPages`. If the service ever
+  // stops mapping it, the pager renders "1 of undefined" on a call that answered
+  // 200 — and nothing else in the console would notice.
+  for (const key of ['page', 'perPage', 'total', 'totalPages']) {
+    expect(typeof meta[key] === 'number', `meta.${key} is not a number`);
+  }
+  expect(meta.totalPages === Math.ceil(meta.total / meta.perPage), 'totalPages disagrees with total/perPage');
+
+  // Every list row carries its own aggregates, so the table needs no N+1.
+  const row = rows[0];
+  for (const key of ['studentCount', 'staffCount', 'paymentVolume']) {
+    expect(typeof row[key] === 'number', `${key} missing from a schools row`);
+  }
+  return `page ${meta.page}, ${meta.totalPages} pages of ${meta.total}`;
+});
+
+await check('a suspended school is refused a second suspension with the reason stated', async () => {
+  resetDb('super-admin');
+  await signIn('admin@example.com');
+
+  const { rows } = await listSchools({ status: 'active', perPage: 1 });
+  const target = rows[0];
+
+  await expectStatus(suspendSchool(target._id, 'too short'), 422, 'PUT suspend with a 9-character reason');
+
+  const suspended = await suspendSchool(
+    target._id,
+    'Non-payment of subscription fees for 3 consecutive months'
+  );
+  expect(suspended.status === 'suspended', `expected suspended, got ${suspended.status}`);
+  expect(suspended.suspendedReason, 'the reason was not stored');
+
+  // The real route refuses a school that is not already suspended, and a mock
+  // that accepted it would let the UI's unsuspend button appear to work twice.
+  await expectStatus(suspendSchool(target._id, 'A second suspension attempt here'), 400, 'PUT suspend again');
+  return `${suspended.name} suspended with its reason recorded`;
+});
+
+await check('GET /users is platform-wide for a super_admin and school-scoped otherwise', async () => {
+  // The finding the console's user page rests on: `listUsers` computes
+  // `targetSchoolId = query.schoolId || req.user.schoolId`, and a platform
+  // admin's schoolId is null, so the school filter is never applied and the
+  // query returns every account. The console therefore needs no new endpoint —
+  // and "All schools" is its *default* scope, which is why the page states it.
+  resetDb('super-admin');
+  await signIn('admin@example.com');
+
+  const platform = await listPlatformUsers({ perPage: 100 });
+  expect(
+    platform.rows.length > 1,
+    `a super_admin only saw ${platform.rows.length} account(s)`
+  );
+
+  // The scope filter, against a school that actually owns accounts. The seeded
+  // platform admin is itself in the list with `schoolId: null` (as on the real
+  // model), so filtering by *its* schoolId would send no filter at all and return
+  // everything — a good illustration of why "All schools" has to be a labelled
+  // choice in the console rather than an absence of one.
+  const scopedTo = platform.rows.find((row) => row.schoolId);
+  expect(scopedTo, 'no account in the platform list belongs to a school');
+  const scoped = await listPlatformUsers({ perPage: 100, schoolId: scopedTo.schoolId });
+  expect(
+    scoped.rows.every((row) => String(row.schoolId) === String(scopedTo.schoolId)),
+    'a schoolId filter returned accounts from other schools'
+  );
+  expect(scoped.meta.total < platform.meta.total, 'the school filter did not narrow anything');
+
+  // And the school console is unaffected: a bursar sees their own school only.
+  resetDb('new-admin');
+  await signIn('bursar@example.org');
+  const own = await listPlatformUsers({ perPage: 100 });
+  expect(
+    own.rows.every((row) => String(row.schoolId) === String(schoolId)),
+    'a bursar saw accounts outside their own school'
+  );
+  expect(own.meta.total === 1, `a bursar should see one account in their school, saw ${own.meta.total}`);
+  return `super_admin ${platform.meta.total} accounts, one school ${scoped.meta.total}, bursar ${own.meta.total}`;
+});
+
+await check('the moderation queue refuses a rejection with no reason', async () => {
+  // `approveSchoolAdSchema` requires a reason on a rejection, and that reason is
+  // what the submitting school is told. A mock that accepted a bare rejection
+  // would let the console ship a Reject button that produces no explanation.
+  resetDb('super-admin');
+  await signIn('admin@example.com');
+
+  const { rows } = await listSchoolAds({ status: 'pending', perPage: 1 });
+  expect(rows.length > 0, 'no pending creative to review');
+
+  await expectStatus(reviewSchoolAd(rows[0]._id, { status: 'rejected' }), 422, 'reject with no reason');
+
+  const approved = await reviewSchoolAd(rows[0]._id, { status: 'approved' });
+  expect(approved.status === 'approved', `expected approved, got ${approved.status}`);
+
+  // With no placement filter the queue must span placements: the schema shares
+  // this route with the public slider, so a default here would hide every
+  // placement but one from the person moderating them.
+  const all = await listSchoolAds({ perPage: 50 });
+  const placements = new Set(all.rows.map((ad) => ad.placement));
+  expect(placements.size > 1, `the queue only showed ${[...placements].join(', ')}`);
+  return `rejection needs a reason; queue spans ${[...placements].join(', ')}`;
+});
+
+await check('the platform owner cannot be multiplied from any endpoint', async () => {
+  // There is exactly one `super_admin`, provisioned from the server environment.
+  // The backend closes this at the schema (`ASSIGNABLE_ROLES`), in two controllers
+  // and in `PUT /users/:userId` — and the mock closes it at all four places too,
+  // because a mock that let the console mint a second owner in development would
+  // make the console look correct here and fail in production, which is the one
+  // thing a mock exists to prevent.
+  resetDb('super-admin');
+  await signIn('admin@example.com');
+
+  const { rows } = await listPlatformUsers({ perPage: 100 });
+  const owner = rows.find((row) => row.role === 'super_admin');
+  expect(owner, 'the mock has no platform owner to protect');
+  const other = rows.find((row) => row._id !== owner._id);
+  expect(other, 'need a second account to try the grant against');
+
+  // The dedicated role endpoint.
+  await expectStatus(
+    updateUserRole(other._id, 'super_admin'),
+    403,
+    'PUT /users/:id/role with super_admin'
+  );
+  // `PUT /users/:userId`, which carries no `authorize` middleware at all and is the
+  // quiet one — its old check was "is the caller a super_admin?", which the one role
+  // that must not be able to do this satisfies.
+  await expectStatus(
+    updateMe(other._id, { role: 'super_admin' }),
+    403,
+    'PUT /users/:id with super_admin'
+  );
+  // And the invite path.
+  await expectStatus(
+    inviteUser({ name: 'Peer Operator', email: 'peer@example.com', role: 'super_admin' }),
+    403,
+    'POST /users/invite with super_admin'
+  );
+
+  // The owner's own removal is refused too, so "one super admin" survives an
+  // operator who decides the account is no longer needed.
+  //
+  // Self-deletion is checked first in both the real handler and the mock, so 400
+  // is the code that actually fires here — the only super admin is the one
+  // signed in, and "cannot delete yourself" is the better reason anyway. What is
+  // under test is that the removal is refused at all; a mock that permitted it
+  // would leave the platform with zero owners and no in-product way to fix it.
+  let removalError = null;
+  try {
+    await removeUser(owner._id);
+  } catch (error) {
+    removalError = error;
+  }
+  expect(removalError, 'the platform owner was deleted');
+  expect(
+    removalError.status === 403 || removalError.status === 400,
+    `expected the removal to be refused, got ${removalError.status} (${removalError.code})`
+  );
+
+  // And the refusal did not change anything.
+  const after = await listPlatformUsers({ perPage: 100 });
+  expect(
+    after.rows.filter((row) => row.role === 'super_admin').length === 1,
+    'the refusals changed the number of platform owners'
+  );
+  return 'invite, role endpoint, profile endpoint and delete all refused; still exactly one';
+});
+
+await check('an ordinary role change still works, and still records both sides', async () => {
+  resetDb('super-admin');
+  await signIn('admin@example.com');
+
+  const { rows } = await listPlatformUsers({ perPage: 100 });
+  const bursar = rows.find((row) => row.role !== 'super_admin');
+  expect(bursar, `no ordinary account in a list of ${rows.length}`);
+  const before = bursar.role;
+
+  const updated = await updateUserRole(bursar._id, before === 'teacher' ? 'viewer' : 'teacher');
+  expect(updated.role !== before, `role did not change from ${before}`);
+
+  // Removing an ordinary account is a soft delete that revokes its sessions, and it
+  // is the action the console's Remove dialog exists for.
+  await removeUser(bursar._id);
+
+  const after = await listPlatformUsers({ perPage: 100 });
+  expect(
+    !after.rows.some((row) => row._id === bursar._id),
+    'a removed account is still on the platform user list'
+  );
+  return `${before} reassigned, then removed; the owner is untouched`;
 });
 
 console.log(`\n${pass} passed, ${fail} failed.`);

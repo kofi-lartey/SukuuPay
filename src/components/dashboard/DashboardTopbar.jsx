@@ -13,19 +13,11 @@ import {
   User,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { ROUTES } from '../../utils/constants';
+import { ROUTES, roleLabel } from '../../utils/constants';
 import { formatCount } from '../../utils/format';
 import { LogoMark } from '../common/Logo';
 import Popover from './ui/Popover';
 import Badge from './ui/Badge';
-
-const ROLE_LABELS = {
-  super_admin: 'Platform admin',
-  school_admin: 'School Admin',
-  accountant: 'School Bursar',
-  teacher: 'Teacher',
-  viewer: 'Viewer',
-};
 
 const MenuItem = ({ to, icon: Icon, children, onClick }) => (
   <Link
@@ -64,7 +56,7 @@ const DashboardTopbar = ({ user, onOpenNav, navOpen = false, school, term, smsCr
   const [query, setQuery] = useState('');
 
   const displayName = user?.name || 'Account';
-  const roleLabel = ROLE_LABELS[user?.role] || 'Signed in';
+  const roleLabelText = roleLabel(user?.role);
   // The design stacks "Mr. E. K. Mensah" over "School Bursar"; the name is
   // shortened to initials-and-surname so the two lines stay balanced.
   const nameParts = displayName.split(/\s+/).filter(Boolean);
@@ -255,7 +247,7 @@ const DashboardTopbar = ({ user, onOpenNav, navOpen = false, school, term, smsCr
               <div className="py-1.5">
                 <div className="border-b border-slate-100 px-3.5 py-2.5">
                   <p className="truncate text-sm font-extrabold text-ink">{displayName}</p>
-                  <p className="truncate text-[11px] font-semibold text-slate-500">{roleLabel}</p>
+                  <p className="truncate text-[11px] font-semibold text-slate-500">{roleLabelText}</p>
                 </div>
                 <MenuItem to={ROUTES.DASHBOARD_SETTINGS} icon={User}>
                   Account settings
@@ -286,7 +278,7 @@ const DashboardTopbar = ({ user, onOpenNav, navOpen = false, school, term, smsCr
                     {shortName}
                   </span>
                   <span className="block truncate text-[11px] font-semibold leading-tight text-slate-500">
-                    {roleLabel}
+                    {roleLabelText}
                   </span>
                 </span>
                 <ChevronDown className="hidden h-4 w-4 shrink-0 text-slate-400 lg:block" aria-hidden="true" />

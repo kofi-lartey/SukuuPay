@@ -413,7 +413,22 @@ const ROUTES = {
   DASHBOARD_ACTIVITY: "/dashboard/activity-log",
   DASHBOARD_USERS: "/dashboard/user-management",
   DASHBOARD_SETTINGS: "/dashboard/settings",
-  ONBOARDING: "/onboarding"
+  ONBOARDING: "/onboarding",
+  // The platform console. A sibling of DASHBOARD, not a child of it, and the
+  // path matches the API's base path (`/api/admin`) exactly — so the service
+  // layer below maps one-to-one onto `Backend/src/routes/admin.routes.js` with no
+  // prefix translation, and a route in one is findable in the other by name.
+  //
+  // Separate rather than nested for a structural reason: `DashboardLayout` binds
+  // to school data (`useDashboardOverview(user?.schoolId)`, the school-scoped SMS
+  // pill, the school card in the rail), and a `super_admin` has `schoolId: null`
+  // by design. Nested under /dashboard it would mount a school console around a
+  // platform admin and read "Your school" forever.
+  ADMIN: "/admin",
+  ADMIN_SCHOOLS: "/admin/schools",
+  ADMIN_USERS: "/admin/users",
+  ADMIN_CONTENT: "/admin/content",
+  ADMIN_SETTINGS: "/admin/settings"
 };
 const GRADUATION_TYPES = [
   { value: "STANDARD", label: "Standard" },
@@ -545,10 +560,11 @@ const canAccessNavItem = (role, item) => {
   if (!role) return true;
   return item.roles.includes(role);
 };
-const visibleDashboardNav = (role) => DASHBOARD_NAV.map((group) => ({
+const visibleNav = (nav, role) => nav.map((group) => ({
   ...group,
   items: group.items.filter((item) => canAccessNavItem(role, item))
 })).filter((group) => group.items.length > 0);
+const visibleDashboardNav = (role) => visibleNav(DASHBOARD_NAV, role);
 const isNavItemActive = (pathname, item) => item.exact ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`);
 const SIGNUP_ROLES = [
   {
@@ -577,6 +593,14 @@ const SIGNUP_ROLES = [
   }
 ];
 const USER_ROLES = ["super_admin", "school_admin", "accountant", "teacher", "viewer"];
+const ROLE_LABELS = {
+  super_admin: "Platform admin",
+  school_admin: "School administrator",
+  accountant: "School bursar",
+  teacher: "Teacher",
+  viewer: "Viewer"
+};
+const roleLabel = (role) => ROLE_LABELS[role] || "Signed in";
 const OTHER_POSITION = "OTHER";
 const POSITIONS = [
   { value: "Headteacher / Headmistress", label: "Headteacher / Headmistress" },
@@ -786,13 +810,6 @@ const Badge = ({ children, tone = "slate", icon: Icon, dot, className = "" }) =>
     ]
   }
 );
-const ROLE_LABELS = {
-  super_admin: "Platform admin",
-  school_admin: "School Admin",
-  accountant: "School Bursar",
-  teacher: "Teacher",
-  viewer: "Viewer"
-};
 const MenuItem = ({ to, icon: Icon, children, onClick }) => /* @__PURE__ */ jsxs(
   Link,
   {
@@ -811,7 +828,7 @@ const DashboardTopbar = ({ user, onOpenNav, navOpen = false, school, term, smsCr
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const displayName = user?.name || "Account";
-  const roleLabel = ROLE_LABELS[user?.role] || "Signed in";
+  const roleLabelText = roleLabel(user?.role);
   const nameParts = displayName.split(/\s+/).filter(Boolean);
   const shortName = nameParts.length > 2 ? `${nameParts[0][0]}. ${nameParts.slice(1).join(" ")}` : displayName;
   const onSearch = (event) => {
@@ -962,7 +979,7 @@ const DashboardTopbar = ({ user, onOpenNav, navOpen = false, school, term, smsCr
           panel: /* @__PURE__ */ jsxs("div", { className: "py-1.5", children: [
             /* @__PURE__ */ jsxs("div", { className: "border-b border-slate-100 px-3.5 py-2.5", children: [
               /* @__PURE__ */ jsx("p", { className: "truncate text-sm font-extrabold text-ink", children: displayName }),
-              /* @__PURE__ */ jsx("p", { className: "truncate text-[11px] font-semibold text-slate-500", children: roleLabel })
+              /* @__PURE__ */ jsx("p", { className: "truncate text-[11px] font-semibold text-slate-500", children: roleLabelText })
             ] }),
             /* @__PURE__ */ jsx(MenuItem, { to: ROUTES.DASHBOARD_SETTINGS, icon: User, children: "Account settings" }),
             /* @__PURE__ */ jsx(MenuItem, { to: ROUTES.HOME, icon: Building2, children: "Back to website" }),
@@ -984,7 +1001,7 @@ const DashboardTopbar = ({ user, onOpenNav, navOpen = false, school, term, smsCr
             /* @__PURE__ */ jsx("span", { className: "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-700 text-white", children: /* @__PURE__ */ jsx(User, { className: "h-4 w-4", "aria-hidden": "true" }) }),
             /* @__PURE__ */ jsxs("span", { className: "hidden min-w-0 lg:block", children: [
               /* @__PURE__ */ jsx("span", { className: "block truncate text-[13px] font-extrabold leading-tight text-ink", children: shortName }),
-              /* @__PURE__ */ jsx("span", { className: "block truncate text-[11px] font-semibold leading-tight text-slate-500", children: roleLabel })
+              /* @__PURE__ */ jsx("span", { className: "block truncate text-[11px] font-semibold leading-tight text-slate-500", children: roleLabelText })
             ] }),
             /* @__PURE__ */ jsx(ChevronDown, { className: "hidden h-4 w-4 shrink-0 text-slate-400 lg:block", "aria-hidden": "true" })
           ] })

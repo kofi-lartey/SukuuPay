@@ -4,6 +4,9 @@ import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import AppChrome from './components/layout/AppChrome';
 import OnboardingGuard from './routes/OnboardingGuard';
+import AdminGuard from './routes/AdminGuard';
+import RoleLanding from './routes/RoleLanding';
+import { ROUTES } from './utils/constants';
 
 import Home from './pages/Home';
 import Features from './pages/Features';
@@ -32,6 +35,12 @@ import Step1SchoolProfile from './pages/onboarding/Step1SchoolProfile';
 import Step2PaymentSetup from './pages/onboarding/Step2PaymentSetup';
 import Step3ImportStudents from './pages/onboarding/Step3ImportStudents';
 import Step4SendReminder from './pages/onboarding/Step4SendReminder';
+import AdminLayout from './components/admin/AdminLayout';
+import AdminOverview from './pages/admin/AdminOverview';
+import AdminSchools from './pages/admin/AdminSchools';
+import AdminUsers from './pages/admin/AdminUsers';
+import AdminContent from './pages/admin/AdminContent';
+import AdminSettings from './pages/admin/AdminSettings';
 import { Terms, Privacy } from './pages/Legal';
 import NotFound from './pages/NotFound';
 
@@ -71,6 +80,16 @@ function App() {
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/reset-password/:token" element={<NewPassword />} />
 
+              {/*
+                The marketing catch-all, and the reason it is the *only* one.
+
+                It used to be the single catch-all for the whole app, which fixed
+                the marketing pages and quietly broke the other two shells: an
+                unmatched path under /dashboard or /pay fell through to it and
+                arrived wearing the marketing navbar and a footer of product links.
+                Each guarded subtree below now carries its own, so a mistyped
+                module path stays inside the console the person is working in.
+              */}
               <Route path="*" element={<NotFound />} />
             </Route>
 
@@ -83,6 +102,7 @@ function App() {
                 <Route path="payment-setup" element={<Step2PaymentSetup />} />
                 <Route path="import-students" element={<Step3ImportStudents />} />
                 <Route path="send-reminder" element={<Step4SendReminder />} />
+                <Route path="*" element={<NotFound variant="app" />} />
               </Route>
             </Route>
 
@@ -100,7 +120,28 @@ function App() {
                 topbar; each child owns only its page. */}
             <Route element={<OnboardingGuard />}>
               <Route path="/dashboard" element={<DashboardLayout />}>
-                <Route index element={<Overview />} />
+                {/*
+                  A platform admin opening /dashboard is sent to the console that
+                  belongs to them.
+
+                  `OnboardingGuard` waves a `super_admin` straight through — they
+                  legitimately have no school, so `linkState.linked` is false for
+                  them and the onboarding redirect would lock them out of the only
+                  console they have. But every module under /dashboard is
+                  school-scoped, so the alternative was a school console full of
+                  empty panels around a rail that says "Your school". The redirect
+                  is here rather than in the guard because it is a *routing*
+                  preference about where a super admin lands, not an access rule:
+                  the guard still decides they are allowed in.
+                */}
+                <Route
+                  index
+                  element={
+                    <RoleLanding role="super_admin" to={ROUTES.ADMIN}>
+                      <Overview />
+                    </RoleLanding>
+                  }
+                />
                 <Route path="students" element={<Students />} />
                 <Route path="payments" element={<Payments />} />
                 <Route path="installment-plans" element={<InstallmentPlans />} />
@@ -109,6 +150,36 @@ function App() {
                 <Route path="activity-log" element={<ActivityLog />} />
                 <Route path="user-management" element={<UserManagement />} />
                 <Route path="settings" element={<Settings />} />
+                <Route path="*" element={<NotFound variant="app" />} />
+              </Route>
+            </Route>
+
+            {/*
+              The platform console: the whole system, seen from outside any school.
+
+              A third sibling shell rather than a branch of the dashboard, and the
+              same reasoning as the wizard above: it mounts its own rail and topbar
+              and must not pick up the marketing navbar or a school console's
+              chrome. Nesting it under /dashboard was never an option — that shell
+              binds to `user.schoolId`, and a super_admin has none.
+
+              Gated by `AdminGuard`, which is the app's only *role* check. The
+              server's `authorize("super_admin")` on `admin.routes.js:37` is the
+              real boundary; this is the version that says so before the first
+              request rather than after it.
+
+              Five modules, one guard, one nav definition — same contract as
+              /dashboard, so a new console module is one <Route> plus one entry in
+              `ADMIN_NAV`.
+            */}
+            <Route element={<AdminGuard />}>
+              <Route path="/admin" element={<AdminLayout />}>
+                <Route index element={<AdminOverview />} />
+                <Route path="schools" element={<AdminSchools />} />
+                <Route path="users" element={<AdminUsers />} />
+                <Route path="content" element={<AdminContent />} />
+                <Route path="settings" element={<AdminSettings />} />
+                <Route path="*" element={<NotFound variant="admin" />} />
               </Route>
             </Route>
 
@@ -122,6 +193,18 @@ function App() {
               and nothing else.
             */}
             <Route path="/pay/:token" element={<PayPage />} />
+
+            {/*
+              A malformed pay path — `/pay/`, or a stray segment under it.
+
+              This used to fall through to the marketing catch-all, so a parent
+              whose SMS link had been truncated by a messaging app arrived at the
+              marketing navbar and a footer of product links. A fee link is the
+              worst possible place to advertise, and the parent has no account to
+              reach anything else from, so this variant offers contact and
+              nothing else.
+            */}
+            <Route path="/pay/*" element={<NotFound variant="pay" />} />
           </Routes>
         </BrowserRouter>
       </ToastProvider>

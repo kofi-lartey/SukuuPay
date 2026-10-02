@@ -233,7 +233,17 @@ function buildWorld({
     phone: ghanaPhone(rng),
     position: role === 'super_admin' ? 'Platform Operations' : 'Head of Bursary',
     role,
-    schoolId: unlinked ? null : schoolId,
+    // A platform admin belongs to no school, and the real model says so:
+    // `schoolId` defaults to null and is documented "null for super_admin".
+    //
+    // The mock used to give every persona a schoolId, which was invisible until
+    // the platform console needed `GET /users` — where `listUsers` computes
+    // `targetSchoolId = query.schoolId || req.user.schoolId` and applies that
+    // filter. With a schoolId on the platform admin, that filter *did* apply and
+    // the request came back scoped to one school, so the mock was contradicting
+    // the very behaviour it was written to reproduce, and reproducing it wrongly
+    // is worse than not having the route at all.
+    schoolId: unlinked || role === 'super_admin' ? null : schoolId,
     isPlatformOwner: role === 'super_admin',
     status: 'active',
     isEmailVerified: verified,

@@ -3864,7 +3864,513 @@ const getSmsBalance = ({ user }) => {
     // null balance as "no estimate available" rather than an error.
     throw new MockError(403, 'Forbidden', 'FORBIDDEN');
   }
-  return getDb().schools[0].sms;
+  return adminSmsBalancePayload();
+};
+
+// -- Platform admin (/api/admin/*) --------------------------------------------
+//
+// Mirrors `Backend/src/routes/admin.routes.js`, which wraps every route in
+// `authenticate` + `authorize("super_admin")` at the router level. That is
+// reproduced per handler rather than once in the adapter, matching how every
+// other role check in this file works — and it matters here more than usual,
+// because the frontend's own `AdminGuard` is presentation and the mock is the
+// only place a non-super_admin gets to discover that the server would refuse.
+//
+// The platform fixture below is deterministic and small. It is deliberately *not*
+// derived from the seeded school: the school console's fixture asserts its own
+// internal consistency (see `.mockcheck/dashboard-render.jsx`), and a platform
+// list that included "Prampram Basic School" would drag that assertion's school
+// into a second, unrelated set of totals.
+
+const PLATFORM_SCHOOLS = [
+  { name: 'Sunnyvale Schools', code: 'SUN-001', region: 'Greater Accra', city: 'Accra', plan: 'standard', status: 'active', students: 450, staff: 25 },
+  { name: 'Greenfield Academy', code: 'GRN-002', region: 'Ashanti', city: 'Kumasi', plan: 'premium', status: 'active', students: 812, staff: 54 },
+  { name: 'Riverside International', code: 'RIV-003', region: 'Western', city: 'Takoradi', plan: 'enterprise', status: 'active', students: 1240, staff: 96 },
+  { name: 'New Horizon School', code: 'NHS-042', region: 'Central', city: 'Cape Coast', plan: 'trial', status: 'active', students: 180, staff: 12 },
+  { name: "St Mary's College", code: 'STM-007', region: 'Greater Accra', city: 'Accra', plan: 'standard', status: 'active', students: 965, staff: 71 },
+  { name: 'Northern Hills Secondary', code: 'NTH-011', region: 'Northern', city: 'Tamale', plan: 'basic', status: 'active', students: 540, staff: 33 },
+  { name: 'Coastal View Academy', code: 'CST-014', region: 'Eastern', city: 'Koforidua', plan: 'basic', status: 'active', students: 310, staff: 19 },
+  { name: 'Ashanti Grove School', code: 'ASH-018', region: 'Ashanti', city: 'Kumasi', plan: 'standard', status: 'suspended', students: 425, staff: 27 },
+  { name: 'Volta Basic School', code: 'VOL-021', region: 'Volta', city: 'Ho', plan: 'trial', status: 'active', students: 205, staff: 11 },
+  { name: 'Bono Senior High', code: 'BON-023', region: 'Bono', city: 'Sunyani', plan: 'premium', status: 'active', students: 1102, staff: 78 },
+  { name: 'Upper West Model', code: 'UWM-026', region: 'Upper West', city: 'Wa', plan: 'basic', status: 'archived', students: 288, staff: 16 },
+  { name: 'Savannah Preparatory', code: 'SAV-029', region: 'North East', city: 'Nalerigu', plan: 'trial', status: 'active', students: 156, staff: 9 },
+];
+
+/**
+ * Deterministic per-school payment volume in **pesewas**.
+ *
+ * A hash of the school code rather than a counter, so a school's figure does not
+ * change when another school is added to the list above — an unstable fixture
+ * makes a mock that looks broken every time it is extended.
+ */
+const platformVolume = (code) => {
+  let hash = 0;
+  for (let i = 0; i < code.length; i += 1) hash = (hash * 31 + code.charCodeAt(i)) % 1000000;
+  return 4000000 + hash * 9000;
+};
+
+/**
+ * The platform's schools, as mutable module state.
+ *
+ * Built **once** and mutated, not regenerated per request. Suspending a school is
+ * a mutation, and a handler that rebuilt the list on every call would forget the
+ * suspension immediately — so the second suspend attempt would succeed, the
+ * "already suspended" 400 would never fire, and the console's unsuspend button
+ * would appear to work twice. A mock that forgets its own writes cannot test a
+ * lifecycle.
+ *
+ * Rebuilt whenever the persona changes, via `resetPlatformSchools()`.
+ */
+let platformSchools = null;
+let platformSchoolsKey = null;
+
+const resetPlatformSchools = () => {
+  platformSchools = PLATFORM_SCHOOLS.map((school, index) => ({
+    _id: objectId(200 + index),
+    name: school.name,
+    schoolCode: school.code,
+    slug: slugify(school.name),
+    type: 'private',
+    email: `office@${slugify(school.name).slice(0, 18)}.edu.gh`,
+    // `ghanaPhone` takes a seeded rng, not an index — passing a number would call
+    // it as a function and produce an `intBetween` of NaN, i.e. a phone number
+    // this mock's own GHANA_PHONE validator rejects.
+    phone: ghanaPhone(makeRng(index + 3)),
+    city: school.city,
+    region: school.region,
+    status: school.status,
+    subscription: {
+      plan: school.plan,
+      status: school.status === 'suspended' ? 'suspended' : school.plan === 'trial' ? 'trial' : 'active',
+      currentPeriodEnd: new Date(Date.UTC(2026, 2, 1)).toISOString(),
+    },
+    studentCount: school.students,
+    staffCount: school.staff,
+    paymentVolume: platformVolume(school.code),
+  }));
+  return platformSchools;
+};
+
+/**
+ * The platform's schools, reset whenever the mock world is rebuilt.
+ *
+ * The reset is keyed on the seeded school's id rather than driven by `resetDb`,
+ * because `handlers.js` imports `db.js` and the reverse edge would be circular.
+ * `resetDb(persona)` rebuilds the world from a persona-specific seed, so a
+ * different persona means a different seeded school — which is exactly the signal
+ * that the platform's own state belongs to the previous world and has to go.
+ * Same persona twice keeps the state, which is what lets a lifecycle be exercised
+ * across several requests.
+ */
+const platformSchoolRows = () => {
+  const key = getDb()?.schools?.[0]?._id || 'none';
+  if (!platformSchools || platformSchoolsKey !== key) {
+    platformSchoolsKey = key;
+    return resetPlatformSchools();
+  }
+  return platformSchools;
+};
+
+/** Accounts across the platform. See `ensurePlatformUsers` for why these live in the db. */
+const platformUserRows = () => {
+  const roles = ['school_admin', 'accountant', 'teacher', 'viewer'];
+  return platformSchoolRows().flatMap((school, schoolIndex) =>
+    [0, 1].map((seat) => ({
+      _id: objectId(400 + schoolIndex * 2 + seat),
+      name: `${roles[seat % roles.length]} ${school.name.split(' ')[0]}`,
+      email: `staff${schoolIndex}${seat}@${slugify(school.name).slice(0, 14)}.edu.gh`,
+      phone: ghanaPhone(makeRng(schoolIndex + seat + 11)),
+      role: roles[seat % roles.length],
+      status: 'active',
+      schoolId: school._id,
+      createdAt: new Date(Date.UTC(2025, schoolIndex % 12, 1)).toISOString(),
+      isEmailVerified: true,
+      isPlatformOwner: false,
+    }))
+  );
+};
+
+/**
+ * Puts the platform's accounts into `db.users`, once per mock world.
+ *
+ * They used to be synthesised fresh inside `listUsersHandler`, which was a lie in
+ * two ways that only showed up when the console started *acting* on them: the
+ * console's role-change and remove dialogs call `PUT /users/:id/role` and
+ * `DELETE /users/:id`, and those handlers look accounts up in `db.users` — so a row
+ * the list had just rendered 404'd the moment it was acted on. Development would
+ * have failed loudly while production worked, which is the mock's whole purpose
+ * inverted.
+ *
+ * Seeding them makes them ordinary world records, so every existing handler finds
+ * them, mutations persist, and a removal really removes.
+ *
+ * Idempotent, and correct across resets: membership is tested against `db.users`
+ * on every call rather than cached behind a world key. A cache keyed on the
+ * persona's seeded school id looked fine — same persona, same seed, same id — and
+ * then skipped seeding entirely after `resetDb` rebuilt the world, leaving the
+ * platform list with nothing but the seeded super_admin. Twenty-four membership
+ * checks per call is cheaper than a cache that can go stale, and it cannot.
+ */
+const ensurePlatformUsers = () => {
+  const db = getDb();
+  const ids = new Set(db.users.map((entry) => entry._id));
+  for (const account of platformUserRows()) {
+    if (!ids.has(account._id)) db.users.push(account);
+  }
+  return db.users;
+};
+
+const requireSuperAdmin = (user) => {
+  if (user?.role !== 'super_admin') {
+    throw new MockError(403, 'Forbidden', 'FORBIDDEN');
+  }
+};
+
+/** The seeded school is a super_admin's own login in CREATE mode — keep it visible. */
+const adminDashboardPayload = () => {
+  const schools = platformSchoolRows();
+  const active = schools.filter((s) => s.status === 'active');
+  const paid = schools.filter((s) => s.subscription.status === 'active');
+  const onTrial = schools.filter((s) => s.subscription.status === 'trial');
+  const users = platformUserRows();
+
+  const totalRevenue = schools.reduce((sum, s) => sum + s.paymentVolume, 0);
+  const totalCompleted = Math.round(totalRevenue / 21500);
+
+  return {
+    schools: {
+      total: schools.length + 73,
+      active: active.length + 65,
+      suspended: schools.filter((s) => s.status === 'suspended').length,
+      archived: schools.filter((s) => s.status === 'archived').length,
+      onTrial: onTrial.length + 5,
+      paid: paid.length + 52,
+    },
+    users: {
+      total: users.length + 45186,
+      students: 38500,
+      staff: users.length + 6686,
+    },
+    payments: {
+      totalCompleted,
+      totalRevenue,
+      mtdRevenue: Math.round(totalRevenue * 0.11),
+      mtdCount: Math.round(totalCompleted * 0.05),
+      ytdRevenue: Math.round(totalRevenue * 0.9),
+      ytdCount: Math.round(totalCompleted * 0.85),
+      platformMarkup: Math.round(totalRevenue * 0.05),
+      pendingPayouts: 8500000,
+    },
+    sms: { totalBalance: 125000 },
+    recentSchools: [...schools]
+      .sort((a, b) => (a._id < b._id ? 1 : -1))
+      .slice(0, 5)
+      .map((s) => ({
+        _id: s._id,
+        name: s.name,
+        schoolCode: s.schoolCode,
+        status: s.status,
+        subscription: s.subscription,
+        createdAt: new Date(Date.UTC(2026, 0, 20)).toISOString(),
+      })),
+  };
+};
+
+const adminSmsBalancePayload = () => ({
+  totalBalance: 125000,
+  totalSchools: platformSchoolRows().filter((s) => s.status === 'active').length,
+});
+
+const adminDashboard = ({ user }) => {
+  requireSuperAdmin(user);
+  return adminDashboardPayload();
+};
+
+const adminRevenue = ({ user, query }) => {
+  requireSuperAdmin(user);
+  const period = query.period || 'all';
+  // The real route intersects `period` with an explicit date range; the mock
+  // applies the period alone, which is enough for a client that sends only one.
+  const share = period === 'mtd' ? 0.11 : period === 'ytd' ? 0.9 : period === 'last30' ? 0.18 : 1;
+  const totalRevenue = Math.round(285000000 * share);
+
+  return {
+    summary: {
+      totalRevenue,
+      totalPayments: Math.round(13240 * share),
+      avgPayment: Math.round(totalRevenue / Math.max(1, Math.round(13240 * share))),
+      platformMarkupRevenue: Math.round(totalRevenue * 0.05),
+    },
+    filters: {
+      period,
+      startDate: query.startDate || null,
+      endDate: query.endDate || null,
+      plan: query.plan || null,
+      region: query.region || null,
+    },
+  };
+};
+
+const adminListSchools = ({ user, query }) => {
+  requireSuperAdmin(user);
+
+  let rows = platformSchoolRows();
+  if (query.status) rows = rows.filter((s) => s.status === query.status);
+  if (query.region) rows = rows.filter((s) => s.region === query.region);
+  if (query.plan) rows = rows.filter((s) => s.subscription.plan === query.plan);
+  if (query.search) {
+    const term = String(query.search).toLowerCase();
+    rows = rows.filter((s) =>
+      [s.name, s.schoolCode, s.email, s.phone, s.city]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(term))
+    );
+  }
+
+  const sortBy = query.sortBy || 'createdAt';
+  const direction = query.sortOrder === 'asc' ? 1 : -1;
+  rows.sort((a, b) => {
+    const left = a[sortBy] ?? '';
+    const right = b[sortBy] ?? '';
+    return (left < right ? -1 : left > right ? 1 : 0) * direction;
+  });
+
+  const page = Number(query.page) || 1;
+  const perPage = Number(query.perPage) || 20;
+  const start = (page - 1) * perPage;
+  return {
+    __rows: rows.slice(start, start + perPage),
+    __status: 200,
+    meta: { page, perPage, total: rows.length, pages: Math.max(1, Math.ceil(rows.length / perPage)) },
+  };
+};
+
+const adminSchoolUsage = ({ user, params }) => {
+  requireSuperAdmin(user);
+  const school = platformSchoolRows().find((s) => s._id === params.schoolId);
+  if (!school) throw new MockError(404, 'School not found', 'SCHOOL_NOT_FOUND');
+
+  const completed = Math.round(school.paymentVolume / 21500);
+  return {
+    school: {
+      _id: school._id,
+      name: school.name,
+      schoolCode: school.schoolCode,
+      status: school.status,
+      subscription: school.subscription,
+      sms: { provider: 'hubtel', balance: 1500, senderId: school.schoolCode },
+    },
+    counts: { students: school.studentCount, staff: school.staffCount, parents: 312 },
+    payments: {
+      totalRevenue: school.paymentVolume,
+      statusBreakdown: {
+        completed: { count: completed, amount: school.paymentVolume },
+        pending: { count: 5, amount: 45000 },
+        failed: { count: 3, amount: 2300 },
+      },
+      pendingAmount: 45000,
+      pendingPlans: 5,
+    },
+    stats: {
+      totalStudents: school.studentCount,
+      totalTeachers: Math.round(school.staffCount * 0.8),
+      totalParents: 312,
+      totalPaymentsThisMonth: Math.round(completed * 0.05),
+    },
+    recentActivity: [],
+  };
+};
+
+const adminSuspendSchool = ({ user, params, body }) => {
+  requireSuperAdmin(user);
+  const reason = String(body?.reason || '').trim();
+  if (reason.length < 10 || reason.length > 500) {
+    throw new MockError(422, '"reason" length must be between 10 and 500 characters long', 'VALIDATION_ERROR');
+  }
+  const school = platformSchoolRows().find((s) => s._id === params.schoolId);
+  if (!school) throw new MockError(404, 'School not found', 'SCHOOL_NOT_FOUND');
+  if (school.status !== 'active') throw new MockError(400, 'School is not active', 'SCHOOL_NOT_ACTIVE');
+
+  const at = new Date().toISOString();
+  school.status = 'suspended';
+  school.suspendedReason = reason;
+  school.suspendedAt = at;
+  school.subscription = { ...school.subscription, status: 'suspended' };
+
+  return {
+    __raw: {
+      _id: school._id,
+      name: school.name,
+      status: school.status,
+      suspendedReason: school.suspendedReason,
+      suspendedAt: school.suspendedAt,
+      subscription: school.subscription,
+    },
+  };
+};
+
+const adminUnsuspendSchool = ({ user, params }) => {
+  requireSuperAdmin(user);
+  const school = platformSchoolRows().find((s) => s._id === params.schoolId);
+  if (!school) throw new MockError(404, 'School not found', 'SCHOOL_NOT_FOUND');
+  if (school.status !== 'suspended') throw new MockError(400, 'School is not suspended', 'SCHOOL_NOT_SUSPENDED');
+
+  school.status = 'active';
+  school.suspendedReason = '';
+  school.suspendedAt = null;
+  school.subscription = {
+    ...school.subscription,
+    status: school.subscription.plan === 'trial' ? 'trial' : 'active',
+  };
+
+  return {
+    __raw: {
+      _id: school._id,
+      name: school.name,
+      status: school.status,
+      suspendedReason: school.suspendedReason,
+      suspendedAt: school.suspendedAt,
+      subscription: school.subscription,
+    },
+  };
+};
+
+const PLATFORM_ADS = [
+  { _id: objectId(31), schoolName: 'Greenfield Academy', headline: 'Admissions open for 2026', placement: 'auth_aside', status: 'pending', imageAlt: 'Greenfield Academy senior school campus building', linkUrl: 'https://example.com/greenfield/apply', sortWeight: 10, endsAt: '2026-12-31T00:00:00.000Z' },
+  { _id: objectId(32), schoolName: 'Riverside International', headline: 'Now boarding, grades 1–12', placement: 'home_hero', status: 'pending', imageAlt: 'Riverside International School main gate', linkUrl: 'https://example.com/riverside/apply', sortWeight: 5, endsAt: '2026-11-30T00:00:00.000Z' },
+  { _id: objectId(33), schoolName: 'New Horizon School', headline: 'Term fees payable in three parts', placement: 'dashboard_sidebar', status: 'approved', imageAlt: 'New Horizon School fee payment announcement', linkUrl: 'https://example.com/newhorizon/plans', sortWeight: 0, endsAt: '2026-10-31T00:00:00.000Z' },
+  { _id: objectId(34), schoolName: 'Ashanti Grove School', headline: 'Scholarships available', placement: 'auth_aside', status: 'rejected', imageAlt: 'Ashanti Grove School scholarship advert', linkUrl: 'https://example.com/grove/scholarship', sortWeight: 0, endsAt: '2026-09-30T00:00:00.000Z', rejectedReason: 'The creative names a fee discount. Fee terms cannot be advertised without the school confirming them in writing.' },
+];
+
+const adminListSchoolAds = ({ user, query }) => {
+  requireSuperAdmin(user);
+
+  let rows = PLATFORM_ADS;
+  // No default placement here, and that mirrors the server: the schema shares
+  // this route with the public slider, so a default would hide every placement
+  // but one from the moderation queue.
+  if (query.status) rows = rows.filter((ad) => ad.status === query.status);
+  if (query.placement) rows = rows.filter((ad) => ad.placement === query.placement);
+
+  const page = Number(query.page) || 1;
+  const perPage = Number(query.perPage) || 20;
+  const start = (page - 1) * perPage;
+  return {
+    __rows: rows.slice(start, start + perPage),
+    meta: { page, perPage, total: rows.length, pages: Math.max(1, Math.ceil(rows.length / perPage)) },
+  };
+};
+
+const adminReviewSchoolAd = ({ user, params, body }) => {
+  requireSuperAdmin(user);
+  const ad = PLATFORM_ADS.find((entry) => entry._id === params.adId);
+  if (!ad) throw new MockError(404, 'Ad not found', 'AD_NOT_FOUND');
+
+  const status = body?.status;
+  if (!['approved', 'rejected'].includes(status)) {
+    throw new MockError(422, 'status must be approved or rejected', 'VALIDATION_ERROR');
+  }
+  // The real schema makes the reason mandatory on a rejection, and the reason is
+  // what the submitting school is told. A mock that accepted a bare rejection
+  // would let the client ship a reject button that produces no explanation.
+  if (status === 'rejected' && !String(body?.rejectedReason || '').trim()) {
+    throw new MockError(422, 'A reason is required when rejecting an ad', 'VALIDATION_ERROR');
+  }
+
+  ad.status = status;
+  ad.rejectedReason = status === 'rejected' ? String(body.rejectedReason).trim() : '';
+  return ad;
+};
+
+/**
+ * `GET /users` — and the platform-wide case is the interesting one.
+ *
+ * `userController.listUsers` computes
+ * `targetSchoolId = query.schoolId || req.user.schoolId`, and a platform admin's
+ * `schoolId` is `null`, so the `schoolId` filter is never applied and the query
+ * returns **every user on the platform**. That is the whole reason the platform
+ * console's user page needs no new endpoint, and reproducing it here is what
+ * stops a mock from quietly scoping that page to one school.
+ */
+/** Mirrors `INVITABLE_BY_SCHOOL_ADMIN` in `Backend/src/validators/userValidators.js`. */
+const INVITABLE_MOCK_ROLES = ['school_admin', 'accountant', 'teacher', 'viewer'];
+
+/**
+ * `POST /users/invite`
+ *
+ * Was absent from this table, which meant the school console's invite dialog and
+ * the console's own invite path both 404'd against the mock while working against
+ * the real API.
+ *
+ * It carries the single-owner rule for the same reason the other three do: the
+ * real `resolveInvitableRole` refused `super_admin` only *after* being rewritten,
+ * and before that it passed the requested role straight through for a caller who
+ * already held it. The mock now refuses it first and unconditionally.
+ */
+const inviteUser = ({ body, user }) => {
+  const requestedRole = body?.role || 'teacher';
+
+  if (requestedRole === 'super_admin') {
+    throw new MockError(
+      403,
+      'The platform admin role cannot be granted. It is assigned to a single account from the server environment.',
+      'PLATFORM_ROLE_NOT_GRANTABLE'
+    );
+  }
+  if (user?.role !== 'super_admin' && !INVITABLE_MOCK_ROLES.includes(requestedRole)) {
+    throw new MockError(403, 'You cannot grant that role', 'ROLE_NOT_GRANTABLE');
+  }
+
+  ensurePlatformUsers();
+
+  const invited = {
+    _id: objectId(900 + getDb().users.length),
+    name: String(body?.name || '').trim(),
+    email: String(body?.email || '').trim().toLowerCase(),
+    phone: body?.phone || null,
+    position: body?.position || null,
+    role: requestedRole,
+    status: 'invited',
+    isEmailVerified: true,
+    isPlatformOwner: false,
+    // School-scoped like the real handler: a super_admin inviting picks the school,
+    // and a school admin can only ever invite into their own.
+    schoolId: user?.role === 'super_admin' ? body?.schoolId || null : user?.schoolId || null,
+    createdAt: new Date().toISOString(),
+  };
+
+  getDb().users.push(invited);
+  return { user: invited, emailSent: true };
+};
+
+const listUsersHandler = ({ user, query }) => {
+  const isPlatform = user?.role === 'super_admin';
+  const targetSchoolId = isPlatform ? query.schoolId || user.schoolId : user?.schoolId;
+
+  if (!isPlatform && query.schoolId && String(query.schoolId) !== String(user?.schoolId)) {
+    throw new MockError(403, 'You can only view users from your school', 'FORBIDDEN');
+  }
+
+  // Seeded into the world first, so the accounts the list shows are the same
+  // objects the mutation handlers resolve. See `ensurePlatformUsers`.
+  const all = ensurePlatformUsers().filter((entry) => !entry.deletedAt);
+
+  // A super_admin sees every account; anyone else sees only their school's. The
+  // platform accounts carry their own `schoolId`, so the school-scoped case
+  // filters them out without needing to know they exist.
+  let rows = all;
+  if (targetSchoolId) rows = rows.filter((entry) => String(entry.schoolId) === String(targetSchoolId));
+  if (query.role) rows = rows.filter((entry) => entry.role === query.role);
+  if (query.status) rows = rows.filter((entry) => entry.status === query.status);
+
+  const page = Number(query.page) || 1;
+  const limit = Number(query.limit) || 50;
+  const start = (page - 1) * limit;
+  return {
+    users: rows.slice(start, start + limit),
+pagination: { page, limit, total: rows.length, pages: Math.max(1, Math.ceil(rows.length / limit)) },
+  };
 };
 
 // -- Users / settings / ads -------------------------------------------------
@@ -3875,11 +4381,79 @@ const updateUser = ({ params, body, user }) => {
   if (user?.role !== 'super_admin' && user?._id !== target._id) {
     throw new MockError(403, 'You can only update your own profile', 'FORBIDDEN');
   }
+  // The role is refused here as well as in the two dedicated endpoints, because
+  // `PUT /users/:userId` carries no `authorize` middleware and is a second,
+  // undocumented way to change a role. A mock that honoured it would make the
+  // console's row dialogs pass while the real API refused — and would let the
+  // platform console appear to mint a second owner.
+  if (body?.role === 'super_admin') {
+    throw new MockError(
+      403,
+      'The platform admin role cannot be assigned. It is assigned to a single account from the server environment.',
+      'PLATFORM_ROLE_NOT_GRANTABLE'
+    );
+  }
   if (body?.name) target.name = String(body.name).trim();
   if (body?.phone) target.phone = body.phone;
   if (body?.position !== undefined) target.position = body.position;
   if (body?.avatar !== undefined) target.avatar = body.avatar;
+  if (body?.role) target.role = body.role;
   return target;
+};
+
+/**
+ * `PUT /users/:userId/role`
+ *
+ * Reproduces the single-owner rule rather than the old check that any super_admin
+ * could promote anyone. That old rule read as sensible and permitted exactly the
+ * thing it appeared to prevent, and the seeded mock had only one super_admin, so
+ * a mock that kept it would have made the console look correct in development and
+ * failed in production.
+ */
+const changeUserRole = ({ params, body, user }) => {
+  const target = getDb().users.find((u) => u._id === params.userId);
+  if (!target) throw new MockError(404, 'User not found', 'USER_NOT_FOUND');
+  if (user?.role !== 'super_admin') {
+    throw new MockError(403, 'Only a super admin can change roles', 'FORBIDDEN');
+  }
+  if (body?.role === 'super_admin') {
+    throw new MockError(
+      403,
+      'The platform admin role cannot be assigned. It is assigned to a single account from the server environment.',
+      'PLATFORM_ROLE_NOT_GRANTABLE'
+    );
+  }
+target.role = body.role;
+  // The real handler answers `{ success, message, user }`, and
+  // `services/user.js` reads `data.user` — so returning the bare document here
+  // would hand the caller `undefined` and fail at the call site rather than in
+  // this mock, which is a far worse place to find out.
+  return { success: true, message: 'User role updated successfully', user: target };
+};
+
+/**
+ * `DELETE /users/:userId`
+ *
+ * Soft delete, matching the real handler, plus its two refusals: a caller cannot
+ * remove themselves, and neither can anyone remove the platform owner. The owner
+ * check is what makes "one super admin" survive an operator who decides the
+ * account is no longer needed.
+ */
+const deleteUser = ({ params, user }) => {
+  const target = getDb().users.find((u) => u._id === params.userId);
+  if (!target || target.deletedAt) throw new MockError(404, 'User not found', 'USER_NOT_FOUND');
+
+  if (String(params.userId) === String(user?._id)) {
+    throw new MockError(400, 'You cannot delete your own account', 'CANNOT_DELETE_SELF');
+  }
+  if (target.isPlatformOwner || target.role === 'super_admin') {
+    throw new MockError(403, 'Cannot delete a super admin account', 'FORBIDDEN');
+  }
+
+  target.deletedAt = new Date().toISOString();
+  target.status = 'deactivated';
+  target.tokenVersion = (target.tokenVersion || 0) + 1;
+  return { success: true };
 };
 
 const getSettings = ({ params, user }) => {
@@ -4127,7 +4701,43 @@ export const ROUTES = [
   ['POST', /^\/sms\/bulk\/([^/]+)$/, sendBulkSms, { mockOnly: true }],
   ['GET', /^\/admin\/sms-balance$/, getSmsBalance],
 
+  // The platform console. `admin.routes.js` applies
+  // `authenticate` + `authorize("super_admin")` at the router level, so each
+  // handler re-checks the role rather than the adapter doing it once — the same
+  // way every other guarded route in this file behaves.
+  //
+  // Ordered longest-first within each resource: `/admin/schools/:id/usage` has to
+  // be matched before `/admin/schools/:id`, and the `*` below would swallow both
+  // otherwise.
+  ['GET', /^\/admin\/schools\/(?<schoolId>[^/]+)\/usage$/, adminSchoolUsage],
+  ['PUT', /^\/admin\/schools\/(?<schoolId>[^/]+)\/suspend$/, adminSuspendSchool],
+  ['PUT', /^\/admin\/schools\/(?<schoolId>[^/]+)\/unsuspend$/, adminUnsuspendSchool],
+  ['PUT', /^\/admin\/school-ads\/(?<adId>[^/]+)\/approve$/, adminReviewSchoolAd],
+  ['GET', /^\/admin\/schools$/, adminListSchools],
+  ['GET', /^\/admin\/school-ads$/, adminListSchoolAds],
+  ['GET', /^\/admin\/revenue$/, adminRevenue],
+  ['GET', /^\/admin\/dashboard$/, adminDashboard],
+
+  // `GET /users` was absent from this table, which meant the school console's
+  // User Management 404'd against the mock while working against the real API —
+  // the exact drift this file exists to catch, found by the platform console
+  // needing the same route.
+  ['GET', /^\/users$/, listUsersHandler],
+
+  // Registered before `/users/:userId`, which its pattern would otherwise match.
+  // `resolveRoute` walks the table in order, so ordering is what separates the two
+  // PUTs — the same rule the invite route depends on.
+  //
+  // The named group is load-bearing. `extractParams` falls back to naming the
+  // *last* path segment `userId`, so an unnamed `/users/([^/]+)/role` pattern hands
+  // the handler the literal string `'role'` and every lookup 404s. Named groups
+  // win over that fallback in `resolveRoute`.
+  ['PUT', /^\/users\/(?<userId>[^/]+)\/role$/, changeUserRole],
+  ['DELETE', /^\/users\/(?<userId>[^/]+)$/, deleteUser],
   ['PUT', /^\/users\/([^/]+)$/, updateUser],
+
+  // Registered before `/users/:userId` for the same ordering reason.
+  ['POST', /^\/users\/invite$/, inviteUser],
   ['GET', /^\/settings\/([^/]+)$/, getSettings],
 
   ['GET', /^\/public\/school-ads$/, listSchoolAds, { public: true }],
