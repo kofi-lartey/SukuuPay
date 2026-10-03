@@ -55,11 +55,21 @@ const GoogleSignInButton = ({ onCredential, onError, disabled = false, variant =
    *
    * Separate from `blocked` because they are different problems with different fixes:
    * `blocked` is a content blocker (fix the browser), `renderFailed` is Google's
-   * server refusing us — usually an unrecognised client ID or an unconfigured consent
-   * screen (fix the Cloud console). Both render a working-looking button as a
-   * fallback, but only one of them is worth a user's time.
+   * server refusing us (fix the Cloud console). Both render a working-looking button
+   * as a fallback, but only one of them is worth a user's time.
    */
   const [renderFailed, setRenderFailed] = useState(false);
+
+  /**
+   * The origin the button failed to draw on.
+   *
+   * Google's refusal carries this, and it is the whole diagnosis: `gsi/button` answers
+   * 403 with the same "client ID is not found" whether the client ID is wrong or the
+   * *origin* is simply absent from the client's "Authorized JavaScript origins", and
+   * those two look identical from inside the page. Held as its own string because it is
+   * a value to be shown — the exact thing to paste into the console — not prose.
+   */
+  const [failedOrigin, setFailedOrigin] = useState('');
 
   /*
    * Availability, then the button.
@@ -124,12 +134,13 @@ const GoogleSignInButton = ({ onCredential, onError, disabled = false, variant =
          * content blocker; fixed in the browser.
          *
          * `GOOGLE_RENDER_FAILED` — the namespace is fine and the script loaded, but
-         * Google's button endpoint refused to draw. In practice that is a client ID
-         * Google does not recognise: wrong project, OAuth consent screen not
-         * configured, or the client deleted. Nothing on this page can fix it, so the
-         * message says so rather than inviting the user to keep retrying.
+         * Google's button endpoint answered 403. Nothing on this page can fix it, so
+         * the note below says where the fix lives rather than inviting a retry, and it
+         * names the origin — because Google's 403 does not distinguish a wrong client ID
+         * from an unauthorised one, and only the origin separates the two.
          */
         if (error?.code === 'GOOGLE_RENDER_FAILED') {
+          setFailedOrigin(error?.origin || window.location.origin);
           setRenderFailed(true);
         } else {
           setBlocked(error?.code === 'GOOGLE_BLOCKED');
@@ -232,10 +243,17 @@ const GoogleSignInButton = ({ onCredential, onError, disabled = false, variant =
             <AlertCircle className="mt-px h-3 w-3 shrink-0" aria-hidden="true" />
             <span>
               {renderFailed
-                ? 'Google could not load its button. This is usually a Google client ID that does not match, or an OAuth consent screen that has not been configured — sign in with your password in the meantime.'
+                ? 'Google could not load its button. That is usually this origin missing from the OAuth client’s authorized JavaScript origins, or an unconfigured consent screen — sign in with your password in the meantime.'
                 : 'Google sign-in is blocked in this browser. Allow third-party scripts, or sign in with your password.'}
             </span>
           </p>
+
+          {renderFailed && failedOrigin && (
+            <p className="flex items-start gap-1.5 text-[11px] leading-snug text-amber-700/90">
+              <span className="shrink-0 font-bold">Origin:</span>
+              <code className="min-w-0 break-all font-mono">{failedOrigin}</code>
+            </p>
+          )}
         </>
       ) : (
         <div className="relative flex min-h-[44px] items-center justify-center">

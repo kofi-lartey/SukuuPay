@@ -298,11 +298,12 @@ describe('a button Google refuses to draw is reported, not left as a hole', () =
   });
 
   /**
-   * The failure this covers: `accounts.google.com/gsi/button` answers **403** for a
-   * client ID Google does not recognise — wrong project, consent screen not
-   * configured, client deleted. `renderButton` returns void, reports nothing, and
-   * draws nothing, so the page is left with an empty 320px box. No button, no error,
-   * nothing in our own code to explain it.
+   * The failure this covers: `accounts.google.com/gsi/button` answers **403** and the
+   * console logs `The given client ID is not found` — for a client ID Google does not
+   * recognise (wrong project, consent screen not configured, client deleted) *or* for an
+   * origin missing from the client's authorized JavaScript origins. `renderButton`
+   * returns void, reports nothing, and draws nothing, so the page is left with an empty
+   * 320px box. No button, no error, nothing in our own code to explain it.
    */
   test('resolves false when Google draws nothing', async () => {
     const mod = await loadModule('test-client-id.apps.googleusercontent.com');
@@ -316,6 +317,9 @@ describe('a button Google refuses to draw is reported, not left as a hole', () =
         // The message has to name the likely cause, because the reader of it is a
         // developer staring at an empty box wondering whether to retry.
         assert.match(error.message, /client ID|consent screen/i);
+        // And the origin has to be attached, because that 403 cannot be told apart
+        // from an unauthorised origin without it — see googleIdentity.js.
+        assert.equal(error.origin, 'http://localhost');
         return true;
       }
     );
