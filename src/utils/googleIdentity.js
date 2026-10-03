@@ -238,9 +238,26 @@ export const initializeGoogleSignIn = async (onCredential) => {
  * `data-size`, `data-theme` and `data-text` are passed through from the caller so the
  * button can match the page rather than Google picking.
  *
+ * ### Why this waits and then checks, rather than trusting `renderButton`
+ *
+ * `renderButton` returns void and tells you nothing. It is happy to draw nothing at
+ * all — which is exactly what happens when `accounts.google.com/gsi/button` answers
+ * **403**, as it does for a client ID Google does not recognise (wrong project,
+ * consent screen not configured, or the client deleted). The page then shows an empty
+ * 320-pixel box: no button, no error, and nothing in our own code to explain it. That
+ * is the failure we just spent a debugging cycle on, and it is worth making loud.
+ *
+ * So the container is polled briefly and an empty one is turned into a coded error,
+ * which the login page renders as an explanation instead of a hole. This also catches
+ * the reverse case — a blocked iframe under CSP — which produces the same silence.
+ *
  * @returns {Promise<boolean>} whether a button was rendered into the element
+ * @throws coded `GOOGLE_RENDER_FAILED` when nothing appeared
  */
-export const renderGoogleButton = async (element, { size = 'large', theme = 'outline', text = 'continue_with' } = {}) => {
+export const renderGoogleButton = async (
+  element,
+  { size = 'large', theme = 'outline', text = 'continue_with' } = {}
+) => {
   const id = await loadGoogleIdentity();
   if (!id || !element) return false;
 
@@ -261,8 +278,52 @@ export const renderGoogleButton = async (element, { size = 'large', theme = 'out
     login_uri: window.location.origin + window.location.pathname,
   });
 
+  await waitForButton(element);
+
+  // Still nothing: the script loaded but Google refused to draw. See the note above.
+  if (!element.childNodes.length) {
+    throw Object.assign(
+      new Error(
+        'Google sign-in is unavailable. The button could not be loaded — the client ID may be incorrect, or the OAuth consent screen may not be configured.'
+      ),
+      { code: 'GOOGLE_RENDER_FAILED' }
+    );
+  }
+
   return true;
 };
+
+/**
+ * How long to wait for Google's iframe to appear, and how often to look.
+ *
+ * 2 seconds in 50ms steps. Generous on purpose: the button usually appears in one
+ * frame, and this only matters on the failure path, where the cost of waiting is a
+ * slightly slower error message and the cost of not waiting is a silently empty
+ * button. The wait is abortable so an unmount cannot hold it open.
+ */
+const RENDER_TIMEOUT_MS = 2000;
+const RENDER_POLL_MS = 50;
+
+const waitForButton = (element) =>
+  new Promise((resolve) => {
+    const startedAt = Date.now();
+
+    const poll = () => {
+      if (element.childNodes.length) {
+        resolve(true);
+        return;
+      }
+
+      if (Date.now() - startedAt >= RENDER_TIMEOUT_MS) {
+        resolve(false);
+        return;
+      }
+
+      setTimeout(poll, RENDER_POLL_MS);
+    };
+
+    poll();
+  });
 
 /**
  * Cancels an open Sign-In popup.

@@ -36,17 +36,50 @@ for (const csp of cspValues) {
     }
   }
 
-  for (const name of ['script-src', 'frame-src', 'connect-src']) {
+  /*
+    * Every origin Sign-In With Google needs, per directive.
+
+    * Enumerated rather than a single "mentions accounts.google.com" check, because the
+    * four were added one at a time as each violation appeared in a browser console,
+    * and the fourth (`style-src`, for `accounts.google.com/gsi/style`) surfaced only
+    * once the script could finally load. A list is what stops that being a sequence of
+    * deploy-and-check cycles.
+    */
+  const REQUIRED = [
+    ['script-src', 'the GIS script'],
+    ['frame-src', 'the button iframe'],
+    ['connect-src', "GIS's token endpoint"],
+    ['style-src', 'the GIS stylesheet'],
+    ['img-src', 'Google avatars'],
+  ];
+
+  for (const [name, why] of REQUIRED) {
     const directive = directives.find((d) => d.startsWith(`${name} `)) || '';
-    const ok = directive.includes('accounts.google.com');
-    console.log(`   ${name.padEnd(12)} ${ok ? 'has accounts.google.com' : 'MISSING accounts.google.com'}`);
+    const ok = directive.includes('accounts.google.com') || directive.includes('lh3.googleusercontent.com');
+    console.log(`   ${name.padEnd(12)} ${ok ? 'ok' : `MISSING (${why})`}`);
     if (!ok) failures += 1;
   }
 
-  // `'unsafe-inline'` in script-src is the thing this file went out of its way to
-  // avoid, and it must not creep back in via an edit that fixes one violation by
-  // opening everything.
+  /*
+    * The inline-script hash, and the rule around it.
+
+    * GIS executes an inline script of its own and refuses to work without it. A
+    * **hash** permits exactly that script and nothing else, so our own inline code
+    * stays blocked — which is why this check exists: the tempting fix for a broken
+    * Sign-In button is `'unsafe-inline'`, and that would re-open inline execution for
+    * the whole application to accommodate a third party.
+    *
+    * So: a hash must be present, and `'unsafe-inline'` must not be.
+    */
   const scriptSrc = directives.find((d) => d.startsWith('script-src ')) || '';
+
+  if (!/'sha256-[A-Za-z0-9+/=]+'/.test(scriptSrc)) {
+    console.log('   script-src    MISSING a sha256 hash for the GIS inline script');
+    failures += 1;
+  } else {
+    console.log('   script-src    has a sha256 hash for the GIS inline script');
+  }
+
   if (scriptSrc.includes("'unsafe-inline'")) {
     console.log("   !! script-src contains 'unsafe-inline' — that defeats the policy");
     failures += 1;

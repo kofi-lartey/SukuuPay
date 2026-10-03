@@ -50,6 +50,16 @@ const GoogleSignInButton = ({ onCredential, onError, disabled = false, variant =
   const [enabled, setEnabled] = useState(false);
   const [ready, setReady] = useState(false);
   const [blocked, setBlocked] = useState(false);
+  /**
+   * Set when Google's script loaded but would not draw a button.
+   *
+   * Separate from `blocked` because they are different problems with different fixes:
+   * `blocked` is a content blocker (fix the browser), `renderFailed` is Google's
+   * server refusing us — usually an unrecognised client ID or an unconfigured consent
+   * screen (fix the Cloud console). Both render a working-looking button as a
+   * fallback, but only one of them is worth a user's time.
+   */
+  const [renderFailed, setRenderFailed] = useState(false);
 
   /*
    * Availability, then the button.
@@ -94,26 +104,38 @@ const GoogleSignInButton = ({ onCredential, onError, disabled = false, variant =
      */
     (async () => {
       try {
-        const ready = await initializeGoogleSignIn((credential) => {
+        const initialised = await initializeGoogleSignIn((credential) => {
           onCredential(credential);
         });
         if (!active) return;
-        if (!ready) {
+        if (!initialised) {
           setBlocked(true);
           return;
         }
 
-        const drawn = await renderGoogleButton(containerRef.current);
-        if (active) setReady(Boolean(drawn));
+        await renderGoogleButton(containerRef.current);
+        if (active) setReady(true);
       } catch (error) {
         if (!active) return;
         /*
-         * Distinguishes "blocked" from "did not load", because they need different
-         * advice: a blocked script is fixed in the browser, a failed one by retrying.
+         * Two failure kinds, two different fixes for the reader.
+         *
+         * `GOOGLE_BLOCKED` — the script loaded but the namespace never appeared. A
+         * content blocker; fixed in the browser.
+         *
+         * `GOOGLE_RENDER_FAILED` — the namespace is fine and the script loaded, but
+         * Google's button endpoint refused to draw. In practice that is a client ID
+         * Google does not recognise: wrong project, OAuth consent screen not
+         * configured, or the client deleted. Nothing on this page can fix it, so the
+         * message says so rather than inviting the user to keep retrying.
          */
-        setBlocked(error?.code === 'GOOGLE_BLOCKED');
-        if (error?.code !== 'GOOGLE_BLOCKED') {
-          onError?.(error);
+        if (error?.code === 'GOOGLE_RENDER_FAILED') {
+          setRenderFailed(true);
+        } else {
+          setBlocked(error?.code === 'GOOGLE_BLOCKED');
+          if (error?.code !== 'GOOGLE_BLOCKED') {
+            onError?.(error);
+          }
         }
       }
     })();
@@ -132,6 +154,12 @@ const GoogleSignInButton = ({ onCredential, onError, disabled = false, variant =
   }, [enabled, disabled]);
 
   const handleFallback = useCallback(async () => {
+    /*
+     * A blocked script cannot be retried — the browser will not load it however many
+     * times this button is pressed, and pretending otherwise just gives the user a
+     * button that does nothing. Everything else (including a render failure, which may
+     * have been transient) is worth another try.
+     */
     if (blocked) return;
 
     try {
@@ -180,22 +208,35 @@ const GoogleSignInButton = ({ onCredential, onError, disabled = false, variant =
     <div className="space-y-3.5">
       <OrDivider />
 
-      {blocked ? (
+      {blocked || renderFailed ? (
         /*
-          The script could not be reached — almost always a content blocker.
+          Google could not be used on this page.
+
           Shown as a real, working-looking control that explains itself on click rather
           than as a dead button, because "nothing happens" is indistinguishable from a
-          broken app.
+          broken app. The note below says which of the two problems this is, since the
+          fixes are in different places entirely.
         */
-        <button
-          type="button"
-          onClick={handleFallback}
-          disabled={disabled}
-          className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[12px] font-bold text-slate-700 transition-colors hover:bg-slate-50 shadow-sm disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40"
-        >
-          <GoogleMark />
-          Continue with Google
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={handleFallback}
+            disabled={disabled || blocked}
+            className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[12px] font-bold text-slate-700 transition-colors hover:bg-slate-50 shadow-sm disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40"
+          >
+            <GoogleMark />
+            Continue with Google
+          </button>
+
+          <p className="flex items-start gap-1.5 text-[11px] font-semibold leading-snug text-amber-700">
+            <AlertCircle className="mt-px h-3 w-3 shrink-0" aria-hidden="true" />
+            <span>
+              {renderFailed
+                ? 'Google could not load its button. This is usually a Google client ID that does not match, or an OAuth consent screen that has not been configured — sign in with your password in the meantime.'
+                : 'Google sign-in is blocked in this browser. Allow third-party scripts, or sign in with your password.'}
+            </span>
+          </p>
+        </>
       ) : (
         <div className="relative flex min-h-[44px] items-center justify-center">
           <div ref={containerRef} className="w-full max-w-[320px]" />

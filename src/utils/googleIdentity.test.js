@@ -1,4 +1,4 @@
-import { describe, it, beforeEach, afterEach } from 'node:test';
+import { describe, it, test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 /**
@@ -253,5 +253,93 @@ describe('the Google Identity loader', () => {
     globalThis.window.google = { accounts: { id: {} } };
     globalThis.__lastInjected.fire('load');
     assert.ok(await retry);
+  });
+});
+
+describe('a button Google refuses to draw is reported, not left as a hole', () => {
+  /**
+   * A container that behaves like the real one for the purposes of `renderButton`.
+   *
+   * `innerHTML` is an accessor that clears `childNodes` on assignment, because that is
+   * what a real element does. A plain property would make `element.innerHTML = ''` a
+   * no-op, and the "clears a previous button" test would then be asserting that the
+   * *module* failed to clear it — when the module is correct and the fixture is not.
+   * A stub has to behave like the thing it stands in for or it tests the stub.
+   */
+  const makeContainer = () => {
+    const container = {
+      childNodes: [],
+      offsetWidth: 320,
+      get innerHTML() {
+        return container._html || '';
+      },
+      set innerHTML(value) {
+        container._html = value;
+        container.childNodes = [];
+      },
+    };
+    return container;
+  };
+
+  /** A namespace whose `renderButton` draws nothing — the 403 case. */
+  const refusingNamespace = { renderButton: () => {} };
+
+  /** A namespace that draws an iframe, as the real one does. */
+  const drawingNamespace = {
+    renderButton: (element) => {
+      element.childNodes.push({ tagName: 'IFRAME' });
+    },
+  };
+
+  beforeEach(() => installBrowser());
+  afterEach(() => {
+    delete globalThis.window;
+    delete globalThis.document;
+  });
+
+  /**
+   * The failure this covers: `accounts.google.com/gsi/button` answers **403** for a
+   * client ID Google does not recognise — wrong project, consent screen not
+   * configured, client deleted. `renderButton` returns void, reports nothing, and
+   * draws nothing, so the page is left with an empty 320px box. No button, no error,
+   * nothing in our own code to explain it.
+   */
+  test('resolves false when Google draws nothing', async () => {
+    const mod = await loadModule('test-client-id.apps.googleusercontent.com');
+    globalThis.window.google = { accounts: { id: refusingNamespace } };
+
+    // Namespace present, so no script is injected at all.
+    await assert.rejects(
+      () => mod.renderGoogleButton(makeContainer()),
+      (error) => {
+        assert.equal(error.code, 'GOOGLE_RENDER_FAILED');
+        // The message has to name the likely cause, because the reader of it is a
+        // developer staring at an empty box wondering whether to retry.
+        assert.match(error.message, /client ID|consent screen/i);
+        return true;
+      }
+    );
+  });
+
+  test('resolves true once Google has drawn into the container', async () => {
+    const mod = await loadModule('test-client-id.apps.googleusercontent.com');
+    globalThis.window.google = { accounts: { id: drawingNamespace } };
+
+    assert.equal(await mod.renderGoogleButton(makeContainer()), true);
+  });
+
+  test('clears a previous button so two never stack', async () => {
+    const mod = await loadModule('test-client-id.apps.googleusercontent.com');
+    globalThis.window.google = { accounts: { id: drawingNamespace } };
+
+    const container = makeContainer();
+    container.childNodes.push({ tagName: 'STALE' });
+
+    await mod.renderGoogleButton(container);
+    assert.equal(
+      container.childNodes.filter((node) => node.tagName === 'STALE').length,
+      0,
+      'the previous contents must be cleared before drawing'
+    );
   });
 });
