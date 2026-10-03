@@ -58,8 +58,25 @@
 # Security headers. The directives below are derived from what the app actually
 # loads — an over-tight CSP here only fails in production, with a blank page
 # and a console full of violations, so each entry is accounted for:
-#   script-src 'self'      — the only scripts are the Vite bundle. No CDN, no
-#                            inline script in index.html.
+#   script-src 'self' https://accounts.google.com
+#                          — the Vite bundle, plus Google Identity Services, which
+#                            Sign-In With Google loads from
+#                            https://accounts.google.com/gsi/client. Still no CDN
+#                            and no inline script of our own: `dist/index.html`
+#                            contains none, so `'unsafe-inline'` is deliberately
+#                            absent and stays absent. Google's own documented CSP
+#                            for GIS does not require it either.
+#   frame-src https://accounts.google.com
+#                          — **required, and easy to miss.** The Sign-In With Google
+#                            button is not our DOM: `accounts.id.renderButton` draws
+#                            it inside a cross-origin iframe. With only `script-src`
+#                            opened, the script loads and the button silently never
+#                            appears — the one failure mode where the CSP gives no
+#                            error about the thing you were trying to fix.
+#   connect-src + https://accounts.google.com
+#                          — GIS calls its own token endpoint from the page. Also
+#                            covers the `postMessage` round trip that returns the
+#                            credential to the opener tab.
 #   style-src 'unsafe-inline' — required twice over: React sets inline
 #                            `style` attributes (Step2/Step4 previews, Tailwind
 #                            arbitrary values), and index.html loads the Google
@@ -68,10 +85,16 @@
 #   font-src               — Plus Jakarta Sans, served from fonts.gstatic.com.
 #   img-src                — inline data: URLs, Unsplash photos on the
 #                            marketing pages (Hero, PhoneMockup, HowItWorks),
-#                            and Cloudinary, which serves the school logos and
-#                            receipts uploaded at runtime.
-#   connect-src            — the API. Without this origin listed, CORS passes
-#                            and the browser blocks the response anyway.
+#                            Cloudinary (school logos and receipts uploaded at
+#                            runtime), and lh3.googleusercontent.com for a Google
+#                            account's profile picture.
+#
+# **No `child-src`.** It is a legacy fallback for `frame-src` and browsers that
+# support `frame-src` ignore it; adding both would be a second place to keep in
+# sync for no gain.
+#
+# If Google Sign-In is ever removed, all four Google entries come out together —
+# they exist only for `src/utils/googleIdentity.js`.
 [[headers]]
   for = "/*"
   [headers.values]
@@ -79,4 +102,4 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
-    Content-Security-Policy = "default-src 'self'; connect-src 'self' https://sukuupay-backend.onrender.com; img-src 'self' data: blob: https://images.unsplash.com https://res.cloudinary.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    Content-Security-Policy = "default-src 'self'; connect-src 'self' https://sukuupay-backend.onrender.com https://accounts.google.com; img-src 'self' data: blob: https://images.unsplash.com https://res.cloudinary.com https://lh3.googleusercontent.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' https://accounts.google.com; frame-src 'self' https://accounts.google.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"

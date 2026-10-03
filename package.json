@@ -8,7 +8,7 @@
     "dev:mock": "vite --mode mock",
     "build": "vite build",
     "build:mock": "vite build --mode mock",
-    "test": "node --test \"src/**/*.test.js\" && npm run test:render && npm run test:auth",
+    "test": "node --test \"src/**/*.test.js\" && node check-netlify-csp.mjs && npm run test:render && npm run test:auth",
     "test:render": "vite build --config .mockcheck/vite.config.js --ssr .mockcheck/overview-cards.jsx --outDir .mockcheck/out-cards --emptyOutDir --logLevel error && node .mockcheck/run-cards.mjs",
     "test:auth": "vite build --config .mockcheck/vite.config.js --ssr .mockcheck/auth-pages-render.jsx --outDir .mockcheck/out-auth2 --emptyOutDir --logLevel error && node .mockcheck/run-auth-pages.mjs",
     "test:console": "vite build --config .mockcheck/vite.config.js --ssr .mockcheck/console-render.jsx --outDir .mockcheck/out-console --emptyOutDir --logLevel error && node .mockcheck/run-console-render.mjs",
