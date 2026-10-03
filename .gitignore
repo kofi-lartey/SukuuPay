@@ -8,8 +8,9 @@ node_modules/
 # would silently commit a `.env.staging` or `.env.production` added later.
 .env
 .env.*
-.env.example
+!.env.example
 !.env.mock
+.env.example
 
 # `.env.example` and `.env.mock` are committed on purpose: they hold no secrets,
 # only a base URL and a boolean, and `.env.mock` is what `npm run dev:mock`
