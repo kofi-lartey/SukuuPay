@@ -220,6 +220,18 @@ export const useSmsReminders = (reloadKey = 0) => {
 
   const [audienceType, setAudienceType] = useState(stored?.audienceType || 'overdue');
   const [classFilter, setClassFilter] = useState(stored?.classFilter || '');
+  /**
+   * Explicit recipients for the `students` rule.
+   *
+   * Persisted in the draft alongside the other composer state, because picking four
+   * names out of a thousand-student roster is the most expensive part of this screen
+   * and a refresh must not throw it away. Restored defensively as an array of
+   * strings: a draft from an older build could hold anything, and `studentIds` goes
+   * straight into a query as `$in`.
+   */
+  const [studentIds, setStudentIds] = useState(() =>
+    Array.isArray(stored?.studentIds) ? stored.studentIds.map(String) : []
+  );
   const [minBalance, setMinBalance] = useState(stored?.minBalance ?? 1);
   const [overdueDays, setOverdueDays] = useState(stored?.overdueDays ?? 30);
   const [gracePeriodDays, setGracePeriodDays] = useState(stored?.gracePeriodDays ?? 30);
@@ -247,6 +259,14 @@ export const useSmsReminders = (reloadKey = 0) => {
       excludeRecentPayers,
       recentPaymentWindowHours: Number(recentPaymentWindowHours) || 48,
       ...(audienceType === 'class' && classFilter ? { class: classFilter } : {}),
+      // The one field the `students` rule needs. Omitted entirely when the list is
+      // empty rather than sent as `studentIds: []`, because the schema reads an
+      // empty array as "no recipients named" and refuses it — and because
+      // `sms.service.js` turns it into `$in: []`, which is a query matching nobody
+      // if it ever slipped past validation. The preview is suppressed below, so
+      // this shape only exists between the two and the send is guarded by the
+      // button.
+      ...(audienceType === 'students' && studentIds.length ? { studentIds } : {}),
       // `all` is the one rule where a zero balance is coherent, and it says so
       // explicitly rather than by leaving `minBalance` at 0 — the server rejects
       // a whole-school broadcast that did not opt in.
@@ -255,6 +275,7 @@ export const useSmsReminders = (reloadKey = 0) => {
     [
       audienceType,
       classFilter,
+      studentIds,
       minBalance,
       overdueDays,
       gracePeriodDays,
@@ -413,9 +434,21 @@ export const useSmsReminders = (reloadKey = 0) => {
   const previewTimer = useRef(null);
   useEffect(() => {
     if (!schoolId) return undefined;
-    if (audienceType === 'class' && !classFilter) {
+
+    // Two rules have nothing to resolve until the bursar names a target, and both
+    // are answered in the form rather than with a request. `class` without a class
+    // and `students` without a student are not server errors to display — they are
+    // an incomplete form, and the picker says what is missing. Asking anyway is
+    // what produced a red banner reading
+    // `audience.type "students" requires studentIds` the instant someone selected
+    // the rule, which reads as a broken feature rather than an unfinished one.
+    const needsTarget =
+      (audienceType === 'class' && !classFilter) || (audienceType === 'students' && !studentIds.length);
+    if (needsTarget) {
+      clearTimeout(previewTimer.current);
       setAudiencePreview(null);
       setAudienceError(null);
+      setAudienceLoading(false);
       return undefined;
     }
 
@@ -436,7 +469,7 @@ export const useSmsReminders = (reloadKey = 0) => {
     }, 400);
 
     return () => clearTimeout(previewTimer.current);
-  }, [schoolId, audience]);
+  }, [schoolId, audience, audienceType, classFilter, studentIds]);
 
   // ── Draft persistence ──
   useEffect(() => {
@@ -444,6 +477,7 @@ export const useSmsReminders = (reloadKey = 0) => {
     writeStoredDraft(schoolId, {
       audienceType,
       classFilter,
+      studentIds,
       minBalance,
       overdueDays,
       gracePeriodDays,
@@ -459,6 +493,7 @@ export const useSmsReminders = (reloadKey = 0) => {
     schoolId,
     audienceType,
     classFilter,
+    studentIds,
     minBalance,
     overdueDays,
     gracePeriodDays,
@@ -566,6 +601,17 @@ export const useSmsReminders = (reloadKey = 0) => {
    * that skipped the dialog gets a 422 rather than 1,200 parents messaged.
    */
   const send = useCallback(async () => {
+    // Refused here rather than left to the server's 422. Both the button's
+    // `disabled` and this guard exist: the button state can be bypassed by a
+    // keyboard shortcut on a focused element or by a draft restored with the rule
+    // selected and the list emptied, and a send that reaches the server in that
+    // state shows a bursar an error instead of telling them what to do.
+    if (audienceType === 'students' && !studentIds.length) {
+      const error = new Error('Pick at least one student, or choose a different audience.');
+      setSendError(error);
+      throw error;
+    }
+
     setSending(true);
     setSendError(null);
     try {
@@ -595,7 +641,7 @@ export const useSmsReminders = (reloadKey = 0) => {
     } finally {
       setSending(false);
     }
-  }, [schoolId, audience, body, category, templateId, scheduledAt, audienceType, loadHistory]);
+  }, [schoolId, audience, body, category, templateId, scheduledAt, audienceType, studentIds, loadHistory]);
 
   const cancelJob = useCallback(
     async (jobId) => {
@@ -659,6 +705,8 @@ export const useSmsReminders = (reloadKey = 0) => {
     audienceRules: AUDIENCE_RULES,
     classFilter,
     setClassFilter,
+    studentIds,
+    setStudentIds,
     minBalance,
     setMinBalance,
     overdueDays,

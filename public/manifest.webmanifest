@@ -1,0 +1,26 @@
+{
+  "name": "SukuuPay — School Fee Collection",
+  "short_name": "SukuuPay",
+  "description": "Pay school fees securely by mobile money. MTN MoMo, Telecel Cash and AirtelTigo Money, with an automatic receipt for every payment.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0F5132",
+  "background_color": "#ffffff",
+  "categories": ["education", "finance", "productivity"],
+  "icons": [
+    {
+      "src": "/sukuupay-logo.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/sukuupay-logo-120.png",
+      "sizes": "120x120",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

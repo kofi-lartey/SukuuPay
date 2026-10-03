@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronDown, CircleAlert, Loader2 } from 'lucide-react';
 import Badge, { NETWORK_DOTS } from '../dashboard/ui/Badge';
+import StudentMultiSelect from './StudentMultiSelect';
 import { formatCediShort, formatCount } from '../../utils/format';
 
 /**
@@ -134,6 +135,8 @@ const AudiencePanel = ({
   classFilter,
   setClassFilter,
   classes,
+  studentIds,
+  setStudentIds,
   preview,
   loading,
   error,
@@ -150,6 +153,14 @@ const AudiencePanel = ({
 }) => {
   const countFor = (type) => (audienceType === type && preview ? preview.matchCount : null);
   const valueFor = (type) => {
+    // `students` answers before the preview does, because the count is known the
+    // moment a name is ticked. Falling through to the shared "Total school debt"
+    // told a bursar their four hand-picked families owed the whole school's debt.
+    if (audienceType === type && type === 'students') {
+      return studentIds?.length
+        ? `${formatCount(studentIds.length)} student${studentIds.length === 1 ? '' : 's'} chosen`
+        : 'None chosen yet';
+    }
     if (audienceType !== type || !preview) return '—';
     if (type === 'class') return 'In the selected class';
     if (type === 'all') return 'Every active student';
@@ -189,7 +200,11 @@ const AudiencePanel = ({
           count={countFor(rule.value)}
           value={valueFor(rule.value)}
           valueLabel={
-            rule.value === 'all' ? 'Includes settled' : rule.value === 'class' ? 'Scope' : 'Outstanding'
+            rule.value === 'all'
+              ? 'Includes settled'
+              : rule.value === 'class' || rule.value === 'students'
+                ? 'Scope'
+                : 'Outstanding'
           }
           onSelect={() => setAudienceType(rule.value)}
         >
@@ -223,6 +238,21 @@ const AudiencePanel = ({
                 </p>
               )}
             </div>
+          )}
+
+          {/*
+            The one rule with no server-side audience of its own.
+
+            Every other card resolves to a population from a query, so choosing it
+            is enough — this one names its recipients outright, and the server turns
+            `audience.studentIds` into `_id: { $in: … }`. So it renders a picker,
+            and with nothing picked the preview is suppressed rather than requested:
+            asking the server to resolve an empty recipient list is what surfaced
+            `audience.type "students" requires studentIds` as a red banner the
+            instant this card was selected.
+          */}
+          {audienceType === rule.value && rule.value === 'students' && (
+            <StudentMultiSelect selectedIds={studentIds} onChange={setStudentIds} />
           )}
 
           {audienceType === rule.value && rule.value === 'overdue' && (

@@ -134,6 +134,12 @@ const SmsReminders = () => {
     if (sms.unknownTokens.length) return 'Fix the unknown tokens in your message.';
     if (sms.overSegmentLimit) return 'The message is over the 10-part limit.';
     if (sms.audienceType === 'class' && !sms.classFilter) return 'Pick a class.';
+    // Before the generic "no preview" line, because the audience *is* chosen here —
+    // its recipients are not. Falling through told a bursar to choose an audience
+    // they had already chosen, while the picker on the card was plainly empty.
+    if (sms.audienceType === 'students' && !sms.studentIds.length) {
+      return 'Pick at least one student to message.';
+    }
     if (sms.audienceLoading) return 'Sizing the audience…';
     if (!sms.audiencePreview) return 'Choose an audience to see the cost.';
     if (!sms.audiencePreview.matchCount) return 'Nobody matches this audience yet.';
@@ -248,6 +254,8 @@ const SmsReminders = () => {
               audienceRules={sms.audienceRules}
               classFilter={sms.classFilter}
               setClassFilter={sms.setClassFilter}
+              studentIds={sms.studentIds}
+              setStudentIds={sms.setStudentIds}
               classes={classes}
               preview={sms.audiencePreview}
               loading={sms.audienceLoading}

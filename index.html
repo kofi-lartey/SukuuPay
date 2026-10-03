@@ -2,7 +2,15 @@
 <html lang="en">
   <head>
     <meta name="google-site-verification" content="G46K2VQ2grOVK34kpkNy-FxOPP-G2wrfpc5zUHd1PGM" />
+    <!-- iOS ignores SVG for the home screen and Android reads the manifest, so both
+      are needed for the app to have an icon on a phone. 256 (not 120) is the
+      apple-touch-icon because iOS renders at 180 and scales down. Colours are
+      brand-700, per tailwind.config.js. -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="120x120" href="/sukuupay-logo-120.png" />
+    <link rel="apple-touch-icon" href="/sukuupay-logo.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"

@@ -6,9 +6,9 @@ import BalanceCard from '../../components/parent/BalanceCard';
 import PlanSummaryCard from '../../components/parent/PlanSummaryCard';
 import { ReceiptList } from '../../components/parent/ReceiptCard';
 import PaymentModal from '../../components/parent/PaymentModal';
+import { LogoMark } from '../../components/common/Logo';
 import {
   Card,
-  Pill,
   PrimaryButton,
   SectionHeading,
   Reassurance,
@@ -84,9 +84,30 @@ const ParentPayPortal = () => {
             <p className="mt-0.5 text-[12px] text-slate-500">Pay school fees securely</p>
           </div>
 
-          <Pill tone="brand" className="shrink-0">
-            Powered by SukuuPay
-          </Pill>
+          {/*
+            The real mark, where this header previously had a text pill reading
+            "Powered by SukuuPay".
+
+            **The school stays the dominant brand.** A parent opens this from an SMS
+            having never heard of SukuuPay, and is checking that this is a real
+            place to enter a phone number — the school's name is what answers that.
+            The product mark is small and sits after it. `PayHeader`, which faces
+            the identical audience on the pre-existing pay page, makes the same call
+            for the same reason; matching it is the point.
+
+            The mark replaces the pill rather than joining it. At 360px the row is
+            school logo + name + attribution, and a 28px mark beside a 105px text
+            pill pushed the school name to ~127px before truncating — the one
+            element on this screen that must not be cut. The wordmark and tagline
+            still appear in the footer, so the brand is named in text on the page.
+
+            `LogoMark` is `aria-hidden`, so the attribution is carried by a
+            visually-hidden span rather than being lost.
+          */}
+          <span className="flex shrink-0 flex-col items-center gap-1">
+            <LogoMark className="h-7 w-7" />
+            <span className="sr-only">Powered by SukuuPay</span>
+          </span>
         </div>
       </header>
 

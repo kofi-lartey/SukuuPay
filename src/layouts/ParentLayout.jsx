@@ -30,7 +30,14 @@ import { PARENT_ROUTES } from '../utils/constants';
  * invisible to someone who only wants to pay.
  */
 
-const ParentPayContext = createContext(null);
+/**
+ * The shared read model.
+ *
+ * Exported as well as `useParentPay`, so a render check can supply a fixture
+ * without standing up `ParentLayout` and a live `/pay/:token` request. The hook is
+ * what application code should use; this is for tests.
+ */
+export const ParentPayContext = createContext(null);
 
 /** The shared read model. Must be used inside `ParentLayout`. */
 export const useParentPay = () => {
