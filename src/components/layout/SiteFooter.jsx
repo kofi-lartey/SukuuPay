@@ -22,7 +22,7 @@ const SiteFooter = () => (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="flex flex-col items-center gap-6 text-center md:flex-row md:justify-between md:text-left">
         <div>
-          <Logo markClassName="text-base" />
+          <Logo />
           <p className="mt-2 text-sm text-slate-600">{SUMMARY}</p>
         </div>
 

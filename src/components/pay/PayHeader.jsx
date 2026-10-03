@@ -28,7 +28,7 @@ const PayHeader = ({ school }) => (
           {school?.schoolCode ? `${school.schoolCode} · ` : ''}Secure fee payment
         </p>
       </div>
-      <LogoMark className="h-8 w-8 shrink-0" markClassName="text-xs" />
+      <LogoMark className="h-9 w-9 shrink-0" />
     </div>
   </header>
 );

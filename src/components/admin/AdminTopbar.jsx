@@ -75,7 +75,7 @@ const AdminTopbar = ({ user, onOpenNav, navOpen = false, pathname, actions }) =>
           className="flex shrink-0 items-center gap-2.5 pr-1"
           aria-label="SukuuPay platform console"
         >
-          <LogoMark className="h-9 w-9" markClassName="text-base" />
+          <LogoMark className="h-10 w-10" />
           <span className="hidden text-lg font-extrabold tracking-tight text-ink sm:block">
             Sukuu<span className="text-brand-700">Pay</span>
           </span>

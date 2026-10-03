@@ -52,7 +52,7 @@ const Navbar = () => {
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between gap-6 lg:h-20">
-          <Logo markClassName="text-xl" />
+          <Logo />
 
           <nav className="hidden items-center gap-1 lg:flex" aria-label="Main">
             {NAV_LINKS.map((link) => (

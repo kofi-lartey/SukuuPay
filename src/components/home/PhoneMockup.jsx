@@ -46,7 +46,7 @@ const PhoneMockup = ({ onPaid, paid }) => {
           <div>
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <LogoMark className="h-7 w-7 rounded-lg" markClassName="text-xs" />
+                <LogoMark className="h-8 w-8" />
                 <span className="text-sm font-extrabold tracking-tight text-ink">SukuuPay</span>
               </div>
               <span className="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2 py-1 text-[10px] font-bold text-brand-700">
