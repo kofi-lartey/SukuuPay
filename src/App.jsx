@@ -19,7 +19,12 @@ import Signup from './pages/auth/Signup';
 import VerifyEmail from './pages/auth/VerifyEmail';
 import ResetPassword from './pages/auth/ResetPassword';
 import NewPassword from './pages/auth/NewPassword';
-import PayPage from './pages/pay/PayPage';
+import ParentLayout from './layouts/ParentLayout';
+import ParentPayPortal from './pages/parent/ParentPayPortal';
+import PaymentHistory from './pages/parent/PaymentHistory';
+import RequestPlan from './pages/parent/RequestPlan';
+import ContactSchool from './pages/parent/ContactSchool';
+import InvalidLink from './pages/parent/InvalidLink';
 import DashboardLayout from './components/dashboard/DashboardLayout';
 import Overview from './pages/dashboard/Overview';
 import Students from './pages/dashboard/Students';
@@ -270,18 +275,37 @@ function App() {
             </Route>
 
             {/*
-              The parent-facing fee page, a sibling of AppChrome like the wizard.
+              The parent pay portal — a sibling of AppChrome like the wizard.
 
               It has to be: a parent opening an SMS link has no account, so the
               marketing navbar would offer them "Sign in" and a footer of links to
               products they are not shopping for, and the pay token in the URL is
-              the only credential involved. The page carries its own minimal header
-              and nothing else.
+              the only credential involved. The portal carries its own minimal
+              header and nothing else.
+
+              `ParentLayout` owns the read model for the whole subtree, so moving
+              between the fee page, the history, the plan request and the support
+              form is a client-side route change with no re-fetch — which on the
+              3G connection this is built for is the difference between a site and
+              a series of pages.
             */}
-            <Route path="/pay/:token" element={<PayPage />} />
+            <Route path="/pay" element={<ParentLayout />}>
+              {/*
+                Declared before `/pay/:token` for readability only — React Router
+                ranks the static segment above the dynamic one, so `/pay/invalid`
+                can never be read as a token. Saying so, because the two being
+                adjacent is exactly the shape that *does* break in a router that
+                matches in declaration order.
+              */}
+              <Route path="invalid" element={<InvalidLink />} />
+              <Route path=":token" element={<ParentPayPortal />} />
+              <Route path=":token/history" element={<PaymentHistory />} />
+              <Route path=":token/plan/request" element={<RequestPlan />} />
+              <Route path=":token/support" element={<ContactSchool />} />
+            </Route>
 
             {/*
-              A malformed pay path — `/pay/`, or a stray segment under it.
+              A malformed pay path — `/pay/` on its own, with no token.
 
               This used to fall through to the marketing catch-all, so a parent
               whose SMS link had been truncated by a messaging app arrived at the

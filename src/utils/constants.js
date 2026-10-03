@@ -97,6 +97,35 @@ export const ADMIN_ROUTES = {
   IMPERSONATION_SESSION: `${ROUTES.ADMIN_IMPERSONATION}/:sessionId`,
 };
 
+/**
+ * The parent pay portal.
+ *
+ * **Separate from `ROUTES` on purpose.** Every route in `ROUTES` is inside the
+ * authenticated shell or is a marketing page with no user in it. The pay portal is
+ * neither: it is reached from an SMS, with no session, and its whole surface is one
+ * token. Keeping its paths here — rather than inline `/pay/${token}` at each call
+ * site — means the token's position in a path is written once, so a link shared
+ * into a family group always resolves to the same student's page.
+ *
+ * `TOKEN` is a path segment, not a query string. A pay link is typed by hand, read
+ * aloud over a phone, and copied out of a message bubble; the shorter and more
+ * visible a URL is, the more often it arrives intact.
+ *
+ * `INVALID` is a real route rather than a component rendered on a 404, because
+ * "this link has expired" is a *known, common* state for a parent — links are
+ * reissued each term — and it needs somewhere to say what to do next. A generic
+ * not-found page leaves them with no action.
+ */
+export const PARENT_ROUTES = {
+  TOKEN: '/pay/:token',
+  /** Factory, for the `to` prop of a `Link`. The token is always encoded. */
+  portal: (token) => `/pay/${encodeURIComponent(token ?? '')}`,
+  history: (token) => `/pay/${encodeURIComponent(token ?? '')}/history`,
+  requestPlan: (token) => `/pay/${encodeURIComponent(token ?? '')}/plan/request`,
+  support: (token) => `/pay/${encodeURIComponent(token ?? '')}/support`,
+  INVALID: '/pay/invalid',
+};
+
 export const APP_NAME = 'SukuuPay';
 
 /**
