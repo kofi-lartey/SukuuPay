@@ -22,12 +22,12 @@ import AuthShell from '../../components/auth/AuthShell';
 import {
   AsideLink,
   AuthLinks,
-  GoogleMark,
-  OrDivider,
   SubmitButton,
 } from '../../components/auth/OnboardingAside';
+import GoogleSignInButton from '../../components/auth/GoogleSignInButton';
 import { PasswordStrength } from '../../components/auth/CodeInput';
 import { Field, FormAlert, PrefixedField, SelectField } from '../../components/common/FormField';
+import { signInWithGoogle } from '../../services/auth';
 import RoleSelector from '../../components/auth/RoleSelector';
 import PositionSelect from '../../components/auth/PositionSelect';
 import {
@@ -339,6 +339,63 @@ const Signup = () => {
     }
   };
 
+  /**
+   * Google sign-up.
+   *
+   * **Deliberately does not set `result`.** That state renders the "check your inbox"
+   * screen, which is the correct outcome for a password signup and a lie for this one:
+   * nothing was mailed, because Google already verified the address. Sending a new user
+   * to an inbox they never had to open is the kind of small wrongness that makes a
+   * whole flow feel broken.
+   *
+   * So this navigates instead, and the destination comes from the server's resolved
+   * link state — the same `onboarding.nextRoute` the password path uses once the code
+   * is entered. A Google account has no school, so that is `/onboarding/school-profile`,
+   * which is where the missing phone, role and school name get collected.
+   *
+   * Failures are translated rather than shown raw, for the same reasons as the login
+   * page: the commonest outcomes here are refusals, and the API's wording is written
+   * for logs.
+   */
+  const handleGoogleCredential = async (idToken) => {
+    setFormError('');
+    setLoading(true);
+
+    try {
+      const result = await signInWithGoogle(idToken);
+      navigate(result.onboarding?.nextRoute || '/onboarding/school-profile', {
+        replace: true,
+      });
+    } catch (err) {
+      switch (err.code) {
+        case 'ACCOUNT_EXISTS_PASSWORD':
+          setFormError(
+            'An account with this email already exists and uses a password. Log in with it instead — we cannot let a Google account take over an existing one.'
+          );
+          break;
+        case 'GOOGLE_ACCOUNT_MISMATCH':
+          setFormError(
+            'That email address is linked to a different Google account. Use the Google account you signed up with originally.'
+          );
+          break;
+        case 'GOOGLE_EMAIL_NOT_VERIFIED':
+          setFormError(
+            'Google reports this email address as unverified. Verify it in your Google account, then try again.'
+          );
+          break;
+        case 'SELF_SIGNUP_DISABLED':
+          setFormError(
+            'Registration is closed at the moment. Ask your school administrator to invite you by email.'
+          );
+          break;
+        default:
+          setFormError(err.message || 'Google sign-up failed. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (result) {
     return (
       <AuthShell
@@ -581,16 +638,28 @@ const Signup = () => {
           </SubmitButton>
         </div>
 
-        <OrDivider />
+        {/*
+          Google sign-up.
 
-        <button
-          type="button"
-          onClick={() => setFormError('Google Workspace sign-in is not enabled yet — use the form above.')}
-          className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[12px] font-bold text-slate-700 transition-colors hover:bg-slate-50 shadow-sm"
-        >
-          <GoogleMark />
-          Continue with Google Workspace
-        </button>
+          Replaces a button that set an error saying the feature was not enabled — a
+          dead control on the page whose entire purpose is offering a way to register.
+
+          `variant="signup"` changes the note under the button rather than the control:
+          it is the same credential and the same API, but a different promise. Here
+          Google creates a *new, smaller* account — a name and a verified email, no
+          phone, no role, no school — and the user lands in onboarding to supply the
+          rest. Saying so is the difference between a short path and an ambush.
+
+          `busy` is shared with the password form so two authentication flows cannot be
+          in flight on one page: both write to the same token storage, and whichever
+          response landed last would decide whose tokens are kept.
+        */}
+        <GoogleSignInButton
+          variant="signup"
+          disabled={loading}
+          onCredential={handleGoogleCredential}
+          onError={(err) => setFormError(err?.message || 'Google sign-up failed. Please try again.')}
+        />
 
         <AuthLinks>
           <span className="text-slate-600 text-xs">Already registered?</span>

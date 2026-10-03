@@ -31,6 +31,67 @@ export const login = async (email, password) => {
   }
 };
 
+/**
+ * Whether this deployment offers Google sign-in.
+ *
+ * **Asked the server, not read from a build flag.** Whether Google sign-in works
+ * depends on a `GOOGLE_CLIENT_ID` environment variable *and* an installed package —
+ * both properties of a deployment. The frontend is built once and served from every
+ * environment, so a client that hard-coded the button would render a control that
+ * 503s on every deployment where it is not configured.
+ *
+ * The `{ enabled: false }` fallback is deliberate: a network failure here must hide
+ * the button, not break the login page. Password login has to keep working on a
+ * deployment where Google is switched off, and that includes one whose network is
+ * having a bad moment.
+ */
+export const getGoogleAuthConfig = async () => {
+  try {
+    const { data } = await api.get('/auth/google/config');
+    return data?.data || { enabled: false, allowSignup: false };
+  } catch {
+    return { enabled: false, allowSignup: false };
+  }
+};
+
+/**
+ * Sign in with Google.
+ *
+ * **Only the credential is sent.** No email, no name — the server reads the address
+ * from the verified token and ignores anything else in the body (and rejects it with a
+ * 422, which is why sending them would be worse than useless here).
+ *
+ * Tokens are stored exactly as `login` stores them, so every downstream consumer —
+ * `AuthContext`, `api.js`'s refresh interceptor, the impersonation swap in
+ * `services/impersonation.js` — works unchanged. Google sign-in producing a different
+ * shape of session would mean three places learning about it.
+ *
+ * `verification.bypassed` is passed back to the caller rather than acted on here. A
+ * client that assumed every sign-in needs an OTP would send a Google user to a
+ * verification screen they cannot complete; the response says explicitly that there is
+ * nothing to verify.
+ */
+export const signInWithGoogle = async (idToken) => {
+  if (!idToken) throw new Error('A Google credential is required.');
+
+  try {
+    const { data } = await api.post('/auth/google', { idToken });
+    storeTokens(data.tokens || {});
+
+    return {
+      user: data.user,
+      onboarding: data.onboarding,
+      message: data.message,
+      // `registered` | `signed_in` | `invite_accepted` — lets the UI say
+      // "Welcome" rather than "Signed in" on a first use, without re-deriving it.
+      outcome: data.outcome,
+      verification: data.verification || { required: false, bypassed: false },
+    };
+  } catch (error) {
+    throw toError(error, 'Google sign-in failed. Please try again.');
+  }
+};
+
 
 /**
  * The API issues no session on signup — the account must verify its email first.

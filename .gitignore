@@ -8,7 +8,7 @@ node_modules/
 # would silently commit a `.env.staging` or `.env.production` added later.
 .env
 .env.*
-!.env.example
+.env.example
 !.env.mock
 
 # `.env.example` and `.env.mock` are committed on purpose: they hold no secrets,
@@ -66,4 +66,6 @@ coverage/
 .mockcheck/out-banner/
 .mockcheck/out-cards/
 .mockcheck/out-console/
+
+.mockcheck/out-auth2/
 

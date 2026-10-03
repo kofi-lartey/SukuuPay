@@ -19,11 +19,11 @@ import AuthShell from '../../components/auth/AuthShell';
 import {
   AsideLink,
   AuthLinks,
-  GoogleMark,
-  OrDivider,
   SubmitButton,
 } from '../../components/auth/OnboardingAside';
+import GoogleSignInButton from '../../components/auth/GoogleSignInButton';
 import { Field } from '../../components/common/FormField';
+import { signInWithGoogle } from '../../services/auth';
 
 // Sliding Carousel Data for the Login Aside panel
 //
@@ -192,6 +192,71 @@ const Login = () => {
     }
   };
 
+  /**
+   * Google sign-in.
+   *
+   * **The server decides identity; this only routes.** The credential goes up and the
+   * address comes back inside the verified token — no email is read here, because the
+   * browser's copy of an email is not evidence of anything.
+   *
+   * Every failure is translated into something the user can *act on*, because the
+   * commonest outcomes are refusals rather than faults and the API's wording is written
+   * for logs, not for a bursar at 8am:
+   *
+   *   - `ACCOUNT_EXISTS_PASSWORD` — the important one. This address already has a
+   *     password account, and we deliberately do **not** hand it over on a Google
+   *     match. Saying so, and pointing at the form above, is the whole recovery.
+   *   - `GOOGLE_EMAIL_NOT_VERIFIED` — Google's own claim says the address is
+   *     unverified, which happens when someone added it to their Google account without
+   *     proving they own it. No amount of retrying here will help; they must verify it
+   *     in Google first.
+   *   - `SELF_SIGNUP_DISABLED` — they have no account and cannot create one, so the
+   *     only route is an invitation from a school.
+   */
+  const handleGoogleCredential = async (idToken) => {
+    setError('');
+    setNeedsVerification(false);
+    setLoading(true);
+
+    try {
+      const result = await signInWithGoogle(idToken);
+      navigate(result.onboarding?.nextRoute || redirectTo, { replace: true });
+    } catch (err) {
+      switch (err.code) {
+        case 'ACCOUNT_EXISTS_PASSWORD':
+          setError(
+            'This email already has a SukuuPay account with a password. Sign in with it above — we cannot let a Google account take over an existing one.'
+          );
+          break;
+        case 'GOOGLE_ACCOUNT_MISMATCH':
+          setError(
+            'That email address is linked to a different Google account. Sign in with the Google account you used originally, or use your password.'
+          );
+          break;
+        case 'GOOGLE_EMAIL_NOT_VERIFIED':
+          setError(
+            'Google reports this email address as unverified. Verify it in your Google account, then try again.'
+          );
+          break;
+        case 'SELF_SIGNUP_DISABLED':
+          setError(
+            'Registration is closed, and you do not have a SukuuPay account yet. Ask your school administrator to invite you by email.'
+          );
+          break;
+        case 'ACCOUNT_INACTIVE':
+        case 'ACCOUNT_GONE':
+          // The server's message is already right for a human here ("This account is
+          // not active"), and it says nothing about whether the account exists.
+          setError(err.message);
+          break;
+        default:
+          setError(err.message || 'Google sign-in failed. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <AuthShell
       aside={<LoginAsideCarousel />}
@@ -295,18 +360,24 @@ const Login = () => {
           </SubmitButton>
         </div>
 
-        <OrDivider />
+        {/*
+          Google sign-in.
 
-        <button
-          type="button"
-          onClick={() =>
-            setError('Google Workspace sign-in is not enabled yet — use your email and password.')
-          }
-          className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[12px] font-bold text-slate-700 transition-colors hover:bg-slate-50 shadow-sm"
-        >
-          <GoogleMark />
-          Continue with Google Workspace
-        </button>
+          This replaces a button that read "Continue with Google Workspace" and set an
+          error saying the feature was not enabled — a dead control on every page, which
+          is worse than no control. It renders **nothing** on a deployment where Google
+          is switched off, and a real sign-in everywhere else.
+
+          `busy` is shared with the password form rather than tracked separately, so a
+          user cannot have two authentication flows in flight on one page — two sessions
+          being established at once, with whichever response landed last deciding whose
+          tokens are kept.
+        */}
+        <GoogleSignInButton
+          disabled={loading}
+          onCredential={handleGoogleCredential}
+          onError={(err) => setError(err?.message || 'Google sign-in failed. Please try again.')}
+        />
 
         <AuthLinks>
           <span className="text-slate-600 text-xs">New to SukuuPay?</span>
