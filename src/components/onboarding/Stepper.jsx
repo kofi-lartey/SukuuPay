@@ -1,19 +1,24 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Check, CreditCard, MessageSquare, Users } from 'lucide-react';
+import { Building2, Check, CreditCard, MessageSquare, Receipt, Users } from 'lucide-react';
 import { ONBOARDING_STEPS } from '../../utils/constants';
 
-const ICONS = { Building2, CreditCard, Users, MessageSquare };
+const ICONS = { Building2, CreditCard, Users, Receipt, MessageSquare };
 
 /**
- * Four-step progress rail.
+ * The progress rail.
  *
  * A step is clickable only once it has been reached — `highestStep` is the
  * furthest index the admin has unlocked. That keeps the stepper from being a
  * way to skip payment setup, which is a required step.
  *
- * Collapses to a "Step X of 4" pill below `md`; the four-node rail would need
- * either horizontal scroll or unreadable 2-character labels at that width.
+ * The step count is read from `ONBOARDING_STEPS.length` rather than written down,
+ * which it used to be: the rail, the mobile "Step X of 4" pill and the layout's
+ * screen-reader announcement all derived their number from the array, but this
+ * comment said "four" and adding a step left it lying.
+ *
+ * Collapses to a compact pill below `md`; the node rail would need either
+ * horizontal scroll or unreadable 2-character labels at that width.
  */
 const Stepper = ({ currentStep, highestStep }) => {
   const navigate = useNavigate();

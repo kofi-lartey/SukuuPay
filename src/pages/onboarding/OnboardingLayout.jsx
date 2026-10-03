@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import { StepChromeProvider } from './OnboardingStepContext';
 
 /**
- * Wizard shell for the four onboarding steps.
+ * Wizard shell for the onboarding steps.
  *
  * Navigation is a URL concern, not local state: each step is its own route, so
  * a refresh resumes where the admin was and the browser back button behaves.

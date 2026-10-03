@@ -1,64 +1,18 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Building2, Check, Zap } from 'lucide-react';
+import { PRICING_PLANS } from '../utils/constants';
 
-const PLANS = [
-  {
-    name: 'Starter',
-    capacity: 'Up to 300 students',
-    blurb: 'Ideal for small private basic schools, kindergartens, and nurseries.',
-    termly: 150,
-    monthly: 165,
-    termNote: 'Billed GHS 450 per term (1 term = 3 months)',
-    features: [
-      'Bulk student upload (CSV/Excel)',
-      'All MoMo networks (MTN, Telecel, AT)',
-      'Automated SMS fee reminders',
-      'Instant downloadable PDF receipts',
-      'Basic bursar collections dashboard',
-      'Email and WhatsApp support',
-    ],
-    cta: { label: 'Get Started', to: '/signup' },
-  },
-  {
-    name: 'Growth',
-    capacity: '301–1,000 students',
-    blurb: 'Established Basic, JHS, and growing preparatory academies.',
-    termly: 250,
-    monthly: 275,
-    termNote: 'Billed GHS 750 per term (save 10% vs monthly)',
-    highlight: true,
-    highlightNote: {
-      label: 'Direct Bank Sweep',
-      value: 'Daily T+0',
-    },
-    features: [
-      'Structured installment plans (2–6 tranches)',
-      'Installment compliance & arrears dashboard',
-      'Cash flow forecasting & velocity analytics',
-      'Automated GhIPSS daily bank sweeps to GCB/Ecobank',
-      'Priority Bursar WhatsApp support',
-    ],
-    cta: { label: 'Get Started with Growth', to: '/signup' },
-  },
-  {
-    name: 'Campus',
-    capacity: '1,000+ students',
-    blurb: 'Large schools, multi-campus groups, and Senior High Schools.',
-    termly: 400,
-    monthly: 440,
-    termNote: 'Billed GHS 1,200 per term (dedicated infrastructure)',
-    features: [
-      'Multi-campus & multi-signatory financial controls',
-      'Custom audit reports & MoE compliance exports',
-      'Dedicated school success account manager',
-      'SIS & School ERP API integration',
-      'Custom SMS Sender ID branding (e.g. ACHIMOTA-SCH)',
-    ],
-    cta: { label: 'Contact Campus Sales', to: '/contact' },
-  },
-];
-
+/**
+ * The plans themselves live in `PRICING_PLANS` (utils/constants.js), not here.
+ *
+ * They used to be declared in this file, which meant the onboarding wizard's
+ * pricing step — added so a school sees what it is about to pay for after
+ * importing its roster and before sending its first reminder — had nowhere to
+ * read them from and would have had to copy the list. A price changed here and
+ * quoted unchanged in the wizard is the failure this avoids; see the note on the
+ * export.
+ */
 const GHS = (amount) => amount.toLocaleString('en-GH');
 
 const Pricing = () => {
@@ -137,7 +91,7 @@ const Pricing = () => {
 
         {/* Plan Cards */}
         <div className="mb-16 grid grid-cols-1 items-stretch gap-8 lg:grid-cols-3">
-          {PLANS.map((plan) => (
+          {PRICING_PLANS.map((plan, index) => (
             <div
               key={plan.name}
               className={`relative flex flex-col justify-between rounded-3xl bg-white p-8 ${
@@ -198,9 +152,9 @@ const Pricing = () => {
                 )}
 
                 <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  {plan.name === 'Starter'
+                  {index === 0
                     ? 'Everything included:'
-                    : `Everything in ${PLANS[PLANS.indexOf(plan) - 1].name}, plus:`}
+                    : `Everything in ${PRICING_PLANS[index - 1].name}, plus:`}
                 </p>
 
                 <ul className="mb-8 space-y-3 text-sm text-slate-700">

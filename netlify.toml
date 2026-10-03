@@ -11,10 +11,11 @@
 # The app uses `BrowserRouter`, so the URL path is owned by React Router rather
 # than by files on disk. Without the rewrite below, any request that isn't
 # `/assets/*` or `/index.html` would be looked up on disk and 404 — breaking
-# every deep link, the worst case being the onboarding wizard, whose four steps
-# are separate URLs (`/onboarding/school-profile`, `/onboarding/payment-setup`,
-# `/onboarding/import-students`, `/onboarding/send-reminder`). A user who
-# bookmarks step 3 or follows a shared link would land on a dead page.
+# every deep link, the worst case being the onboarding wizard, whose steps are
+# separate URLs (`/onboarding/school-profile`, `/onboarding/payment-setup`,
+# `/onboarding/import-students`, `/onboarding/pricing`,
+# `/onboarding/send-reminder`). A user who bookmarks a step or follows a shared
+# link would land on a dead page.
 #
 # Verified against the live site before this file existed:
 #   /reset-password/abc123 -> 404

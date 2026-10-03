@@ -34,6 +34,7 @@ import OnboardingLayout from './pages/onboarding/OnboardingLayout';
 import Step1SchoolProfile from './pages/onboarding/Step1SchoolProfile';
 import Step2PaymentSetup from './pages/onboarding/Step2PaymentSetup';
 import Step3ImportStudents from './pages/onboarding/Step3ImportStudents';
+import StepPricing from './pages/onboarding/StepPricing';
 import Step4SendReminder from './pages/onboarding/Step4SendReminder';
 import AdminLayout from './components/admin/AdminLayout';
 import AdminOverview from './pages/admin/AdminOverview';
@@ -129,6 +130,7 @@ function App() {
                 <Route path="school-profile" element={<Step1SchoolProfile />} />
                 <Route path="payment-setup" element={<Step2PaymentSetup />} />
                 <Route path="import-students" element={<Step3ImportStudents />} />
+                <Route path="pricing" element={<StepPricing />} />
                 <Route path="send-reminder" element={<Step4SendReminder />} />
                 <Route path="*" element={<NotFound variant="app" />} />
               </Route>

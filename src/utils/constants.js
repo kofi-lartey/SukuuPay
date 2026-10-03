@@ -732,13 +732,24 @@ export const MOMO_NETWORKS = [
 ];
 
 /**
- * The four wizard steps. `id` doubles as the route segment, so the stepper and
+ * The wizard steps. `id` doubles as the route segment, so the stepper and
  * the router can never drift apart.
+ *
+ * The count is deliberately not written down here or in `Stepper`, which reads
+ * this array for both its rail and its "Step X of N" label. Both used to say
+ * "four" in a comment while the array said four too — and adding a step left
+ * every comment quietly lying. Derive the number from `length`, which is what
+ * those call sites already do.
  */
 export const ONBOARDING_STEPS = [
   { id: 'school-profile', label: 'School Profile', icon: 'Building2' },
   { id: 'payment-setup', label: 'Payment Setup', icon: 'CreditCard' },
   { id: 'import-students', label: 'Import Students', icon: 'Users' },
+  // Between the roster and the first reminder, not after it. The roster is what
+  // a plan is sized against — "how many students" is the question every tier is
+  // quoted by — so pricing reads as a consequence of the step the admin has just
+  // finished rather than an interruption before they have started.
+  { id: 'pricing', label: 'Pricing', icon: 'Receipt' },
   { id: 'send-reminder', label: 'Send Reminder', icon: 'MessageSquare' },
 ];
 
@@ -769,3 +780,120 @@ export const STUDENT_IMPORT_COLUMNS = [
 
 /** Longest a single SMS segment can be before the gateway splits it. */
 export const SMS_SEGMENT_LENGTH = 160;
+
+/**
+ * The published plans, in one place.
+ *
+ * These were defined inside `Pricing.jsx`, which meant the marketing page and
+ * the onboarding wizard's pricing step would each have needed their own copy of
+ * the same prices. Two copies of a price list is not a style problem: it is a
+ * number that will eventually be changed in one and quoted in the other, and the
+ * school that notices is the one that trusted the cheaper figure.
+ *
+ * So the data lives here, beside `NAV_LINKS` and `ONBOARDING_STEPS`, and both
+ * pages import it.
+ *
+ * ### `name` does not correspond to `subscription.plan` on the server
+ *
+ * `schoolModel.js` enumerates `["trial", "basic", "standard", "premium",
+ * "enterprise"]`. These three marketing tiers do not map onto it one-to-one —
+ * there are five server values for three published plans, and no field records
+ * which published tier a given `subscription.plan` came from.
+ *
+ * That is why nothing here writes a plan anywhere. The onboarding step shows the
+ * tiers and links out; choosing one would need a server-side mapping and a
+ * self-service endpoint, and neither exists (`PUT /admin/schools/:id/subscription`
+ * is behind `super_admin`). Resolve the mapping before anything sends a tier name
+ * to the API.
+ */
+export const PRICING_PLANS = [
+  {
+    name: 'Starter',
+    /** Upper bound on students this tier is sized for; see `planForRoster`. */
+    maxStudents: 300,
+    capacity: 'Up to 300 students',
+    blurb: 'Ideal for small private basic schools, kindergartens, and nurseries.',
+    termly: 150,
+    monthly: 165,
+    termNote: 'Billed GHS 450 per term (1 term = 3 months)',
+    features: [
+      'Bulk student upload (CSV/Excel)',
+      'All MoMo networks (MTN, Telecel, AT)',
+      'Automated SMS fee reminders',
+      'Instant downloadable PDF receipts',
+      'Basic bursar collections dashboard',
+      'Email and WhatsApp support',
+    ],
+    cta: { label: 'Get Started', to: ROUTES.SIGNUP },
+  },
+  {
+    name: 'Growth',
+    maxStudents: 1000,
+    capacity: '301–1,000 students',
+    blurb: 'Established Basic, JHS, and growing preparatory academies.',
+    termly: 250,
+    monthly: 275,
+    termNote: 'Billed GHS 750 per term (save 10% vs monthly)',
+    highlight: true,
+    highlightNote: {
+      label: 'Direct Bank Sweep',
+      value: 'Daily T+0',
+    },
+    features: [
+      'Structured installment plans (2–6 tranches)',
+      'Installment compliance & arrears dashboard',
+      'Cash flow forecasting & velocity analytics',
+      'Automated GhIPSS daily bank sweeps to GCB/Ecobank',
+      'Priority Bursar WhatsApp support',
+    ],
+    cta: { label: 'Get Started with Growth', to: ROUTES.SIGNUP },
+  },
+  {
+    name: 'Campus',
+    maxStudents: Number.POSITIVE_INFINITY,
+    capacity: '1,000+ students',
+    blurb: 'Large schools, multi-campus groups, and Senior High Schools.',
+    termly: 400,
+    monthly: 440,
+    termNote: 'Billed GHS 1,200 per term (dedicated infrastructure)',
+    features: [
+      'Multi-campus & multi-signatory financial controls',
+      'Custom audit reports & MoE compliance exports',
+      'Dedicated school success account manager',
+      'SIS & School ERP API integration',
+      'Custom SMS Sender ID branding (e.g. ACHIMOTA-SCH)',
+    ],
+    cta: { label: 'Contact Campus Sales', to: ROUTES.CONTACT },
+  },
+];
+
+/**
+ * The plan a roster of `count` students is sized for.
+ *
+ * `maxStudents` rather than parsing the `capacity` string, which is display copy
+ * ("301–1,000 students") and contains an en dash, a comma and a trailing noun.
+ * Matching on that is the kind of thing that works until someone rewords the
+ * label, and then quietly recommends the wrong plan to a school.
+ *
+ * The tiers are contiguous and ascending, so a single `find` is the whole
+ * implementation. `null` only when `count` is not a usable number — callers must
+ * handle "roster size unknown" rather than defaulting to the cheapest tier, which
+ * would tell a 1,000-student school it had bought Starter.
+ *
+ * @param {number} count  students on the roster
+ * @returns {typeof PRICING_PLANS[number] | null}
+ */
+export const planForRoster = (count) => {
+  /*
+   * `null`/`undefined`/`''` are rejected before the numeric coercion, because
+   * `Number(null)` is `0` and `Number('')` is `0` too. A `Number.isFinite` guard
+   * alone therefore treats "we do not know the roster size" as "this school has
+   * no students" and returns the cheapest tier — which is how a 1,000-student
+   * school on an unread roster gets told it fits Starter.
+   */
+  if (count === null || count === undefined || count === '') return null;
+
+  const size = Number(count);
+  if (!Number.isFinite(size) || size < 0) return null;
+  return PRICING_PLANS.find((plan) => size <= plan.maxStudents) || PRICING_PLANS[PRICING_PLANS.length - 1];
+};

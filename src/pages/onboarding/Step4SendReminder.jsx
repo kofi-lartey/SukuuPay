@@ -100,18 +100,32 @@ const Step4SendReminder = () => {
 
     (async () => {
       try {
-        const students = await listStudents({
+        const { rows } = await listStudents({
           perPage: 100,
           sortBy: 'balance',
           sortOrder: 'desc',
         });
         if (!active) return;
 
-        setOwingCount(students.length || null);
-        setRosterEmpty(students.length === 0);
+        /*
+         * `rows`, not the response object.
+         *
+         * `listStudents` returns `{ rows, meta, offline }` — documented at the top
+         * of `services/students.js` and never a bare array. This used to treat the
+         * response as the array: `students.length` was `undefined`, so
+         * `rosterEmpty` was always false and the empty-roster notice could never
+         * appear, and `students.find(...)` threw a `TypeError` on every successful
+         * load. That `TypeError` landed in the `catch` below, which sets
+         * `rosterLoaded` false — so the step silently degraded to its placeholder
+         * state and reported "no roster" to nobody. `perPage: 100` is a page, not
+         * the roster, so `rows.length` is a floor rather than a total; `meta.total`
+         * is the whole roster and is the number that belongs in a count here.
+         */
+        setOwingCount(rows.length || null);
+        setRosterEmpty(rows.length === 0);
         setRosterLoaded(true);
 
-        const first = students.find((student) => (student.balance ?? 0) > 0) || students[0];
+        const first = rows.find((student) => (student.balance ?? 0) > 0) || rows[0];
         if (first) {
           const parent = first.parents?.find((p) => p.isPrimary) || first.parents?.[0];
           setSample({

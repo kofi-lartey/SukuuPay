@@ -46,7 +46,13 @@ const rewrite = toml.match(/from\s*=\s*"\/\*"\s*\n\s*to\s*=\s*"([^"]+)"\s*\n\s*s
 console.log(`  ${rewrite ? 'OK  ' : 'FAIL'} SPA rewrite ${rewrite ? `/* -> ${rewrite[1]} (${rewrite[2]})` : 'missing'}`);
 
 // Every wizard step must be reachable as a deep link.
-const steps = ['school-profile', 'payment-setup', 'import-students', 'send-reminder'];
+//
+// The list is the wizard, written out — which is the same duplication
+// `ONBOARDING_STEPS` is for. It cannot import that (it parses `netlify.toml`
+// with a regex and runs with no bundler), so it is kept in step by hand and the
+// `pricing` step is here for exactly that reason: a new step that is not added to
+// this list is a step whose deep link nobody checked.
+const steps = ['school-profile', 'payment-setup', 'import-students', 'pricing', 'send-reminder'];
 for (const step of steps) {
   const path = `/onboarding/${step}`;
   // A catch-all rewrite means any path that is not a real file serves the SPA
