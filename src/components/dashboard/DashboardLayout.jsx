@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import DashboardSidebar from './DashboardSidebar';
 import DashboardTopbar from './DashboardTopbar';
+import LegalLinks from '../common/LegalLinks';
 import { useAuth } from '../../context/AuthContext';
 import { useDashboardOverview } from '../../hooks/useDashboardOverview';
 import { getSmsCredit } from '../../services/dashboard';
@@ -173,11 +174,22 @@ const DashboardLayout = () => {
             `min-width: auto`, so one wide table would push the whole column —
             and the viewport — sideways instead of scrolling inside it.
           */}
-          <main id="dashboard-main" tabIndex={-1} className="min-w-0 flex-1 px-4 pb-16 pt-6 sm:px-6 lg:px-8">
+          <main id="dashboard-main" tabIndex={-1} className="min-w-0 flex-1 px-4 pb-8 pt-6 sm:px-6 lg:px-8">
             <div className="mx-auto w-full max-w-7xl">
               <Outlet />
             </div>
           </main>
+
+          {/*
+            The console has no `SiteFooter` — a product footer with marketing
+            navigation does not belong inside a signed-in school — but the legal
+            documents still have to be reachable from here. This is the only thing
+            from the marketing footer that does, and it is the reason the pair was
+            extracted into `LegalLinks` rather than left inline in `SiteFooter`.
+          */}
+          <div className="border-t border-slate-200 px-4 py-4 sm:px-6 lg:px-8">
+            <LegalLinks className="justify-center" />
+          </div>
         </div>
       </div>
 

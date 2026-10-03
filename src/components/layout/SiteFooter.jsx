@@ -1,7 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import Logo from '../common/Logo';
-import { APP_YEAR, HELPDESK_PHONE, NAV_LINKS, ROUTES } from '../../utils/constants';
+import LegalLinks from '../common/LegalLinks';
+import { APP_YEAR, HELPDESK_PHONE, NAV_LINKS } from '../../utils/constants';
 
 const SUMMARY = 'Automated school fee collection for Ghanaian schools.';
 
@@ -42,12 +43,13 @@ const SiteFooter = () => (
         <p>&copy; {APP_YEAR} SukuuPay Financial Technologies Ltd.</p>
 
         <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
-          <Link to={ROUTES.PRIVACY} className="transition-colors hover:text-brand-700">
-            Privacy
-          </Link>
-          <Link to={ROUTES.TERMS} className="transition-colors hover:text-brand-700">
-            Terms
-          </Link>
+          {/*
+            The shared pair, not a second copy of the two links: the dashboard,
+            the platform console and the wizard render the same `LegalLinks`, and
+            a footer that listed them separately is how the two sets drift.
+          */}
+          <LegalLinks />
+
           {/* Hidden while the support line is unconfigured. It used to render
               `+233 24 456 7890` as a `tel:` link — an example number published
               as a way to reach support. A blank that collapses is better than a
@@ -55,7 +57,7 @@ const SiteFooter = () => (
           {HELPDESK_PHONE && (
             <a
               href={`tel:${HELPDESK_PHONE.replace(/\s/g, '')}`}
-              className="transition-colors hover:text-brand-700"
+              className="text-xs font-semibold text-slate-500 transition-colors hover:text-brand-700"
             >
               {HELPDESK_PHONE}
             </a>

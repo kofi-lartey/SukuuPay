@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, LoaderCircle } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
 import Stepper from '../../components/onboarding/Stepper';
+import LegalLinks from '../../components/common/LegalLinks';
 import useOnboardingProgress from '../../hooks/useOnboardingProgress';
 import { ONBOARDING_STEPS, ROUTES } from '../../utils/constants';
 import { useAuth } from '../../context/AuthContext';
@@ -17,7 +18,9 @@ import { StepChromeProvider } from './OnboardingStepContext';
  * bar; the step owns its form and reports `valid` / `onSubmit` through
  * `StepChromeProvider`.
  *
- * No `SiteFooter` — the wizard is full-screen, per the brief.
+ * No `SiteFooter` — the wizard is full-screen, per the brief. The one exception
+ * is the legal links in the bottom cluster, which a school has to be able to read
+ * while it is deciding to sign up rather than after.
  */
 const EMPTY_CHROME = { valid: false, busy: false, label: null, onSubmit: null };
 
@@ -105,8 +108,28 @@ const OnboardingLayout = () => {
         </main>
       </StepChromeProvider>
 
-      {!isLast && (
-        <div className="sticky bottom-0 border-t border-slate-200 bg-white/90 backdrop-blur">
+      {/*
+        The bottom cluster is sticky and always present, while the *button row*
+        inside it is not. Two reasons for splitting them:
+
+          - The bar used to be wrapped in `{!isLast && ...}`, so anything inside
+            it disappeared on the final step. The legal links have to be there on
+            the last step too — that is the step where an admin is told setup is
+            complete, and it is the last chance to read what they agreed to.
+          - A footer rendered after <main> would sit *underneath* this
+            `sticky bottom-0` bar and be invisible, and one rendered before it
+            would be pushed off-screen by the form.
+
+        The wizard is deliberately chrome-free, so this is the only marketing
+        furniture in it — and it earns its place, because the terms are agreed to
+        during signup rather than read afterwards.
+      */}
+      <div className="sticky bottom-0 border-t border-slate-200 bg-white/90 backdrop-blur">
+        <div className="mx-auto max-w-5xl border-b border-slate-100 px-4 pt-2.5 sm:px-6 lg:px-8">
+          <LegalLinks className="justify-center" />
+        </div>
+
+        {!isLast && (
           <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3.5 sm:px-6 lg:px-8">
             <button
               type="button"
@@ -133,8 +156,8 @@ const OnboardingLayout = () => {
               {!chrome.busy && <ArrowRight className="h-4 w-4" aria-hidden="true" />}
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Screen-reader announcement of the current step, for step changes that
           are not driven by a focus-moving navigation. */}

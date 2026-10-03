@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import AdminSidebar from './AdminSidebar';
 import AdminTopbar from './AdminTopbar';
+import LegalLinks from '../common/LegalLinks';
 import ImpersonationBanner from './ImpersonationBanner';
 import { useAuth } from '../../context/AuthContext';
 
@@ -112,11 +113,17 @@ const AdminLayout = () => {
             schools table has more columns than any in the school console, so it
             is the likeliest place in the app for that to bite.
           */}
-          <main id="admin-main" tabIndex={-1} className="min-w-0 flex-1 px-4 pb-16 pt-6 sm:px-6 lg:px-8">
+          <main id="admin-main" tabIndex={-1} className="min-w-0 flex-1 px-4 pb-8 pt-6 sm:px-6 lg:px-8">
             <div className="mx-auto w-full max-w-7xl">
               <Outlet />
             </div>
           </main>
+
+          {/* Same reasoning as the school console: no marketing footer inside the
+              platform console, but the legal documents must still be reachable. */}
+          <div className="border-t border-slate-200 px-4 py-4 sm:px-6 lg:px-8">
+            <LegalLinks className="justify-center" />
+          </div>
         </div>
       </div>
 
