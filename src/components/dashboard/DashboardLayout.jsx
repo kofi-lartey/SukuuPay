@@ -3,9 +3,30 @@ import { Outlet, useLocation } from 'react-router-dom';
 import DashboardSidebar from './DashboardSidebar';
 import DashboardTopbar from './DashboardTopbar';
 import LegalLinks from '../common/LegalLinks';
+import ErrorBoundary from '../common/ErrorBoundary';
 import { useAuth } from '../../context/AuthContext';
 import { useDashboardOverview } from '../../hooks/useDashboardOverview';
 import { getSmsCredit } from '../../services/dashboard';
+
+/**
+ * An `ErrorBoundary` that clears itself when the route changes.
+ *
+ * Without this, the boundary mounted around `DashboardLayout`'s outlet is a problem
+ * rather than a solution: the shell outlives every module, so a module that throws
+ * once leaves the error card on screen for every module after it. The bursar clicks
+ * Payments, sees the same red card, and concludes the whole app is broken — which,
+ * for that session, it is.
+ *
+ * Keying on the pathname rather than remounting by hand: React unmounts the subtree
+ * when the key changes, which discards the error state, and that is precisely the
+ * behaviour wanted. It also happens before paint, so there is no flash of the stale
+ * error card.
+ */
+const ErrorBoundaryResetOnChange = ({ routeKey, children }) => (
+  <ErrorBoundary key={routeKey} label="This page">
+    {children}
+  </ErrorBoundary>
+);
 
 /**
  * The management-system app shell.
@@ -176,7 +197,22 @@ const DashboardLayout = () => {
           */}
           <main id="dashboard-main" tabIndex={-1} className="min-w-0 flex-1 px-4 pb-8 pt-6 sm:px-6 lg:px-8">
             <div className="mx-auto w-full max-w-7xl">
-              <Outlet />
+              {/*
+                The shell-level boundary, wrapping the module outlet.
+
+                Deliberately *inside* the rail and topbar rather than around them. A
+                throw in one module then costs the bursar that module, and they keep
+                the eight nav entries and the school header — which is the only way off
+                a broken page. Wrapping the whole layout instead would reproduce the
+                original fault with extra steps: a blank screen and no way to navigate.
+
+                It also resets on navigation, because this instance stays mounted across
+                module changes. Without that, one module that throws would leave every
+                later module rendering the same error card until a full reload.
+              */}
+              <ErrorBoundaryResetOnChange routeKey={pathname}>
+                <Outlet />
+              </ErrorBoundaryResetOnChange>
             </div>
           </main>
 

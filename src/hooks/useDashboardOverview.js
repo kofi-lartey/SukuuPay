@@ -3,9 +3,10 @@ import { EMPTY_OVERVIEW } from '../data/dashboardEmpty';
 import { getStudentStats, listStudents } from '../services/students';
 import { getOutstanding, getPaymentMethods, listRecentPayments } from '../services/dashboard';
 import { getSchool } from '../services/school';
+import { toTransactionRow } from '../utils/transactionRow';
 
 /**
- * The Overview's single data seam.
+ * The management system's Overview data seam.
  *
  * **Every region comes from the API, and the ones with no endpoint render empty.**
  *
@@ -119,19 +120,7 @@ export const useDashboardOverview = (schoolId) => {
       }
 
       if (payments.status === 'fulfilled' && payments.value?.rows?.length) {
-        // The transactions table wants a few derived fields the payment list does
-        // not return: a network label and a display name. Mapped here rather than
-        // in the card, so the card stays a function of its props.
-        next.transactions = payments.value.rows.map((p) => ({
-          ...p,
-          studentName: p.studentName || p.studentId || 'Payment',
-          studentId: p.studentId,
-          network: String(p.momoNetwork || 'UNKNOWN').toLowerCase().slice(0, 8),
-          networkLabel: p.momoNetwork || p.paymentMethod?.toUpperCase() || 'Manual',
-          reference: p.reference || p.mtnReferenceId || p.paymentId,
-          dateLabel: new Date(p.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
-          timeLabel: new Date(p.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-        }));
+        next.transactions = payments.value.rows.map(toTransactionRow);
         next.transactionCount = payments.value.meta?.total ?? next.transactions.length;
         live.push('transactions');
         anyLive = true;

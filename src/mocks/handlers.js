@@ -4445,6 +4445,344 @@ const adminReviewSchoolAd = ({ user, params, body }) => {
   return ad;
 };
 
+// ???????????????????? Parent messages ????????????????????
+//
+// Seeded here rather than generated per-request so the mock has the shape the real
+// collection does: a mix of `new`, `read` and `resolved`, one with audio, and one
+// whose `smsAlerted` is false with a reason — because that last row is the one the
+// school's "add a phone number" hint is written for, and a mock where it never
+// appears is a mock where that hint is never seen.
+const PARENT_MESSAGES = [
+  {
+    _id: 'pmsg0000000000000000000a1',
+    messageId: 'PMSG-20260918-7KQ2M1',
+    schoolId: null, // resolved to the signed-in user's school on read
+    studentId: null,
+    studentRef: 'STU-A1B2C3',
+    studentName: 'Kwame Mensah',
+    studentClass: 'JHS 2A',
+    parentName: 'Mrs. Akosua Mensah',
+    parentPhone: '0244123456',
+    message: 'I paid 300 cedis at the office last Friday and this page still shows the full amount.',
+    audio: null,
+    hasAudio: false,
+    status: 'new',
+    readAt: null,
+    resolvedAt: null,
+    resolutionNote: null,
+    smsAlerted: true,
+    smsAlertFailure: null,
+    createdAt: '2026-09-18T09:14:00.000Z',
+  },
+  {
+    _id: 'pmsg0000000000000000000a2',
+    messageId: 'PMSG-20260917-3D8R5X',
+    schoolId: null,
+    studentId: null,
+    studentRef: 'STU-D4E5F6',
+    studentName: 'Ama Serwaa Boateng',
+    studentClass: 'Basic 7',
+    parentName: 'Mr. Kojo Boateng',
+    parentPhone: '0551234567',
+    message: null,
+    audio: {
+      url: 'https://res.cloudinary.com/demo/video/upload/sample.webm',
+      mimeType: 'audio/webm',
+      bytes: 284_000,
+      durationSeconds: 34,
+    },
+    hasAudio: true,
+    status: 'new',
+    readAt: null,
+    resolvedAt: null,
+    resolutionNote: null,
+    smsAlerted: true,
+    smsAlertFailure: null,
+    createdAt: '2026-09-17T16:02:00.000Z',
+  },
+  {
+    _id: 'pmsg0000000000000000000a3',
+    messageId: 'PMSG-20260915-9BNP4L',
+    schoolId: null,
+    studentId: null,
+    studentRef: 'STU-G7H8I9',
+    studentName: 'Efua Nyameye',
+    studentClass: 'KG 1',
+    parentName: 'Mrs. Ama Nyameye',
+    parentPhone: '0271234567',
+    message: 'Can I move my daughter to a different class before term ends?',
+    audio: null,
+    hasAudio: false,
+    status: 'resolved',
+    readAt: '2026-09-16T08:30:00.000Z',
+    resolvedAt: '2026-09-16T08:41:00.000Z',
+    resolutionNote:
+      'Called and confirmed the transfer to KG 2. Roster updated and the parent told in person.',
+    smsAlerted: true,
+    smsAlertFailure: null,
+    createdAt: '2026-09-15T11:20:00.000Z',
+  },
+  {
+    _id: 'pmsg0000000000000000000a4',
+    messageId: 'PMSG-20260914-2TQZ8C',
+    schoolId: null,
+    studentId: null,
+    studentRef: 'STU-J0K1L2',
+    studentName: 'Yaw Osei',
+    studentClass: 'JHS 3B',
+    parentName: 'Mr. Samuel Osei',
+    parentPhone: '0209876543',
+    message: 'I need the receipt for last term, my son says it was not sent.',
+    audio: null,
+    hasAudio: false,
+    status: 'read',
+    readAt: '2026-09-15T07:05:00.000Z',
+    resolvedAt: null,
+    resolutionNote: null,
+    // The case the "no alert was sent" hint exists for.
+    smsAlerted: false,
+    smsAlertFailure: 'No administrator phone number and no school phone number on file',
+    createdAt: '2026-09-14T13:45:00.000Z',
+  },
+];
+
+/** Scopes the fixture rows to whoever is signed in, the way the server does. */
+const scopedParentMessages = (user) =>
+  PARENT_MESSAGES.map((row) => ({
+    ...row,
+    schoolId: user?.schoolId || row.schoolId,
+  }));
+
+const listParentMessages = ({ user, query }) => {
+  let rows = scopedParentMessages(user);
+
+  if (query.status && query.status !== 'all') {
+    rows = rows.filter((row) => row.status === query.status);
+  }
+  if (query.hasAudio === 'true') rows = rows.filter((row) => row.hasAudio);
+
+  if (query.q) {
+    const needle = String(query.q).toLowerCase();
+    rows = rows.filter((row) =>
+      [row.parentName, row.studentName, row.studentRef, row.message]
+        .filter(Boolean)
+        .some((field) => String(field).toLowerCase().includes(needle))
+    );
+  }
+
+  // The counts are computed over the *unfiltered* set except for the search, matching
+  // `parentMessage.service.js` — where `countByStatus` takes the school id only. A mock
+  // that counted the active tab would make the tab labels move as you clicked them,
+  // which is the exact behaviour the page was built to avoid.
+  const counts = PARENT_MESSAGES.reduce(
+    (acc, row) => {
+      acc[row.status] = (acc[row.status] || 0) + 1;
+      acc.all += 1;
+      return acc;
+    },
+    { all: 0, new: 0, read: 0, resolved: 0, archived: 0 }
+  );
+
+  const page = Number(query.page) || 1;
+  const perPage = Number(query.perPage) || 20;
+  const start = (page - 1) * perPage;
+
+  return {
+    __rows: rows.slice(start, start + perPage),
+    meta: {
+      page,
+      perPage,
+      total: rows.length,
+      totalPages: Math.max(1, Math.ceil(rows.length / perPage)),
+    },
+    counts,
+  };
+};
+
+const markParentMessageRead = ({ params }) => {
+  const row = PARENT_MESSAGES.find((entry) => entry._id === params.id);
+  if (!row) throw new MockError(404, 'Message not found', 'NOT_FOUND');
+  row.status = row.status === 'new' ? 'read' : row.status;
+  row.readAt = row.readAt || new Date().toISOString();
+  return row;
+};
+
+const resolveParentMessage = ({ params, body }) => {
+  const row = PARENT_MESSAGES.find((entry) => entry._id === params.id);
+  if (!row) throw new MockError(404, 'Message not found', 'NOT_FOUND');
+
+  const note = String(body?.resolutionNote || '').trim();
+  // The floor is mirrored here because "resolved" with nothing written down is the
+  // same as unanswered, and a mock that let it through would ship a resolve button
+  // that produces no record.
+  if (note.length < 3) {
+    throw new MockError(
+      400,
+      'Say what was done about it, so there is a record',
+      'RESOLUTION_NOTE_REQUIRED'
+    );
+  }
+
+  row.status = 'resolved';
+  row.resolutionNote = note.slice(0, 500);
+  row.resolvedAt = new Date().toISOString();
+  return row;
+};
+
+/**
+ * `GET /notifications` and its three mutations.
+ *
+ * The unread count lives in `meta` because `services/notifications.js` reads it from
+ * there on every load rather than counting the rows it holds — a bell that disagrees
+ * with its own panel is the failure this whole module exists to prevent, and the mock
+ * has to model it to be worth anything.
+ */
+const MOCK_NOTIFICATIONS = [
+  {
+    _id: 'ntf0000000000000000000b1',
+    type: 'parent.message',
+    title: 'Parent message — Kwame Mensah',
+    message: 'Mrs. Akosua Mensah asked about Kwame Mensah (JHS 2A).',
+    link: '/dashboard/messages',
+    read: false,
+    createdAt: '2026-09-18T09:14:00.000Z',
+    meta: {
+      parentMessageId: 'PMSG-20260918-7KQ2M1',
+      parentMessageRef: 'pmsg0000000000000000000a1',
+      parentName: 'Mrs. Akosua Mensah',
+      parentPhone: '0244123456',
+      message: 'I paid 300 cedis at the office last Friday and this page still shows the full amount.',
+      audioUrl: null,
+      hasAudio: false,
+    },
+  },
+  {
+    _id: 'ntf0000000000000000000b2',
+    type: 'parent.audio_message',
+    title: 'Parent voice note — Ama Serwaa Boateng',
+    message: 'Mr. Kojo Boateng sent a voice note about Ama Serwaa Boateng (Basic 7).',
+    link: '/dashboard/messages',
+    read: false,
+    createdAt: '2026-09-17T16:02:00.000Z',
+    meta: {
+      parentMessageId: 'PMSG-20260917-3D8R5X',
+      parentMessageRef: 'pmsg0000000000000000000a2',
+      parentName: 'Mr. Kojo Boateng',
+      parentPhone: '0551234567',
+      message: '',
+      audioUrl: 'https://res.cloudinary.com/demo/video/upload/sample.webm',
+      hasAudio: true,
+    },
+  },
+  {
+    _id: 'ntf0000000000000000000b3',
+    type: 'plan.requested',
+    title: 'Installment request — Ama Serwaa Boateng',
+    message: 'Mr. Kojo Boateng asked to split Basic 7 fees into 3 monthly installments.',
+    link: '/dashboard/installment-plans',
+    read: true,
+    createdAt: '2026-09-16T10:00:00.000Z',
+    meta: {},
+  },
+];
+
+const listNotifications = ({ query }) => {
+  let rows = [...MOCK_NOTIFICATIONS];
+
+  // `read` arrives as the string `'true'`/`'false'` from the query string, which is
+  // how `services/notifications.js` sends it.
+  if (query.read !== undefined && query.read !== '') {
+    rows = rows.filter((row) => row.read === (query.read === 'true' || query.read === true));
+  }
+  if (query.type) rows = rows.filter((row) => row.type === query.type);
+
+  const page = Number(query.page) || 1;
+  const perPage = Number(query.perPage) || 20;
+
+  return {
+    __rows: rows.slice((page - 1) * perPage, (page - 1) * perPage + perPage),
+    meta: {
+      page,
+      perPage,
+      total: rows.length,
+      totalPages: Math.max(1, Math.ceil(rows.length / perPage)),
+      // Counted across every notification for this user, never across the filtered
+      // page — the same rule the service follows.
+      unreadCount: MOCK_NOTIFICATIONS.filter((row) => !row.read).length,
+    },
+  };
+};
+
+const markNotificationRead = ({ params }) => {
+  const row = MOCK_NOTIFICATIONS.find((entry) => entry._id === params.id);
+  if (!row) throw new MockError(404, 'Notification not found', 'NOT_FOUND');
+  row.read = true;
+  return row;
+};
+
+const markAllNotificationsRead = () => {
+  const updatedCount = MOCK_NOTIFICATIONS.filter((row) => !row.read).length;
+  MOCK_NOTIFICATIONS.forEach((row) => {
+    row.read = true;
+  });
+  return { updatedCount };
+};
+
+const deleteNotification = ({ params }) => {
+  const index = MOCK_NOTIFICATIONS.findIndex((entry) => entry._id === params.id);
+  if (index === -1) throw new MockError(404, 'Notification not found', 'NOT_FOUND');
+  MOCK_NOTIFICATIONS.splice(index, 1);
+  return { message: 'Notification deleted' };
+};
+
+/**
+ * `POST /pay/:token/notify-school`.
+ *
+ * Public, like the real route. The mock mirrors the two rules that were changed: a
+ * voice note alone is a complete message, and the reply reports `adminsNotified` rather
+ * than a bare `delivered` — the confirmation screen branches on it, so a mock that
+ * always returned `true` would make that screen untestable.
+ */
+const notifySchool = ({ body }) => {
+  // Reads from either a plain object (the text-only JSON submission) or a `FormData`
+  // (the multipart one carrying a recording). The mock adapter's `parseBody` returns
+  // `config.data` untouched when it is not a string, so a `FormData` arrives here as a
+  // `FormData` — hence the duck-typed `get` rather than a property access.
+  const read = (key) => {
+    if (!body) return null;
+    if (typeof body.get === 'function') return body.get(key);
+    return body[key] ?? null;
+  };
+
+  const text = String(read('message') || '').trim();
+  const hasAudio = Boolean(read('audio'));
+
+  if (!text && !hasAudio) {
+    throw new MockError(
+      400,
+      'Please write a message or record a voice note so the school can help',
+      'VALIDATION_ERROR'
+    );
+  }
+  if (text && text.length < 10) {
+    throw new MockError(
+      422,
+      'Please write at least a short message so the school can help',
+      'VALIDATION_ERROR'
+    );
+  }
+
+  return {
+    messageId: `PMSG-MOCK-${Date.now().toString(36).toUpperCase()}`,
+    hasAudio,
+    audioUrl: hasAudio ? 'https://res.cloudinary.com/demo/video/upload/sample.webm' : null,
+    delivered: true,
+    notificationLogged: true,
+    adminsNotified: 2,
+    schoolPhone: '030 200 1000',
+  };
+};
+
 /**
  * `GET /users` — and the platform-wide case is the interesting one.
  *
@@ -4918,6 +5256,40 @@ export const ROUTES = [
   // Registered before `/users/:userId` for the same ordering reason.
   ['POST', /^\/users\/invite$/, inviteUser],
   ['GET', /^\/settings\/([^/]+)$/, getSettings],
+
+  // ?? Parent messages and notifications ??
+  //
+  // Both were absent here while the real API served them, which is the mock drifting
+  // from the product in the same direction as the ad routes did — it is what made
+  // those look fine in development and 404 in production. Mock coverage is the only
+  // early warning this repo has for a route that exists on one side only.
+  //
+  // Ordered longest-first: `/parent-messages/student/:id` and
+  // `/parent-messages/:id/read` both have to beat the bare `/parent-messages/:id`, or
+  // `resolveRoute`'s first match hands the handler `student` as an id.
+  ['GET', /^\/parent-messages\/student\/(?<studentId>[^/]+)$/, ({ query, user }) => {
+    const rows = scopedParentMessages(user).filter((row) => row.studentRef === query.studentRef);
+    return { __rows: rows, meta: { page: 1, perPage: 20, total: rows.length, totalPages: 1 } };
+  }],
+  ['PUT', /^\/parent-messages\/(?<id>[^/]+)\/read$/, markParentMessageRead],
+  ['PUT', /^\/parent-messages\/(?<id>[^/]+)\/resolve$/, resolveParentMessage],
+  ['GET', /^\/parent-messages$/, listParentMessages],
+  ['GET', /^\/parent-messages\/(?<id>[^/]+)$/, ({ params }) => {
+    const row = PARENT_MESSAGES.find((entry) => entry._id === params.id);
+    if (!row) throw new MockError(404, 'Message not found', 'NOT_FOUND');
+    return row;
+  }],
+
+  // `read-all` before `/:id/read` is not required — the two differ in position — but
+  // it is written in path order so a future reordering is visibly deliberate.
+  ['PUT', /^\/notifications\/read-all$/, markAllNotificationsRead],
+  ['PUT', /^\/notifications\/(?<id>[^/]+)\/read$/, markNotificationRead],
+  ['DELETE', /^\/notifications\/(?<id>[^/]+)$/, deleteNotification],
+  ['GET', /^\/notifications$/, listNotifications],
+
+  // Public, like the real route — `payment.routes.js` mounts this under the pay token
+  // with a per-token rate limiter and no `authenticate`.
+  ['POST', /^\/pay\/[^/]+\/notify-school$/, notifySchool, { public: true }],
 
   ['GET', /^\/public\/school-ads$/, listSchoolAds, { public: true }],
   ['GET', /^\/health$/, health, { public: true }],

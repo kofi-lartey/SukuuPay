@@ -130,10 +130,38 @@ export const requestPaymentPlan = async (token, payload) => {
   }
 };
 
-/** Sends one message to the bursar. Three a day, per the rate limiter. */
-export const notifySchool = async (token, payload) => {
+/**
+ * Sends one message to the bursar — text, a voice note, or both. Three a day, per the
+ * rate limiter.
+ *
+ * **`FormData` when there is audio, JSON otherwise.** The endpoint is multer-aware, so
+ * it accepts both, but the request must be built to match:
+ *
+ *  - `FormData` is required for a file, and axios only sets the multipart boundary
+ *    itself when the body is a `FormData`. Handing it `{ audio: File }` as a plain
+ *    object serialises the file to the string `"[object File]"`.
+ *  - `Content-Type` is **not** set explicitly. Setting it to `multipart/form-data`
+ *    without the boundary makes the server fail to parse the body at all — a boundary
+ *    is part of the header, and the one axios generates is the only one that knows
+ *    where the file actually ends.
+ *  - JSON is kept for the text-only case so the common path is unchanged and does not
+ *    pay for multipart framing on a 3G connection.
+ */
+export const notifySchool = async (token, payload = {}) => {
+  const { audio, ...fields } = payload;
+
   try {
-    return unwrap(await api.post(pay(token, '/notify-school'), payload));
+    if (audio?.file) {
+      const form = new FormData();
+      form.append('parentName', fields.parentName ?? '');
+      form.append('parentPhone', fields.parentPhone ?? '');
+      if (fields.message) form.append('message', fields.message);
+      form.append('audio', audio.file, audio.file.name);
+
+      return unwrap(await api.post(pay(token, '/notify-school'), form));
+    }
+
+    return unwrap(await api.post(pay(token, '/notify-school'), fields));
   } catch (error) {
     throw toApiError(error, 'We could not send your message. Please try again.');
   }

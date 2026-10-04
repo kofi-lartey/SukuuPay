@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import useToast from '../../hooks/useToast';
 import { exportStudents } from '../../services/students';
 import RecordManualPaymentDialog from '../../components/dashboard/RecordManualPaymentDialog';
+import ErrorBoundary from '../../components/common/ErrorBoundary';
 import KpiRow from './overview/KpiRow';
 import CollectionsCard from './overview/CollectionsCard';
 import PaymentChannelsCard from './overview/PaymentChannelsCard';
@@ -146,22 +147,50 @@ const Overview = () => {
         </div>
       </div>
 
-      <KpiRow kpis={kpis} />
+      <ErrorBoundary label="The KPI figures">
+        <KpiRow kpis={kpis} />
+      </ErrorBoundary>
 
+      {/*
+        One boundary per card, not one per page.
+        *
+        * These six regions come from six independent endpoints and are read
+        * independently — the left column is a morning narrative, the right column is an
+        * all-day alert scan. A page-level boundary would honour neither: one bad
+        * response would replace the whole grid with an error card, which is the same
+        * blast radius this is meant to remove. Per-card, a fault costs the bursar the
+        * one card that is wrong.
+        *
+        * The boundary renders a block-level `<div>`, which sits inside the flex/grid
+        * parents without disturbing their layout.
+        */}
       <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="flex flex-col gap-4 xl:col-span-2">
-          <CollectionsCard term={term} seriesFor={seriesFor} />
-          <RecentTransactionsCard
-            transactions={transactions}
-            totalCount={transactionCount}
-            isDemo={isFallback}
-          />
+          <ErrorBoundary label="Collections">
+            <CollectionsCard term={term} seriesFor={seriesFor} />
+          </ErrorBoundary>
+
+          <ErrorBoundary label="Recent transactions">
+            <RecentTransactionsCard
+              transactions={transactions}
+              totalCount={transactionCount}
+              isDemo={isFallback}
+            />
+          </ErrorBoundary>
         </div>
 
         <div className="flex flex-col gap-4">
-          <PaymentChannelsCard channels={channels} />
-          <BroadcastSmsCard broadcast={smsBroadcast} />
-          <UpcomingInstallmentsCard upcoming={upcomingInstallments} />
+          <ErrorBoundary label="Payment channels">
+            <PaymentChannelsCard channels={channels} />
+          </ErrorBoundary>
+
+          <ErrorBoundary label="SMS reminders">
+            <BroadcastSmsCard broadcast={smsBroadcast} />
+          </ErrorBoundary>
+
+          <ErrorBoundary label="Upcoming installments">
+            <UpcomingInstallmentsCard upcoming={upcomingInstallments} />
+          </ErrorBoundary>
         </div>
       </div>
 

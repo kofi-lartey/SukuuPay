@@ -20,6 +20,7 @@ export const ROUTES = {
   DASHBOARD_PLANS: '/dashboard/installment-plans',
   DASHBOARD_SMS: '/dashboard/sms-reminders',
   DASHBOARD_REPORTS: '/dashboard/reports',
+  DASHBOARD_MESSAGES: '/dashboard/messages',
   DASHBOARD_ACTIVITY: '/dashboard/activity-log',
   DASHBOARD_USERS: '/dashboard/user-management',
   DASHBOARD_SETTINGS: '/dashboard/settings',
@@ -281,6 +282,24 @@ export const DASHBOARD_NAV = [
         label: 'SMS Reminders',
         icon: 'MessageSquare',
         description: 'Nudge parents who have not paid, and track delivery.',
+      },
+      {
+        to: ROUTES.DASHBOARD_MESSAGES,
+        label: 'Parent Messages',
+        icon: 'Inbox',
+        // `school_admin` and `accountant` — the same two roles
+        // `findSchoolRecipients` in `pay.service.js` alerts about a parent message.
+        //
+        // **`teacher` is deliberately excluded.** This module carries every parent
+        // phone number in the school in full, alongside what they wrote about a
+        // balance. `findSchoolRecipients` already draws that line and states why:
+        // "a teacher has no business acting on a balance dispute". Reading the
+        // dispute is the same act as acting on it. Letting the rail expose this to
+        // every teacher would hand the entire staff room the contact list, which is
+        // the one thing the masked copy in `Notification` exists to prevent — and it
+        // would make that masking pointless, since the inbox sits one click away.
+        roles: ['super_admin', 'school_admin', 'accountant'],
+        description: 'What parents wrote or recorded from their fee link.',
       },
     ],
   },

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useParentPay } from '../../layouts/ParentLayout';
 import { notifySchool } from '../../services/parentPay';
 import { Card, PrimaryButton, Amount } from '../../components/parent/primitives';
+import AudioRecorder from '../../components/parent/AudioRecorder';
 import { PARENT_ROUTES } from '../../utils/constants';
 import { isValidGhanaPhone, normalise } from '../../components/common/PhoneInput';
 
@@ -13,16 +14,30 @@ const MESSAGE_MAX = 1000;
 /**
  * "Tell the school about this fee."
  *
- * **A message, not a support chat.** No thread, no read receipts, no attachments, and
- * three a day — which is the server's rate limit, and the reason the copy says "the
- * school will call you" rather than promising a reply in here. A parent who needs a
- * balance investigated is being told to phone a bursar, and this form is for the
- * cases where the answer is quicker written than called: a payment that does not
- * appear, a receipt number to quote, a question before choosing a plan.
+ * **A message, not a support chat.** No thread, no read receipts, and three a day —
+ * which is the server's rate limit, and the reason the copy says "the school will
+ * call you" rather than promising a reply in here. A parent who needs a balance
+ * investigated is being told to phone a bursar, and this form is for the cases where
+ * the answer is quicker written than called: a payment that does not appear, a receipt
+ * number to quote, a question before choosing a plan.
  *
  * The student's details are stated on the message automatically. Making a parent
  * re-type "about Kwame Mensah, JHS 2A" is a small thing that reliably produces
  * support messages about the wrong child.
+ *
+ * ## The voice note
+ *
+ * `AudioRecorder` is offered *alongside* the textarea, never instead of it. A voice
+ * note alone is a complete message and the server accepts it alone — that is the
+ * point, since the parent who cannot comfortably type is the one the recorder is for.
+ * But the text box stays first and stays optional-because-empty rather than
+ * required-because-a-file-exists: a parent on metered data is better served by three
+ * words than by half a megabyte, and nothing about the school receiving a voice note
+ * requires the text box to be the secondary path.
+ *
+ * `canSubmit` therefore tests `message` **or** `audio`, and the button's label changes
+ * to say which it is about to send — a parent who has just recorded a minute of
+ * speaking should not have to infer whether it was attached.
  */
 const ContactSchool = () => {
   const { token, student, school } = useParentPay();
@@ -30,6 +45,7 @@ const ContactSchool = () => {
   const [parentName, setParentName] = useState(student?.primaryParent?.parentName || '');
   const [parentPhone, setParentPhone] = useState('');
   const [message, setMessage] = useState('');
+  const [audio, setAudio] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [sent, setSent] = useState(null);
@@ -38,15 +54,21 @@ const ContactSchool = () => {
 
   const nameError = parentName.trim().length > 0 && parentName.trim().length < 2;
   const phoneError = parentPhone ? !isValidGhanaPhone(parentPhone) : false;
+
+  // A message that exists but is too short to answer is an error the parent should be
+  // told about. A *missing* message is not an error at all while a recording exists,
+  // which is why this reads `trimmed.length > 0` rather than `trimmed.length < 10`.
   const messageError =
     trimmed.length > 0 && trimmed.length < MESSAGE_MIN
       ? 'Please write a little more so the school can help'
       : null;
 
+  const hasContent = trimmed.length >= MESSAGE_MIN || Boolean(audio?.file);
+
   const canSubmit =
     !submitting &&
     parentName.trim().length >= 2 &&
-    trimmed.length >= MESSAGE_MIN &&
+    hasContent &&
     trimmed.length <= MESSAGE_MAX &&
     !phoneError;
 
@@ -62,6 +84,7 @@ const ContactSchool = () => {
         parentName: parentName.trim(),
         parentPhone: normalise(parentPhone),
         message: trimmed,
+        audio,
       });
       setSent(response);
     } catch (caught) {
@@ -82,12 +105,29 @@ const ContactSchool = () => {
           </div>
 
           <h1 className="mt-4 text-[21px] font-extrabold tracking-tight text-slate-900">
-            Message sent
+            {sent?.hasAudio ? 'Voice note sent' : 'Message sent'}
           </h1>
+
+          {/*
+            Three wordings for three genuinely different outcomes, chosen from what the
+            server actually reported. The middle case is the one that used to be
+            missing: the parent was told "the school will see this in their dashboard"
+            when no alert had gone anywhere and the school had no dashboard to see it
+            in. When nothing could be sent, saying so — and offering the phone number —
+            is the difference between a parent who waits and a parent who calls.
+          */}
           <p className="mx-auto mt-2 max-w-xs text-[15px] leading-relaxed text-slate-600">
-            {sent?.delivered
-              ? `${school?.name || 'The school'} has been notified by SMS and will call you back.`
-              : 'The school will see this in their dashboard and get back to you.'}
+            {sent?.adminsNotified > 0
+              ? `${school?.name || 'The school'} has your ${
+                  sent?.hasAudio ? 'voice note' : 'message'
+                } and has been alerted. They will call you back on ${
+                  sent?.schoolPhone || 'the number you gave'
+                }.`
+              : `Your ${
+                  sent?.hasAudio ? 'voice note' : 'message'
+                } has been saved to ${
+                  school?.name || 'the school'
+                }, but they have not been alerted automatically. Please call so they know to look.`}
           </p>
 
           {school?.phone ? (
@@ -96,7 +136,7 @@ const ContactSchool = () => {
               className="mt-5 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-200 text-[15px] font-bold text-slate-800"
             >
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6A19.8 19.8 0 012.1 4.2 2 2 0 014.1 2h3a2 2 0 012 1.7c.1.9.4 1.8.7 2.6a2 2 0 01-.5 2.1L8.1 9.6a16 16 0 006 6l1.2-1.2a2 2 0 012.1-.5c.8.3 1.7.6 2.6.7a2 2 0 011.7 2z" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6A19.8 19.8 0 012.1 4.2 2 2 0 014.1 2h3a2 2 0 012 1.7c.1.9.4 1.8.7 2.6a1 1 0 01-.5 2.1L8.1 9.6a16 16 0 006 6l1.2-1.2a2 2 0 012.1-.5c.8.3 1.7.6 2.6.7a1 1 0 011.7 2z" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               Call {school.phone}
             </a>
@@ -230,6 +270,18 @@ const ContactSchool = () => {
               </span>
             </div>
           </div>
+
+          {/* Optional, and offered after the text box rather than above it: writing is
+              the cheaper path and a parent on metered data should meet it first. */}
+          <div>
+            <p className="text-[13px] font-bold text-slate-700">Or record a voice note</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-slate-500">
+              Easier than typing. {school?.name || 'The school'} can play it back.
+            </p>
+            <div className="mt-2.5">
+              <AudioRecorder onChange={setAudio} />
+            </div>
+          </div>
         </Card>
 
         {error ? (
@@ -242,7 +294,13 @@ const ContactSchool = () => {
         ) : null}
 
         <PrimaryButton type="submit" full disabled={!canSubmit}>
-          {submitting ? 'Sending…' : 'Send message'}
+          {submitting
+            ? 'Sending…'
+            : audio?.file && !trimmed
+              ? 'Send voice note'
+              : audio?.file
+                ? 'Send message and voice note'
+                : 'Send message'}
         </PrimaryButton>
 
         <p className="-mt-1 text-center text-[12px] leading-relaxed text-slate-500">

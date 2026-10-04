@@ -4,6 +4,7 @@ import { ChevronDown, Globe, LogOut, Menu, Search, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ROUTES, activeAdminItem, roleLabel } from '../../utils/constants';
 import { LogoMark } from '../common/Logo';
+import NotificationBell from '../common/NotificationBell';
 import Popover from '../dashboard/ui/Popover';
 import Badge from '../dashboard/ui/Badge';
 
@@ -104,6 +105,19 @@ const AdminTopbar = ({ user, onOpenNav, navOpen = false, pathname, actions }) =>
           <Badge tone="ink" icon={Globe} className="hidden lg:inline-flex">
             All schools
           </Badge>
+
+          {/*
+            The same bell as the school shell. It was absent here rather than
+            disabled, and the file comment justified that by pointing at
+            `DashboardTopbar`'s disabled bell — which is not a justification, it is the
+            same gap cited from the other side.
+
+            For the platform console it earns its place on the platform's own alerts:
+            `plan.requested` and `parent.message` rows are addressed to school admins
+            only, so the platform owner sees `system.alert`, `school.join_request` and
+            whatever a service raises directly, and can act on them.
+          */}
+          <NotificationBell />
 
           {/*
             Search: disabled, with the reason. See the file comment — there is no

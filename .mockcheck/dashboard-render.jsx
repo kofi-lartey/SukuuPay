@@ -288,9 +288,39 @@ await check('Settings and User Management are hidden from non-admin roles in the
     if (teacher.includes(hidden)) throw new Error(`a teacher can see ${hidden}`);
     if (!admin.includes(hidden)) throw new Error(`a school admin cannot see ${hidden}`);
   }
+  // Exact counts, not relative ones. They are a contract on the rail: the moment a
+  // module is added or hidden the number has to be argued about here, which is the
+  // only place the rail's composition is ever reviewed.
+  //
+  // The admin figure moved 9 → 10 when Parent Messages was added to the Outreach
+  // group. The teacher figure stayed at 7, and that is the part worth reading: the
+  // module is scoped to `school_admin` and `accountant` precisely so a teacher does
+  // not get it.
   if (teacher.length !== 7) throw new Error(`teacher rail has ${teacher.length} entries, expected 7`);
-  if (admin.length !== 9) throw new Error(`admin rail has ${admin.length} entries, expected 9`);
-  return 'teacher 7, school admin 9';
+  if (admin.length !== 10) throw new Error(`admin rail has ${admin.length} entries, expected 10`);
+  return 'teacher 7, school admin 10';
+});
+
+await check('Parent Messages is not in a teacher rail', () => {
+  // Not a duplicate of the count above — that one only fails if the number moves, and
+  // it would be satisfied by an unrelated module appearing instead.
+  //
+  // `ParentMessage.parentPhone` is stored in full, because a bursar cannot return a
+  // call without it, so this module *is* the school's parent contact list. A teacher
+  // seeing it in the rail puts every parent number on the staff room screen. The
+  // server enforces the same line: `requireReader` in `parentMessage.routes.js` is
+  // `super_admin, school_admin, accountant`, matching the roles
+  // `findSchoolRecipients` alerts.
+  const teacher = visibleDashboardNav('teacher').flatMap((g) => g.items.map((i) => i.label));
+  const accountant = visibleDashboardNav('accountant').flatMap((g) => g.items.map((i) => i.label));
+
+  if (teacher.includes('Parent Messages')) {
+    throw new Error('a teacher can see Parent Messages — that is the parent phone list');
+  }
+  if (!accountant.includes('Parent Messages')) {
+    throw new Error('an accountant cannot see Parent Messages, but is alerted about them');
+  }
+  return 'hidden from teachers, shown to accountants';
 });
 
 // -- Payments ----------------------------------------------------------------
@@ -1016,18 +1046,51 @@ await check('the pay page renders its own shell, not the marketing chrome', () =
 await check('the pay route is registered outside AppChrome', async () => {
   const { readFileSync } = await import('node:fs');
   const source = readFileSync(new URL('../../src/App.jsx', import.meta.url), 'utf8');
-  if (!/path="\/pay\/:token"/.test(source)) {
-    throw new Error('/pay/:token is not registered');
+
+  /*
+   * Rewritten. This used to grep for the literal `path="/pay/:token"`, which stopped
+   * matching when the pay portal was refactored into a nested layout route
+   * (`<Route path="/pay" element={<ParentLayout />}>` with `:token` and its siblings
+   * as children). The assertion went red and nobody noticed, which is the worst
+   * failure mode for a check: it stops being a check.
+   *
+   * The *intent* is unchanged and still enforced — the pay portal must be a sibling
+   * of the AppChrome block, or a parent is shown the marketing navbar and a "Sign in"
+   * link for an account they do not have. Only the way of asking changed, and it now
+   * matches how the routes are actually written:
+   *
+   *   1. a `/pay` route exists, and its element is `ParentLayout` — the pay shell,
+   *      which is what makes it structurally impossible for the marketing chrome to be
+   *      an ancestor, rather than merely unlikely;
+   *   2. it is declared *after* AppChrome's closing tag, so it is a sibling in the
+   *      `<Routes>` tree and not a child of it.
+   */
+  const payRoute = source.match(/<Route\s+path="\/pay"\s+element=\{\{?<(ParentLayout)\s*\/>\}?\s*>/);
+  if (!payRoute) {
+    throw new Error('no <Route path="/pay" element={<ParentLayout />}> is registered');
   }
-  // It has to sit outside the AppChrome <Route> block, or a parent is shown the
-  // marketing navbar and a "Sign in" link for an account they do not have.
-  const appChrome = source.indexOf('AppChrome');
-  const payRoute = source.indexOf('path="/pay/:token"');
-  const appChromeClose = source.indexOf('</Route>', appChrome);
-  if (payRoute < appChromeClose) {
-    throw new Error('/pay/:token is nested inside AppChrome');
+  if (payRoute[1] !== 'ParentLayout') {
+    throw new Error(`/pay renders under ${payRoute[1]}, not ParentLayout`);
   }
-  return 'registered as a sibling of AppChrome';
+
+  // The token routes must be children of that layout, not siblings of AppChrome.
+  for (const child of [':token', ':token/history', ':token/plan/request', ':token/support']) {
+    if (!source.includes(`<Route path="${child}"`)) {
+      throw new Error(`/pay/${child} is not registered`);
+    }
+  }
+
+  const appChromeOpen = source.indexOf('<Route element={<AppChrome />}>');
+  const appChromeClose = source.indexOf('</Route>', appChromeOpen);
+  const payIndex = source.indexOf('<Route path="/pay"');
+
+  if (appChromeOpen === -1 || appChromeClose === -1) {
+    throw new Error('could not locate the AppChrome block');
+  }
+  if (payIndex < appChromeClose) {
+    throw new Error('/pay is nested inside AppChrome');
+  }
+  return 'registered as a sibling of AppChrome, under ParentLayout';
 });
 
 await check('a loading pay page shows a skeleton, not an empty screen', () => {

@@ -31,6 +31,7 @@ import Students from './pages/dashboard/Students';
 import Payments from './pages/dashboard/Payments';
 import InstallmentPlans from './pages/dashboard/InstallmentPlans';
 import SmsReminders from './pages/dashboard/SmsReminders';
+import ParentMessages from './pages/dashboard/ParentMessages';
 import Reports from './pages/dashboard/Reports';
 import ActivityLog from './pages/dashboard/ActivityLog';
 import UserManagement from './pages/dashboard/UserManagement';
@@ -181,6 +182,7 @@ function App() {
                 <Route path="payments" element={<Payments />} />
                 <Route path="installment-plans" element={<InstallmentPlans />} />
                 <Route path="sms-reminders" element={<SmsReminders />} />
+                <Route path="messages" element={<ParentMessages />} />
                 <Route path="reports" element={<Reports />} />
                 <Route path="activity-log" element={<ActivityLog />} />
                 <Route path="user-management" element={<UserManagement />} />

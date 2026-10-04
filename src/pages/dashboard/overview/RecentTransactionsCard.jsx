@@ -6,13 +6,41 @@ import Badge from '../../../components/dashboard/ui/Badge';
 import { ROUTES } from '../../../utils/constants';
 import { formatCedis, formatCount } from '../../../utils/format';
 
-const initials = (name) =>
-  name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join('');
+/**
+ * Two initials from a display name.
+ *
+ * **Coerces before it calls `.split`.** This function reads a field off a response row,
+ * and the row's shape depends on a Mongoose `populate` on the server — so `name` has
+ * been a string, a populated object, an ObjectId and `undefined` at different points in
+ * this product's life. The version before this one called `name.split(...)` directly,
+ * and a populated `studentId` object threw `TypeError: name.split is not a function`,
+ * which took the **entire Overview** down with a blank screen. A pure display helper
+ * has no business being able to do that.
+ *
+ * The fallback is `'?'` rather than an empty string, so the avatar keeps its shape and
+ * its size — a missing name renders as a visibly unknown avatar rather than a circle
+ * that quietly collapses and shifts the row's alignment.
+ */
+const initials = (name) => {
+  const text =
+    typeof name === 'string'
+      ? name
+      : // A populated student object, or `{ _id }` with nothing else on it.
+        name && typeof name === 'object'
+        ? String(name.studentName || name.studentId || name._id || '')
+        : name == null
+          ? ''
+          : String(name);
+
+  return (
+    text
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0].toUpperCase())
+      .join('') || '?'
+  );
+};
 
 const AVATAR_TONES = [
   'bg-emerald-100 text-emerald-700',
@@ -85,6 +113,29 @@ const RecentTransactionsCard = ({ transactions, totalCount, isDemo }) => (
           </tr>
         </thead>
         <tbody>
+          {transactions.length === 0 ? (
+            /*
+             * An explicit empty body rather than zero rows under a header.
+             *
+             * A `<tbody>` with nothing in it leaves the column headings sitting on an
+             * empty grey band, which reads as "the table failed to load" — the exact
+             * wrong conclusion for a school whose first payment has simply not happened
+             * yet. Spanning all six columns keeps the headings and the explanation in
+             * the same visual object.
+             */
+            <tr>
+              <td
+                colSpan={6}
+                className="px-5 py-10 text-center text-[13px] font-semibold text-slate-500"
+              >
+                No payments recorded yet.
+                <span className="mt-1 block text-[12px] font-medium text-slate-400">
+                  They will appear here as parents pay, from the app or at the office.
+                </span>
+              </td>
+            </tr>
+          ) : null}
+
           {transactions.map((txn, index) => (
             <tr
               key={txn.id}

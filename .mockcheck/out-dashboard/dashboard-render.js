@@ -2,8 +2,8 @@ import { jsx, jsxs, Fragment } from "react/jsx-runtime";
 import { renderToString } from "react-dom/server";
 import { useLocation, Link, useNavigate, Outlet, useSearchParams, MemoryRouter, Routes, Route } from "react-router-dom";
 import React, { createContext, useState, useEffect, useCallback, useContext, useRef, useMemo, useId } from "react";
-import { a as api, t as toApiError, r as runReport, d as downloadReport, R as REPORTS, b as REPORT_CATEGORIES } from "./assets/reports-BuNrROki.js";
-import { Info, TriangleAlert, CircleAlert, CircleCheck, X, UserCog, Settings as Settings$1, ScrollText, ChartColumn, MessageSquare, CalendarClock, CreditCard, Users, LayoutDashboard, Building2, ChevronUp, Menu, GraduationCap, ChevronDown, Search, Plus, Bell, User, LogOut, TrendingUp, ChevronRight, Loader2, Send, Download, Receipt, HandCoins, SlidersHorizontal, Hourglass, ChevronLeft, ArrowUp, ArrowDown, PencilLine, Ban, Link as Link$1, Archive, Trash2, CirclePlay, RotateCcw, Wallet, History, Star, ShieldCheck, Camera, UploadCloud, ImageOff, FileSpreadsheet, Check, Sparkles, ArrowUpRight, ArrowRight, ArrowLeft, QrCode, Printer, BadgeCheck, Eye, FileText, UserPlus, Smartphone, Clock, ArrowDownRight, RefreshCw, Landmark, Banknote, ExternalLink, AlertTriangle, CheckCircle2, AlertCircle, List, LayoutGrid, BellRing, CalendarX2, CalendarDays, CircleDollarSign, Megaphone, Circle, Flag, Signal, Wifi, BatteryMedium, MoreVertical, Save, CheckCheck, BarChart3, Filter, UserRound, AtSign, KeyRound, Lock, School } from "lucide-react";
+import { a as api, t as toApiError, r as runReport, d as downloadReport, R as REPORTS, b as REPORT_CATEGORIES } from "./assets/reports-BcS3xgcI.js";
+import { Info, TriangleAlert, CircleAlert, CircleCheck, X, UserCog, Settings as Settings$1, ScrollText, ChartColumn, Inbox, MessageSquare, CalendarClock, CreditCard, Users, LayoutDashboard, Building2, ChevronUp, Bell, CheckCheck, Loader2, Trash2, Menu, GraduationCap, ChevronDown, Search, Plus, User, LogOut, AlertTriangle, RotateCcw, TrendingUp, ChevronRight, Send, Download, Receipt, HandCoins, SlidersHorizontal, Hourglass, ChevronLeft, ArrowUp, ArrowDown, PencilLine, Ban, Link as Link$1, Archive, CirclePlay, Wallet, History, Star, ShieldCheck, Camera, UploadCloud, ImageOff, FileSpreadsheet, Check, Sparkles, ArrowUpRight, ArrowRight, ArrowLeft, QrCode, Printer, BadgeCheck, Eye, FileText, UserPlus, Smartphone, Clock, ArrowDownRight, RefreshCw, Landmark, Banknote, ExternalLink, CheckCircle2, AlertCircle, List, LayoutGrid, BellRing, CalendarX2, CalendarDays, CircleDollarSign, Megaphone, Circle, Flag, Signal, Wifi, BatteryMedium, MoreVertical, Save, BarChart3, Filter, UserRound, AtSign, KeyRound, Lock, School } from "lucide-react";
 import { createPortal } from "react-dom";
 import "axios";
 const TOKEN_KEYS = ["auth_token", "refresh_token"];
@@ -410,6 +410,7 @@ const ROUTES = {
   DASHBOARD_PLANS: "/dashboard/installment-plans",
   DASHBOARD_SMS: "/dashboard/sms-reminders",
   DASHBOARD_REPORTS: "/dashboard/reports",
+  DASHBOARD_MESSAGES: "/dashboard/messages",
   DASHBOARD_ACTIVITY: "/dashboard/activity-log",
   DASHBOARD_USERS: "/dashboard/user-management",
   DASHBOARD_SETTINGS: "/dashboard/settings",
@@ -428,7 +429,16 @@ const ROUTES = {
   ADMIN_SCHOOLS: "/admin/schools",
   ADMIN_USERS: "/admin/users",
   ADMIN_CONTENT: "/admin/content",
-  ADMIN_SETTINGS: "/admin/settings"
+  ADMIN_SETTINGS: "/admin/settings",
+  ADMIN_PAYMENTS: "/admin/payments",
+  ADMIN_FINANCE: "/admin/finance",
+  ADMIN_SMS: "/admin/sms",
+  ADMIN_ANNOUNCEMENTS: "/admin/announcements",
+  ADMIN_AUDIT_LOGS: "/admin/audit-logs",
+  ADMIN_ANALYTICS: "/admin/analytics",
+  ADMIN_HEALTH: "/admin/health",
+  ADMIN_REPORTS: "/admin/reports",
+  ADMIN_IMPERSONATION: "/admin/impersonation"
 };
 const GRADUATION_TYPES = [
   { value: "STANDARD", label: "Standard" },
@@ -500,6 +510,24 @@ const DASHBOARD_NAV = [
         label: "SMS Reminders",
         icon: "MessageSquare",
         description: "Nudge parents who have not paid, and track delivery."
+      },
+      {
+        to: ROUTES.DASHBOARD_MESSAGES,
+        label: "Parent Messages",
+        icon: "Inbox",
+        // `school_admin` and `accountant` — the same two roles
+        // `findSchoolRecipients` in `pay.service.js` alerts about a parent message.
+        //
+        // **`teacher` is deliberately excluded.** This module carries every parent
+        // phone number in the school in full, alongside what they wrote about a
+        // balance. `findSchoolRecipients` already draws that line and states why:
+        // "a teacher has no business acting on a balance dispute". Reading the
+        // dispute is the same act as acting on it. Letting the rail expose this to
+        // every teacher would hand the entire staff room the contact list, which is
+        // the one thing the masked copy in `Notification` exists to prevent — and it
+        // would make that masking pointless, since the inbox sits one click away.
+        roles: ["super_admin", "school_admin", "accountant"],
+        description: "What parents wrote or recorded from their fee link."
       }
     ]
   },
@@ -634,6 +662,7 @@ const ICONS = {
   CreditCard,
   CalendarClock,
   MessageSquare,
+  Inbox,
   ChartColumn,
   ScrollText,
   Settings: Settings$1,
@@ -731,14 +760,421 @@ const splitCedi = (pesewas) => {
   const [whole, fraction] = nf.format((Number(pesewas) || 0) / PESEWAS_PER_CEDI).split(".");
   return { symbol: "GH₵", whole, fraction };
 };
-const LogoMark = ({ className = "w-10 h-10", markClassName = "text-lg" }) => /* @__PURE__ */ jsx(
-  "div",
+const LogoMark = ({ className = "w-12 h-12" }) => /* @__PURE__ */ jsx(
+  "img",
   {
-    className: `${className} rounded-xl bg-brand-700 flex items-center justify-center text-white shadow-lift shrink-0`,
+    src: "/sukuupay-logo.png",
+    alt: "",
     "aria-hidden": "true",
-    children: /* @__PURE__ */ jsx("span", { className: `font-extrabold tracking-tight ${markClassName}`, children: "S" })
+    width: 256,
+    height: 256,
+    decoding: "async",
+    className: `${className} shrink-0 object-contain`
   }
 );
+const NOTIFICATION_META = {
+  "payment.received": { tone: "green", label: "Payment" },
+  "plan.created": { tone: "blue", label: "Plan" },
+  "plan.accepted": { tone: "green", label: "Plan" },
+  "plan.overdue": { tone: "amber", label: "Arrears" },
+  "student.imported": { tone: "slate", label: "Roster" },
+  "sms.sent": { tone: "blue", label: "SMS" },
+  "subscription.expiring": { tone: "amber", label: "Subscription" },
+  "school.join_request": { tone: "amber", label: "Access" },
+  "plan.requested": { tone: "amber", label: "Needs action" },
+  "parent.message": { tone: "blue", label: "Parent" },
+  "parent.audio_message": { tone: "blue", label: "Parent · voice" },
+  "system.alert": { tone: "red", label: "System" }
+};
+const notificationMeta = (type) => NOTIFICATION_META[type] || NOTIFICATION_META["system.alert"];
+const listNotifications = async ({
+  page = 1,
+  perPage = 20,
+  read: read2,
+  type
+} = {}) => {
+  try {
+    const { data } = await api.get("/notifications", {
+      params: {
+        page,
+        perPage,
+        read: read2 === void 0 || read2 === null ? void 0 : String(Boolean(read2)),
+        type: type || void 0
+      }
+    });
+    return {
+      rows: Array.isArray(data?.data) ? data.data : [],
+      meta: {
+        page: Number(data?.meta?.page) || 1,
+        perPage: Number(data?.meta?.perPage) || perPage,
+        total: Number(data?.meta?.total) || 0,
+        totalPages: Math.max(1, Number(data?.meta?.totalPages) || 1),
+        // The count is deliberately read from the server on every load rather than
+        // derived from `rows`. A bell that says "3 unread" while the panel lists five
+        // is worse than one that is briefly blank, because a bursar triages on it.
+        unreadCount: Number(data?.meta?.unreadCount) || 0
+      }
+    };
+  } catch (error) {
+    throw toApiError(error, "Your notifications could not be loaded.");
+  }
+};
+const fetchUnreadCount = async () => {
+  try {
+    const { data } = await api.get("/notifications", {
+      params: { read: "false", perPage: 1, page: 1 }
+    });
+    return Number(data?.meta?.unreadCount) || 0;
+  } catch (error) {
+    return 0;
+  }
+};
+const markNotificationRead = async (notificationId) => {
+  try {
+    const { data } = await api.put(`/notifications/${notificationId}/read`);
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, "That notification could not be marked as read.");
+  }
+};
+const markAllNotificationsRead = async () => {
+  try {
+    const { data } = await api.put("/notifications/read-all");
+    return Number(data?.data?.updatedCount) || 0;
+  } catch (error) {
+    throw toApiError(error, "Your notifications could not be cleared.");
+  }
+};
+const deleteNotification = async (notificationId) => {
+  try {
+    await api.delete(`/notifications/${notificationId}`);
+    return true;
+  } catch (error) {
+    throw toApiError(error, "That notification could not be deleted.");
+  }
+};
+const notificationAge = (iso) => {
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "";
+  const seconds = Math.max(0, Math.round((Date.now() - then) / 1e3));
+  if (seconds < 60) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+};
+const useToast = () => {
+  const context = useContext(ToastContext);
+  if (!context) {
+    throw new Error("useToast must be used within a ToastProvider");
+  }
+  return context;
+};
+const POLL_MS = 6e4;
+const useNotifications = ({ enabled = true } = {}) => {
+  const toast = useToast();
+  const [rows, setRows] = useState([]);
+  const [meta, setMeta] = useState({ page: 1, perPage: 20, total: 0, totalPages: 1, unreadCount: 0 });
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const openRef = useRef(open);
+  openRef.current = open;
+  const refreshBadge = useCallback(async () => {
+    if (!enabled) return;
+    try {
+      const unreadCount = await fetchUnreadCount();
+      setMeta((current) => current.unreadCount === unreadCount ? current : { ...current, unreadCount });
+    } catch {
+    }
+  }, [enabled]);
+  const load = useCallback(async () => {
+    if (!enabled) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await listNotifications({ perPage: 20 });
+      setRows(result.rows);
+      setMeta(result.meta);
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setLoading(false);
+    }
+  }, [enabled]);
+  useEffect(() => {
+    if (!enabled) return void 0;
+    refreshBadge();
+    const tick = () => {
+      if (document.visibilityState === "visible" && !openRef.current) {
+        refreshBadge();
+      }
+    };
+    const timer = setInterval(tick, POLL_MS);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [enabled, refreshBadge]);
+  const handleToggle = useCallback(() => {
+    setOpen((current) => {
+      const next = !current;
+      if (next) load();
+      return next;
+    });
+  }, [load]);
+  const handleRead = useCallback(
+    async (notificationId) => {
+      const previous = rows.find((row) => String(row._id) === String(notificationId));
+      if (!previous || previous.read) return;
+      setRows(
+        (current) => current.map(
+          (row) => String(row._id) === String(notificationId) ? { ...row, read: true, readAt: (/* @__PURE__ */ new Date()).toISOString() } : row
+        )
+      );
+      setMeta((current) => ({
+        ...current,
+        unreadCount: Math.max(0, current.unreadCount - 1)
+      }));
+      try {
+        await markNotificationRead(notificationId);
+      } catch (caught) {
+        setRows(
+          (current) => current.map((row) => String(row._id) === String(notificationId) ? previous : row)
+        );
+        setMeta((current) => ({
+          ...current,
+          unreadCount: current.unreadCount + 1
+        }));
+        toast?.error?.(caught?.message || "That could not be marked as read.");
+      }
+    },
+    [rows, toast]
+  );
+  const handleReadAll = useCallback(async () => {
+    if (meta.unreadCount === 0) return;
+    try {
+      await markAllNotificationsRead();
+      await load();
+      toast?.success?.("All notifications cleared.");
+    } catch (caught) {
+      toast?.error?.(caught?.message || "They could not be cleared.");
+    }
+  }, [load, meta.unreadCount, toast]);
+  const handleDelete = useCallback(
+    async (notificationId) => {
+      try {
+        await deleteNotification(notificationId);
+        setRows((current) => current.filter((row) => String(row._id) !== String(notificationId)));
+      } catch (caught) {
+        toast?.error?.(caught?.message || "That could not be deleted.");
+      }
+    },
+    [toast]
+  );
+  return {
+    rows,
+    meta,
+    open,
+    loading,
+    error,
+    unreadCount: meta.unreadCount,
+    toggle: handleToggle,
+    close: () => setOpen(false),
+    read: handleRead,
+    readAll: handleReadAll,
+    remove: handleDelete,
+    refresh: load,
+    refreshBadge,
+    // Presentation helpers passed down so the panel and any future second surface
+    // render a type identically without each re-deriving the fallback.
+    metaFor: notificationMeta,
+    ageFor: notificationAge
+  };
+};
+const NotificationBell = ({ className = "" }) => {
+  const {
+    rows,
+    loading,
+    error,
+    open,
+    unreadCount,
+    toggle,
+    close,
+    read: read2,
+    readAll,
+    remove,
+    metaFor,
+    ageFor
+  } = useNotifications();
+  const rootRef = useRef(null);
+  useEffect(() => {
+    if (!open) return void 0;
+    const onPointerDown = (event) => {
+      if (rootRef.current && !rootRef.current.contains(event.target)) close();
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") close();
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, close]);
+  return /* @__PURE__ */ jsxs("div", { ref: rootRef, className: `relative ${className}`, children: [
+    /* @__PURE__ */ jsxs(
+      "button",
+      {
+        type: "button",
+        onClick: toggle,
+        "aria-expanded": open,
+        "aria-haspopup": "dialog",
+        "aria-label": unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications",
+        className: "relative flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40",
+        children: [
+          /* @__PURE__ */ jsx(Bell, { className: "h-5 w-5", "aria-hidden": "true" }),
+          unreadCount > 0 ? /* @__PURE__ */ jsx(
+            "span",
+            {
+              "aria-hidden": "true",
+              className: "absolute right-1.5 top-1.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-extrabold leading-none text-white",
+              children: unreadCount > 99 ? "99+" : unreadCount
+            }
+          ) : null
+        ]
+      }
+    ),
+    open ? /* @__PURE__ */ jsxs(
+      "div",
+      {
+        role: "dialog",
+        "aria-label": "Notifications",
+        className: "absolute right-0 z-50 mt-2 flex w-[min(24rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft",
+        children: [
+          /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5", children: [
+            /* @__PURE__ */ jsx("p", { className: "text-[13px] font-extrabold text-ink", children: "Notifications" }),
+            unreadCount > 0 ? /* @__PURE__ */ jsxs(
+              "button",
+              {
+                type: "button",
+                onClick: readAll,
+                className: "inline-flex items-center gap-1.5 text-[12px] font-bold text-brand-700 transition-colors hover:text-brand-800",
+                children: [
+                  /* @__PURE__ */ jsx(CheckCheck, { className: "h-3.5 w-3.5", "aria-hidden": "true" }),
+                  "Mark all read"
+                ]
+              }
+            ) : null
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "max-h-[26rem] overflow-y-auto", children: [
+            loading && rows.length === 0 ? /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-center gap-2 px-4 py-10 text-slate-400", children: [
+              /* @__PURE__ */ jsx(Loader2, { className: "h-4 w-4 animate-spin", "aria-hidden": "true" }),
+              /* @__PURE__ */ jsx("span", { className: "text-[13px]", children: "Loading…" })
+            ] }) : null,
+            error ? /* @__PURE__ */ jsx("p", { className: "px-4 py-6 text-center text-[13px] font-semibold text-red-600", children: error.message }) : null,
+            !loading && !error && rows.length === 0 ? /* @__PURE__ */ jsxs("div", { className: "flex flex-col items-center gap-2 px-4 py-10 text-center", children: [
+              /* @__PURE__ */ jsx(Inbox, { className: "h-6 w-6 text-slate-300", "aria-hidden": "true" }),
+              /* @__PURE__ */ jsx("p", { className: "text-[13px] font-semibold text-slate-500", children: "Nothing new right now." }),
+              /* @__PURE__ */ jsx("p", { className: "text-[12px] text-slate-400", children: "A parent message or a fee request will appear here." })
+            ] }) : null,
+            /* @__PURE__ */ jsx("ul", { className: "divide-y divide-slate-100", children: rows.map((row) => {
+              const meta = metaFor(row.type);
+              const isParentMessage = row.type === "parent.message" || row.type === "parent.audio_message";
+              return /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsxs(
+                "div",
+                {
+                  className: `flex gap-3 px-4 py-3 transition-colors hover:bg-slate-50 ${row.read ? "" : "bg-brand-50/40"}`,
+                  children: [
+                    /* @__PURE__ */ jsx(
+                      "span",
+                      {
+                        "aria-hidden": "true",
+                        className: `mt-1 h-2 w-2 shrink-0 rounded-full ${row.read ? "bg-transparent" : "bg-brand-700"}`
+                      }
+                    ),
+                    /* @__PURE__ */ jsxs("div", { className: "min-w-0 flex-1", children: [
+                      /* @__PURE__ */ jsxs("div", { className: "flex items-start justify-between gap-2", children: [
+                        /* @__PURE__ */ jsx("p", { className: "min-w-0 text-[13px] font-extrabold leading-snug text-ink", children: row.title }),
+                        /* @__PURE__ */ jsx("span", { className: "shrink-0 text-[11px] font-semibold text-slate-400", children: ageFor(row.createdAt) })
+                      ] }),
+                      /* @__PURE__ */ jsx("p", { className: "mt-1 text-[12px] font-semibold text-slate-500", children: meta.label }),
+                      isParentMessage && row.meta?.message ? /* @__PURE__ */ jsx("p", { className: "mt-1.5 rounded-lg bg-white px-2.5 py-2 text-[13px] leading-relaxed text-slate-700 ring-1 ring-inset ring-slate-200", children: row.meta.message }) : /* @__PURE__ */ jsx("p", { className: "mt-1 text-[13px] leading-relaxed text-slate-600", children: row.message }),
+                      row.meta?.audioUrl ? /* @__PURE__ */ jsx(
+                        "audio",
+                        {
+                          controls: true,
+                          preload: "none",
+                          src: row.meta.audioUrl,
+                          className: "mt-2 h-9 w-full max-w-[16rem]",
+                          children: /* @__PURE__ */ jsx("a", { href: row.meta.audioUrl, download: true, children: "Download the voice note" })
+                        }
+                      ) : null,
+                      isParentMessage && row.meta?.parentPhone ? /* @__PURE__ */ jsxs(
+                        "a",
+                        {
+                          href: `tel:${row.meta.parentPhone}`,
+                          className: "mt-1.5 inline-block text-[12px] font-extrabold text-brand-700 hover:underline",
+                          children: [
+                            "Call ",
+                            row.meta.parentName,
+                            " · ",
+                            row.meta.parentPhone
+                          ]
+                        }
+                      ) : null,
+                      /* @__PURE__ */ jsxs("div", { className: "mt-2 flex flex-wrap items-center gap-3", children: [
+                        /* @__PURE__ */ jsx(
+                          Link,
+                          {
+                            to: row.link || "/dashboard/messages",
+                            onClick: () => {
+                              if (!row.read) read2(row._id);
+                              close();
+                            },
+                            className: "text-[12px] font-extrabold text-brand-700 hover:underline",
+                            children: isParentMessage ? "Open inbox" : "Open"
+                          }
+                        ),
+                        !row.read ? /* @__PURE__ */ jsx(
+                          "button",
+                          {
+                            type: "button",
+                            onClick: () => read2(row._id),
+                            className: "text-[12px] font-bold text-slate-500 hover:text-slate-700",
+                            children: "Mark read"
+                          }
+                        ) : null,
+                        /* @__PURE__ */ jsxs(
+                          "button",
+                          {
+                            type: "button",
+                            onClick: () => remove(row._id),
+                            "aria-label": `Delete notification: ${row.title}`,
+                            className: "inline-flex items-center gap-1 text-[12px] font-bold text-slate-400 hover:text-red-600",
+                            children: [
+                              /* @__PURE__ */ jsx(Trash2, { className: "h-3 w-3", "aria-hidden": "true" }),
+                              "Delete"
+                            ]
+                          }
+                        )
+                      ] })
+                    ] })
+                  ]
+                }
+              ) }, row._id);
+            }) })
+          ] })
+        ]
+      }
+    ) : null
+  ] });
+};
 const Popover = ({ label, align = "left", width = "w-64", children, panel, className = "" }) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
@@ -857,7 +1293,7 @@ const DashboardTopbar = ({ user, onOpenNav, navOpen = false, school, term, smsCr
         className: "flex shrink-0 items-center gap-2.5 pr-1",
         "aria-label": "SukuuPay dashboard",
         children: [
-          /* @__PURE__ */ jsx(LogoMark, { className: "h-9 w-9", markClassName: "text-base" }),
+          /* @__PURE__ */ jsx(LogoMark, { className: "h-10 w-10" }),
           /* @__PURE__ */ jsxs("span", { className: "hidden text-lg font-extrabold tracking-tight text-ink sm:block", children: [
             "Sukuu",
             /* @__PURE__ */ jsx("span", { className: "text-brand-700", children: "Pay" })
@@ -960,17 +1396,7 @@ const DashboardTopbar = ({ user, onOpenNav, navOpen = false, school, term, smsCr
           ]
         }
       ),
-      /* @__PURE__ */ jsx(
-        "button",
-        {
-          type: "button",
-          disabled: true,
-          title: "Notifications arrive with the SMS Reminders module",
-          "aria-label": "Notifications (coming soon)",
-          className: "hidden h-10 w-10 cursor-not-allowed items-center justify-center rounded-xl text-slate-300 sm:flex",
-          children: /* @__PURE__ */ jsx(Bell, { className: "h-5 w-5" })
-        }
-      ),
+      /* @__PURE__ */ jsx(NotificationBell, { className: "hidden sm:block" }),
       /* @__PURE__ */ jsx(
         Popover,
         {
@@ -1010,6 +1436,79 @@ const DashboardTopbar = ({ user, onOpenNav, navOpen = false, school, term, smsCr
     ] })
   ] }) });
 };
+const LEGAL_LINKS = [
+  { to: ROUTES.PRIVACY, label: "Privacy" },
+  { to: ROUTES.TERMS, label: "Terms" }
+];
+const LegalLinks = ({ className = "" }) => /* @__PURE__ */ jsx("nav", { "aria-label": "Legal", className: `flex items-center gap-4 ${className}`, children: LEGAL_LINKS.map((link) => /* @__PURE__ */ jsx(
+  Link,
+  {
+    to: link.to,
+    className: "text-xs font-semibold text-slate-500 transition-colors hover:text-brand-700",
+    children: link.label
+  },
+  link.to
+)) });
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+    this.handleReset = this.handleReset.bind(this);
+  }
+  /**
+   * `getDerivedStateFromError` rather than setting state in `componentDidCatch`.
+   *
+   * The render pass has already thrown by the time `componentDidCatch` runs, so a
+   * state update from there produces a second render that *also* renders the broken
+   * children — the boundary does not catch until the next pass, and React logs the
+   * original error as an uncaught exception either way.
+   */
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error, info) {
+    console.error(
+      `[ErrorBoundary${this.props.label ? `:${this.props.label}` : ""}]`,
+      error,
+      info?.componentStack
+    );
+  }
+  handleReset() {
+    this.setState({ error: null });
+  }
+  render() {
+    const { error } = this.state;
+    const { children, label, className = "" } = this.props;
+    if (!error) return children;
+    return /* @__PURE__ */ jsx("div", { className: `rounded-2xl border border-red-200 bg-red-50/60 p-5 ${className}`, children: /* @__PURE__ */ jsxs("div", { className: "flex items-start gap-3", children: [
+      /* @__PURE__ */ jsx(
+        "span",
+        {
+          "aria-hidden": "true",
+          className: "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-700",
+          children: /* @__PURE__ */ jsx(AlertTriangle, { className: "h-[18px] w-[18px]" })
+        }
+      ),
+      /* @__PURE__ */ jsxs("div", { className: "min-w-0 flex-1", children: [
+        /* @__PURE__ */ jsx("h3", { className: "text-[13px] font-extrabold text-red-900", children: label ? `${label} could not be displayed` : "This section could not be displayed" }),
+        /* @__PURE__ */ jsx("p", { className: "mt-1 text-[12px] font-semibold leading-relaxed text-red-800", children: "The rest of the page is unaffected and still shows live figures. The error is in the browser console." }),
+        /* @__PURE__ */ jsx("p", { className: "mt-2 break-words rounded-lg bg-white/70 px-2.5 py-1.5 font-mono text-[11px] leading-relaxed text-red-700", children: String(error?.message || error) }),
+        /* @__PURE__ */ jsxs(
+          "button",
+          {
+            type: "button",
+            onClick: this.handleReset,
+            className: "mt-3 inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-red-300 bg-white px-3 text-[12px] font-extrabold text-red-800 transition-colors hover:bg-red-100",
+            children: [
+              /* @__PURE__ */ jsx(RotateCcw, { className: "h-3.5 w-3.5", "aria-hidden": "true" }),
+              "Try again"
+            ]
+          }
+        )
+      ] })
+    ] }) });
+  }
+}
 const EMPTY_SCHOOL = {
   name: "",
   city: "",
@@ -1353,6 +1852,38 @@ const updateSchoolClasses = async (schoolId, classes) => {
     throw toApiError(error, "Failed to save your class list.");
   }
 };
+const toTransactionRow = (p = {}, index = 0) => {
+  const row = p && typeof p === "object" ? p : {};
+  const student = row.studentId && typeof row.studentId === "object" ? row.studentId : null;
+  const studentName2 = student?.studentName || (typeof row.studentName === "string" ? row.studentName : null) || (typeof student?.studentId === "string" ? student.studentId : null) || (typeof row.studentId === "string" ? row.studentId : null) || "Payment";
+  const studentCode = student?.studentId || (typeof row.studentCode === "string" ? row.studentCode : null) || "";
+  const className = student?.studentClass || (typeof row.className === "string" ? row.className : null) || "";
+  const at2 = row.createdAt ? new Date(row.createdAt) : null;
+  const hasDate = Boolean(at2) && !Number.isNaN(at2.getTime());
+  return {
+    ...row,
+    // A real key. `p.id` does not exist on a Payment — the field is `paymentId` — so
+    // the table was keyed on `undefined` for every row, which React warns about and
+    // which breaks reconciliation when the list re-sorts.
+    id: row.paymentId || row._id || `${row.reference || "row"}-${row.createdAt || index}`,
+    studentName: String(studentName2),
+    studentCode: String(studentCode),
+    className: String(className),
+    // The populated object is passed through untouched rather than re-shaped. The card
+    // does not read it, and flattening it here would hide the real API shape behind a
+    // second invented one — which is how the drift started in the first place.
+    studentRef: row.studentId ?? null,
+    // `Badge` maps `mtn | telecel | at` onto a dot colour and falls back to the current
+    // text colour otherwise — so an unmapped value still renders, just wrong.
+    network: String(row.momoNetwork || "UNKNOWN").toLowerCase().slice(0, 8),
+    networkLabel: row.momoNetwork || row.paymentMethod?.toUpperCase() || "Manual",
+    reference: row.reference || row.mtnReferenceId || row.paymentId || "—",
+    // `toLocaleDateString(new Date(undefined))` yields the string "Invalid Date", so a
+    // missing or unparseable timestamp is checked rather than formatted.
+    dateLabel: hasDate ? at2.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—",
+    timeLabel: hasDate ? at2.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : ""
+  };
+};
 const useDashboardOverview = (schoolId) => {
   const [state, setState] = useState({
     data: EMPTY_OVERVIEW,
@@ -1425,16 +1956,7 @@ const useDashboardOverview = (schoolId) => {
         anyLive = true;
       }
       if (payments.status === "fulfilled" && payments.value?.rows?.length) {
-        next.transactions = payments.value.rows.map((p) => ({
-          ...p,
-          studentName: p.studentName || p.studentId || "Payment",
-          studentId: p.studentId,
-          network: String(p.momoNetwork || "UNKNOWN").toLowerCase().slice(0, 8),
-          networkLabel: p.momoNetwork || p.paymentMethod?.toUpperCase() || "Manual",
-          reference: p.reference || p.mtnReferenceId || p.paymentId,
-          dateLabel: new Date(p.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
-          timeLabel: new Date(p.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
-        }));
+        next.transactions = payments.value.rows.map(toTransactionRow);
         next.transactionCount = payments.value.meta?.total ?? next.transactions.length;
         live.push("transactions");
         anyLive = true;
@@ -1503,6 +2025,7 @@ const useDashboardOverview = (schoolId) => {
   }, [nonce, schoolId]);
   return { ...state, seriesFor, refresh };
 };
+const ErrorBoundaryResetOnChange = ({ routeKey, children }) => /* @__PURE__ */ jsx(ErrorBoundary, { label: "This page", children }, routeKey);
 const DashboardLayout = () => {
   const { user, school } = useAuth();
   const { pathname } = useLocation();
@@ -1584,7 +2107,8 @@ const DashboardLayout = () => {
             smsCredit
           }
         ),
-        /* @__PURE__ */ jsx("main", { id: "dashboard-main", tabIndex: -1, className: "min-w-0 flex-1 px-4 pb-16 pt-6 sm:px-6 lg:px-8", children: /* @__PURE__ */ jsx("div", { className: "mx-auto w-full max-w-7xl", children: /* @__PURE__ */ jsx(Outlet, {}) }) })
+        /* @__PURE__ */ jsx("main", { id: "dashboard-main", tabIndex: -1, className: "min-w-0 flex-1 px-4 pb-8 pt-6 sm:px-6 lg:px-8", children: /* @__PURE__ */ jsx("div", { className: "mx-auto w-full max-w-7xl", children: /* @__PURE__ */ jsx(ErrorBoundaryResetOnChange, { routeKey: pathname, children: /* @__PURE__ */ jsx(Outlet, {}) }) }) }),
+        /* @__PURE__ */ jsx("div", { className: "border-t border-slate-200 px-4 py-4 sm:px-6 lg:px-8", children: /* @__PURE__ */ jsx(LegalLinks, { className: "justify-center" }) })
       ] })
     ] }),
     drawerOpen && /* @__PURE__ */ jsxs("div", { className: "lg:hidden", children: [
@@ -1609,13 +2133,6 @@ const DashboardLayout = () => {
       ) })
     ] })
   ] });
-};
-const useToast = () => {
-  const context = useContext(ToastContext);
-  if (!context) {
-    throw new Error("useToast must be used within a ToastProvider");
-  }
-  return context;
 };
 const Modal = ({ open, onClose, title, description, children, footer, size = "md" }) => {
   const panelRef = useRef(null);
@@ -2621,7 +3138,13 @@ const PaymentChannelsCard = ({ channels = [] }) => {
     ] }) }) }, channel.key)) })
   ] });
 };
-const initials$1 = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join("");
+const initials$1 = (name) => {
+  const text = typeof name === "string" ? name : (
+    // A populated student object, or `{ _id }` with nothing else on it.
+    name && typeof name === "object" ? String(name.studentName || name.studentId || name._id || "") : name == null ? "" : String(name)
+  );
+  return text.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join("") || "?";
+};
 const AVATAR_TONES$1 = [
   "bg-emerald-100 text-emerald-700",
   "bg-amber-100 text-amber-700",
@@ -2661,40 +3184,64 @@ const RecentTransactionsCard = ({ transactions, totalCount, isDemo }) => /* @__P
         heading
       )
     ) }) }),
-    /* @__PURE__ */ jsx("tbody", { children: transactions.map((txn, index) => /* @__PURE__ */ jsxs(
-      "tr",
-      {
-        className: "border-t border-slate-100 transition-colors hover:bg-slate-50/70",
-        children: [
-          /* @__PURE__ */ jsx("th", { scope: "row", className: "px-5 py-3 font-normal", children: /* @__PURE__ */ jsxs("span", { className: "flex items-center gap-3", children: [
-            /* @__PURE__ */ jsx(
-              "span",
-              {
-                className: `flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-extrabold ${AVATAR_TONES$1[index % AVATAR_TONES$1.length]}`,
-                "aria-hidden": "true",
-                children: initials$1(txn.studentName)
-              }
-            ),
-            /* @__PURE__ */ jsxs("span", { className: "min-w-0", children: [
-              /* @__PURE__ */ jsx("span", { className: "block truncate text-[13px] font-extrabold text-ink", children: txn.studentName }),
-              /* @__PURE__ */ jsxs("span", { className: "block text-[11px] font-semibold text-slate-500", children: [
-                "ID: ",
-                txn.studentCode
+    /* @__PURE__ */ jsxs("tbody", { children: [
+      transactions.length === 0 ? (
+        /*
+         * An explicit empty body rather than zero rows under a header.
+         *
+         * A `<tbody>` with nothing in it leaves the column headings sitting on an
+         * empty grey band, which reads as "the table failed to load" — the exact
+         * wrong conclusion for a school whose first payment has simply not happened
+         * yet. Spanning all six columns keeps the headings and the explanation in
+         * the same visual object.
+         */
+        /* @__PURE__ */ jsx("tr", { children: /* @__PURE__ */ jsxs(
+          "td",
+          {
+            colSpan: 6,
+            className: "px-5 py-10 text-center text-[13px] font-semibold text-slate-500",
+            children: [
+              "No payments recorded yet.",
+              /* @__PURE__ */ jsx("span", { className: "mt-1 block text-[12px] font-medium text-slate-400", children: "They will appear here as parents pay, from the app or at the office." })
+            ]
+          }
+        ) })
+      ) : null,
+      transactions.map((txn, index) => /* @__PURE__ */ jsxs(
+        "tr",
+        {
+          className: "border-t border-slate-100 transition-colors hover:bg-slate-50/70",
+          children: [
+            /* @__PURE__ */ jsx("th", { scope: "row", className: "px-5 py-3 font-normal", children: /* @__PURE__ */ jsxs("span", { className: "flex items-center gap-3", children: [
+              /* @__PURE__ */ jsx(
+                "span",
+                {
+                  className: `flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-extrabold ${AVATAR_TONES$1[index % AVATAR_TONES$1.length]}`,
+                  "aria-hidden": "true",
+                  children: initials$1(txn.studentName)
+                }
+              ),
+              /* @__PURE__ */ jsxs("span", { className: "min-w-0", children: [
+                /* @__PURE__ */ jsx("span", { className: "block truncate text-[13px] font-extrabold text-ink", children: txn.studentName }),
+                /* @__PURE__ */ jsxs("span", { className: "block text-[11px] font-semibold text-slate-500", children: [
+                  "ID: ",
+                  txn.studentCode
+                ] })
               ] })
+            ] }) }),
+            /* @__PURE__ */ jsx("td", { className: "whitespace-nowrap px-5 py-3 text-[13px] font-semibold text-slate-600", children: txn.className }),
+            /* @__PURE__ */ jsx("td", { className: "whitespace-nowrap px-5 py-3 text-right text-[13px] font-extrabold tabular-nums text-ink", children: formatCedis(txn.amount) }),
+            /* @__PURE__ */ jsx("td", { className: "px-5 py-3", children: /* @__PURE__ */ jsx(Badge, { tone: txn.network, dot: true, children: txn.networkLabel }) }),
+            /* @__PURE__ */ jsx("td", { className: "whitespace-nowrap px-5 py-3 text-[12px] font-semibold text-slate-500", children: txn.reference }),
+            /* @__PURE__ */ jsxs("td", { className: "whitespace-nowrap px-5 py-3", children: [
+              /* @__PURE__ */ jsx("span", { className: "block text-[12px] font-bold text-slate-700", children: txn.dateLabel }),
+              /* @__PURE__ */ jsx("span", { className: "block text-[11px] font-semibold text-slate-400", children: txn.timeLabel })
             ] })
-          ] }) }),
-          /* @__PURE__ */ jsx("td", { className: "whitespace-nowrap px-5 py-3 text-[13px] font-semibold text-slate-600", children: txn.className }),
-          /* @__PURE__ */ jsx("td", { className: "whitespace-nowrap px-5 py-3 text-right text-[13px] font-extrabold tabular-nums text-ink", children: formatCedis(txn.amount) }),
-          /* @__PURE__ */ jsx("td", { className: "px-5 py-3", children: /* @__PURE__ */ jsx(Badge, { tone: txn.network, dot: true, children: txn.networkLabel }) }),
-          /* @__PURE__ */ jsx("td", { className: "whitespace-nowrap px-5 py-3 text-[12px] font-semibold text-slate-500", children: txn.reference }),
-          /* @__PURE__ */ jsxs("td", { className: "whitespace-nowrap px-5 py-3", children: [
-            /* @__PURE__ */ jsx("span", { className: "block text-[12px] font-bold text-slate-700", children: txn.dateLabel }),
-            /* @__PURE__ */ jsx("span", { className: "block text-[11px] font-semibold text-slate-400", children: txn.timeLabel })
-          ] })
-        ]
-      },
-      txn.id
-    )) })
+          ]
+        },
+        txn.id
+      ))
+    ] })
   ] }) }),
   isDemo && /* @__PURE__ */ jsx("p", { className: "border-t border-slate-100 px-5 py-3 text-[11px] font-semibold text-slate-400", children: "Demo data. Backed by GET /payments once wired." })
 ] });
@@ -2945,6 +3492,9 @@ const useSmsReminders = (reloadKey = 0) => {
   const stored = useMemo(() => readStoredDraft(schoolId), [schoolId]);
   const [audienceType, setAudienceType] = useState(stored?.audienceType || "overdue");
   const [classFilter, setClassFilter] = useState(stored?.classFilter || "");
+  const [studentIds, setStudentIds] = useState(
+    () => Array.isArray(stored?.studentIds) ? stored.studentIds.map(String) : []
+  );
   const [minBalance, setMinBalance] = useState(stored?.minBalance ?? 1);
   const [overdueDays, setOverdueDays] = useState(stored?.overdueDays ?? 30);
   const [gracePeriodDays, setGracePeriodDays] = useState(stored?.gracePeriodDays ?? 30);
@@ -2970,6 +3520,14 @@ const useSmsReminders = (reloadKey = 0) => {
       excludeRecentPayers,
       recentPaymentWindowHours: Number(recentPaymentWindowHours) || 48,
       ...audienceType === "class" && classFilter ? { class: classFilter } : {},
+      // The one field the `students` rule needs. Omitted entirely when the list is
+      // empty rather than sent as `studentIds: []`, because the schema reads an
+      // empty array as "no recipients named" and refuses it — and because
+      // `sms.service.js` turns it into `$in: []`, which is a query matching nobody
+      // if it ever slipped past validation. The preview is suppressed below, so
+      // this shape only exists between the two and the send is guarded by the
+      // button.
+      ...audienceType === "students" && studentIds.length ? { studentIds } : {},
       // `all` is the one rule where a zero balance is coherent, and it says so
       // explicitly rather than by leaving `minBalance` at 0 — the server rejects
       // a whole-school broadcast that did not opt in.
@@ -2978,6 +3536,7 @@ const useSmsReminders = (reloadKey = 0) => {
     [
       audienceType,
       classFilter,
+      studentIds,
       minBalance,
       overdueDays,
       gracePeriodDays,
@@ -3093,9 +3652,12 @@ const useSmsReminders = (reloadKey = 0) => {
   const previewTimer = useRef(null);
   useEffect(() => {
     if (!schoolId) return void 0;
-    if (audienceType === "class" && !classFilter) {
+    const needsTarget = audienceType === "class" && !classFilter || audienceType === "students" && !studentIds.length;
+    if (needsTarget) {
+      clearTimeout(previewTimer.current);
       setAudiencePreview(null);
       setAudienceError(null);
+      setAudienceLoading(false);
       return void 0;
     }
     clearTimeout(previewTimer.current);
@@ -3111,12 +3673,13 @@ const useSmsReminders = (reloadKey = 0) => {
       }).finally(() => setAudienceLoading(false));
     }, 400);
     return () => clearTimeout(previewTimer.current);
-  }, [schoolId, audience]);
+  }, [schoolId, audience, audienceType, classFilter, studentIds]);
   useEffect(() => {
     if (!schoolId) return;
     writeStoredDraft(schoolId, {
       audienceType,
       classFilter,
+      studentIds,
       minBalance,
       overdueDays,
       gracePeriodDays,
@@ -3132,6 +3695,7 @@ const useSmsReminders = (reloadKey = 0) => {
     schoolId,
     audienceType,
     classFilter,
+    studentIds,
     minBalance,
     overdueDays,
     gracePeriodDays,
@@ -3204,6 +3768,11 @@ const useSmsReminders = (reloadKey = 0) => {
     }
   }, [schoolId]);
   const send = useCallback(async () => {
+    if (audienceType === "students" && !studentIds.length) {
+      const error = new Error("Pick at least one student, or choose a different audience.");
+      setSendError(error);
+      throw error;
+    }
     setSending(true);
     setSendError(null);
     try {
@@ -3228,7 +3797,7 @@ const useSmsReminders = (reloadKey = 0) => {
     } finally {
       setSending(false);
     }
-  }, [schoolId, audience, body, category, templateId, scheduledAt, audienceType, loadHistory]);
+  }, [schoolId, audience, body, category, templateId, scheduledAt, audienceType, studentIds, loadHistory]);
   const cancelJob = useCallback(
     async (jobId) => {
       setBusyJobId(jobId);
@@ -3247,6 +3816,8 @@ const useSmsReminders = (reloadKey = 0) => {
     },
     [schoolId, loadHistory]
   );
+  const readyToConfirm = Boolean(body.trim()) && unknown.length === 0 && !overSegmentLimit && audiencePreview?.matchCount > 0 && affordable === true;
+  const canQueue = readyToConfirm && confirmed;
   return {
     // Scope
     schoolId,
@@ -3286,6 +3857,8 @@ const useSmsReminders = (reloadKey = 0) => {
     audienceRules: AUDIENCE_RULES,
     classFilter,
     setClassFilter,
+    studentIds,
+    setStudentIds,
     minBalance,
     setMinBalance,
     overdueDays,
@@ -3320,7 +3893,8 @@ const useSmsReminders = (reloadKey = 0) => {
     audienceError,
     estimatedCost,
     affordable,
-    canQueue: Boolean(body) && unknown.length === 0 && !overSegmentLimit && audiencePreview?.matchCount > 0 && affordable === true && confirmed,
+    canQueue,
+    readyToConfirm,
     // Actions
     send,
     sending,
@@ -3592,23 +4166,23 @@ const Overview = () => {
         )
       ] })
     ] }),
-    /* @__PURE__ */ jsx(KpiRow, { kpis }),
+    /* @__PURE__ */ jsx(ErrorBoundary, { label: "The KPI figures", children: /* @__PURE__ */ jsx(KpiRow, { kpis }) }),
     /* @__PURE__ */ jsxs("div", { className: "mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3", children: [
       /* @__PURE__ */ jsxs("div", { className: "flex flex-col gap-4 xl:col-span-2", children: [
-        /* @__PURE__ */ jsx(CollectionsCard, { term, seriesFor }),
-        /* @__PURE__ */ jsx(
+        /* @__PURE__ */ jsx(ErrorBoundary, { label: "Collections", children: /* @__PURE__ */ jsx(CollectionsCard, { term, seriesFor }) }),
+        /* @__PURE__ */ jsx(ErrorBoundary, { label: "Recent transactions", children: /* @__PURE__ */ jsx(
           RecentTransactionsCard,
           {
             transactions,
             totalCount: transactionCount,
             isDemo: isFallback
           }
-        )
+        ) })
       ] }),
       /* @__PURE__ */ jsxs("div", { className: "flex flex-col gap-4", children: [
-        /* @__PURE__ */ jsx(PaymentChannelsCard, { channels }),
-        /* @__PURE__ */ jsx(BroadcastSmsCard, { broadcast: smsBroadcast }),
-        /* @__PURE__ */ jsx(UpcomingInstallmentsCard, { upcoming: upcomingInstallments })
+        /* @__PURE__ */ jsx(ErrorBoundary, { label: "Payment channels", children: /* @__PURE__ */ jsx(PaymentChannelsCard, { channels }) }),
+        /* @__PURE__ */ jsx(ErrorBoundary, { label: "SMS reminders", children: /* @__PURE__ */ jsx(BroadcastSmsCard, { broadcast: smsBroadcast }) }),
+        /* @__PURE__ */ jsx(ErrorBoundary, { label: "Upcoming installments", children: /* @__PURE__ */ jsx(UpcomingInstallmentsCard, { upcoming: upcomingInstallments }) })
       ] })
     ] }),
     isFallback && /* @__PURE__ */ jsx("p", { className: "mt-4 text-[11px] font-semibold text-amber-700", children: "The dashboard could not reach the API, so every figure above is empty rather than estimated. Nothing on this page is a placeholder." }),
@@ -11228,7 +11802,7 @@ const CreatePlanForm = ({
   numberOfInstallments,
   setNumberOfInstallments,
   interval,
-  setInterval,
+  setInterval: setInterval2,
   startDate,
   setStartDate,
   onStartDatePreset,
@@ -11285,7 +11859,7 @@ const CreatePlanForm = ({
         totalCedis: figures.balanceToStructure / 100
       }
     ),
-    /* @__PURE__ */ jsx(IntervalPicker, { value: interval, onChange: setInterval }),
+    /* @__PURE__ */ jsx(IntervalPicker, { value: interval, onChange: setInterval2 }),
     /* @__PURE__ */ jsx(
       StartDatePicker,
       {
@@ -11723,7 +12297,7 @@ const usePlanBuilder = (studentId) => {
   const [loading, setLoading] = useState(Boolean(studentId));
   const [loadError, setLoadError] = useState(null);
   const [numberOfInstallments, setNumberOfInstallments] = useState(3);
-  const [interval, setInterval] = useState("monthly");
+  const [interval, setInterval2] = useState("monthly");
   const [startDate, setStartDate] = useState(today);
   const [planName, setPlanName] = useState("");
   const [adminNotes, setAdminNotes] = useState("");
@@ -11835,7 +12409,7 @@ const usePlanBuilder = (studentId) => {
   ]);
   const reset = useCallback(() => {
     setNumberOfInstallments(3);
-    setInterval("monthly");
+    setInterval2("monthly");
     setStartDate(today);
     setPlanName("");
     setAdminNotes("");
@@ -11857,7 +12431,7 @@ const usePlanBuilder = (studentId) => {
     numberOfInstallments,
     setNumberOfInstallments,
     interval,
-    setInterval,
+    setInterval: setInterval2,
     startDate,
     setStartDate,
     planName,
@@ -12377,6 +12951,158 @@ const Pagination = ({ page, totalPages, onChange }) => {
     )
   ] });
 };
+const MAX_SELECTION = 500;
+const StudentMultiSelect = ({ selectedIds, onChange }) => {
+  const [search, setSearch] = useState("");
+  const [rows, setRows] = useState([]);
+  const [fetching, setFetching] = useState(false);
+  const [error, setError] = useState(null);
+  const selected = selectedIds || [];
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
+  useEffect(() => {
+    let active = true;
+    const timer = setTimeout(() => {
+      setFetching(true);
+      setError(null);
+      listStudents({ search: search.trim(), perPage: 20 }).then((result) => {
+        if (active) setRows(result?.rows || []);
+      }).catch((err) => {
+        if (!active) return;
+        setRows([]);
+        setError(err);
+      }).finally(() => {
+        if (active) setFetching(false);
+      });
+    }, 400);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [search]);
+  const toggle = useCallback(
+    (id) => {
+      onChange?.(
+        selectedSet.has(id) ? selected.filter((existing) => existing !== id) : [...selected, id]
+      );
+    },
+    [onChange, selected, selectedSet]
+  );
+  const atCap = selected.length >= MAX_SELECTION;
+  return /* @__PURE__ */ jsxs("div", { className: "mt-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3", children: [
+    selected.length ? /* @__PURE__ */ jsxs("div", { className: "mb-2.5", children: [
+      /* @__PURE__ */ jsxs("div", { className: "flex items-baseline justify-between gap-2", children: [
+        /* @__PURE__ */ jsx("p", { className: "text-[11px] font-extrabold uppercase tracking-wide text-slate-500", children: "Chosen" }),
+        /* @__PURE__ */ jsxs("p", { className: "text-[11px] font-bold text-slate-500 tabular-nums", children: [
+          formatCount(selected.length),
+          atCap ? " · limit reached" : ` of ${MAX_SELECTION}`
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxs("ul", { className: "mb-2 flex flex-wrap gap-1.5", children: [
+        selected.slice(0, 12).map((id) => /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsxs(
+          "button",
+          {
+            type: "button",
+            onClick: () => toggle(id),
+            className: "inline-flex max-w-[14rem] items-center gap-1 rounded-lg bg-brand-700 py-1 pl-2 pr-1.5 text-[11px] font-bold text-white transition-colors hover:bg-brand-800",
+            children: [
+              /* @__PURE__ */ jsx("span", { className: "truncate", children: nameFor(id, rows) }),
+              /* @__PURE__ */ jsx(X, { className: "h-3 w-3 shrink-0", "aria-hidden": "true" }),
+              /* @__PURE__ */ jsxs("span", { className: "sr-only", children: [
+                "Remove ",
+                nameFor(id, rows)
+              ] })
+            ]
+          }
+        ) }, id)),
+        selected.length > 12 ? /* @__PURE__ */ jsxs("li", { className: "inline-flex items-center rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-600", children: [
+          "+",
+          formatCount(selected.length - 12),
+          " more"
+        ] }) : null
+      ] }),
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          type: "button",
+          onClick: () => onChange?.([]),
+          className: "min-h-[32px] text-[11px] font-bold text-slate-500 underline underline-offset-2 hover:text-slate-700",
+          children: "Clear all"
+        }
+      )
+    ] }) : null,
+    /* @__PURE__ */ jsx("label", { className: "sr-only", htmlFor: "sms-student-search", children: "Search students by name or ID" }),
+    /* @__PURE__ */ jsxs("div", { className: "relative", children: [
+      /* @__PURE__ */ jsx(
+        Search,
+        {
+          className: "pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400",
+          "aria-hidden": "true"
+        }
+      ),
+      /* @__PURE__ */ jsx(
+        "input",
+        {
+          id: "sms-student-search",
+          type: "search",
+          value: search,
+          onChange: (event) => setSearch(event.target.value),
+          placeholder: "Search by student name or ID…",
+          className: "w-full rounded-lg border border-slate-200 bg-white py-2 pl-8 pr-3 text-[12px] font-semibold text-ink placeholder:font-normal placeholder:text-slate-400 focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700/30"
+        }
+      )
+    ] }),
+    error ? /* @__PURE__ */ jsxs("p", { className: "mt-2 flex items-start gap-1.5 text-[11px] font-semibold text-red-700", children: [
+      /* @__PURE__ */ jsx(CircleAlert, { className: "mt-px h-3.5 w-3.5 shrink-0", "aria-hidden": "true" }),
+      error?.message || "The roster could not be read."
+    ] }) : null,
+    /* @__PURE__ */ jsx("div", { className: "mt-2 max-h-56 overflow-y-auto overscroll-contain", children: fetching && !rows.length ? /* @__PURE__ */ jsxs("p", { className: "flex items-center justify-center gap-2 py-4 text-[12px] font-semibold text-slate-400", children: [
+      /* @__PURE__ */ jsx(Loader2, { className: "h-3.5 w-3.5 animate-spin", "aria-hidden": "true" }),
+      "Loading students…"
+    ] }) : rows.length ? /* @__PURE__ */ jsx("ul", { className: "space-y-1", children: rows.map((row) => {
+      const checked = selectedSet.has(row.id ?? row._id);
+      const id = row.id ?? row._id;
+      return /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsxs(
+        "label",
+        {
+          className: `flex cursor-pointer items-center gap-2.5 rounded-lg border bg-white px-2.5 py-2 transition-colors ${checked ? "border-brand-700 bg-brand-50/40" : "border-slate-200 hover:border-slate-300"}`,
+          children: [
+            /* @__PURE__ */ jsx(
+              "input",
+              {
+                type: "checkbox",
+                checked,
+                onChange: () => toggle(id),
+                disabled: !checked && atCap,
+                className: "h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-brand-700 focus:ring-brand-700/30"
+              }
+            ),
+            /* @__PURE__ */ jsxs("span", { className: "min-w-0 flex-1", children: [
+              /* @__PURE__ */ jsx("span", { className: "block truncate text-[12px] font-extrabold text-ink", children: row.studentName }),
+              /* @__PURE__ */ jsxs("span", { className: "block truncate text-[11px] font-semibold text-slate-500", children: [
+                row.studentClass,
+                " · ",
+                row.studentId
+              ] })
+            ] }),
+            /* @__PURE__ */ jsxs("span", { className: "shrink-0 text-[11px] font-extrabold tabular-nums text-slate-600", children: [
+              "GH₵ ",
+              formatCedis(row.balance)
+            ] })
+          ]
+        }
+      ) }, id);
+    }) }) : search.trim() ? /* @__PURE__ */ jsxs("p", { className: "py-4 text-center text-[12px] font-semibold text-slate-400", children: [
+      "Nobody on the roster matches “",
+      search.trim(),
+      "”."
+    ] }) : null }),
+    /* @__PURE__ */ jsx("p", { className: "mt-2 text-[11px] leading-relaxed text-slate-500", children: selected.length ? "Shown above, so this is the audience the preview and the send will use." : "Pick at least one student — an empty selection cannot be previewed or sent." })
+  ] });
+};
+const nameFor = (id, rows) => {
+  const match = rows.find((row) => (row.id ?? row._id) === id);
+  return match ? match.studentName : `…${String(id).slice(-6)}`;
+};
 const NETWORKS$1 = [
   { key: "mtn", label: "MTN", dot: "mtn" },
   { key: "telecel", label: "Telecel", dot: "telecel" },
@@ -12467,6 +13193,8 @@ const AudiencePanel = ({
   classFilter,
   setClassFilter,
   classes,
+  studentIds,
+  setStudentIds,
   preview,
   loading,
   error,
@@ -12483,6 +13211,9 @@ const AudiencePanel = ({
 }) => {
   const countFor = (type) => audienceType === type && preview ? preview.matchCount : null;
   const valueFor = (type) => {
+    if (audienceType === type && type === "students") {
+      return studentIds?.length ? `${formatCount(studentIds.length)} student${studentIds.length === 1 ? "" : "s"} chosen` : "None chosen yet";
+    }
     if (audienceType !== type || !preview) return "—";
     if (type === "class") return "In the selected class";
     if (type === "all") return "Every active student";
@@ -12517,7 +13248,7 @@ const AudiencePanel = ({
         selected: audienceType === rule.value,
         count: countFor(rule.value),
         value: valueFor(rule.value),
-        valueLabel: rule.value === "all" ? "Includes settled" : rule.value === "class" ? "Scope" : "Outstanding",
+        valueLabel: rule.value === "all" ? "Includes settled" : rule.value === "class" || rule.value === "students" ? "Scope" : "Outstanding",
         onSelect: () => setAudienceType(rule.value),
         children: [
           audienceType === rule.value && rule.value === "class" && /* @__PURE__ */ jsxs("div", { className: "mt-3", children: [
@@ -12546,6 +13277,7 @@ const AudiencePanel = ({
             ] }),
             !classFilter && /* @__PURE__ */ jsx("p", { className: "mt-1 text-[11px] font-semibold text-amber-700", children: "Pick a class to size this audience." })
           ] }),
+          audienceType === rule.value && rule.value === "students" && /* @__PURE__ */ jsx(StudentMultiSelect, { selectedIds: studentIds, onChange: setStudentIds }),
           audienceType === rule.value && rule.value === "overdue" && /* @__PURE__ */ jsxs("div", { className: "mt-3 grid grid-cols-2 gap-2", children: [
             /* @__PURE__ */ jsxs("label", { className: "text-[11px] font-semibold text-slate-700", children: [
               "Grace period (days)",
@@ -12995,6 +13727,7 @@ const SendBar = ({
   ratePes,
   balance,
   canQueue,
+  readyToConfirm,
   confirmed,
   setConfirmed,
   sending,
@@ -13057,7 +13790,7 @@ const SendBar = ({
             ]
           }
         ),
-        canQueue && !confirmed && /* @__PURE__ */ jsxs("label", { className: "mt-2 flex cursor-pointer items-start gap-2 text-[11px] font-semibold text-slate-600", children: [
+        readyToConfirm && !confirmed && /* @__PURE__ */ jsxs("label", { className: "mt-2 flex cursor-pointer items-start gap-2 text-[11px] font-semibold text-slate-600", children: [
           /* @__PURE__ */ jsx(
             "input",
             {
@@ -13069,7 +13802,7 @@ const SendBar = ({
           ),
           /* @__PURE__ */ jsx("span", { children: audienceType === "all" ? `Send to every active student, including the ${formatCount(matchCount)} who have nothing outstanding?` : `Send ${segments} SMS part${segments === 1 ? "" : "s"} to ${formatCount(matchCount)} parent${matchCount === 1 ? "" : "s"} now? This cannot be unsent.` })
         ] }),
-        blocker && !canQueue && /* @__PURE__ */ jsx("p", { className: "mt-1.5 text-[11px] font-semibold text-slate-500", children: blocker })
+        blocker && !readyToConfirm && /* @__PURE__ */ jsx("p", { className: "mt-1.5 text-[11px] font-semibold text-slate-500", children: blocker })
       ] })
     ] }),
     /* @__PURE__ */ jsxs("p", { className: "mt-2 flex items-center gap-1.5 text-[10px] font-semibold text-slate-400", children: [
@@ -13798,6 +14531,9 @@ const SmsReminders = () => {
     if (sms.unknownTokens.length) return "Fix the unknown tokens in your message.";
     if (sms.overSegmentLimit) return "The message is over the 10-part limit.";
     if (sms.audienceType === "class" && !sms.classFilter) return "Pick a class.";
+    if (sms.audienceType === "students" && !sms.studentIds.length) {
+      return "Pick at least one student to message.";
+    }
     if (sms.audienceLoading) return "Sizing the audience…";
     if (!sms.audiencePreview) return "Choose an audience to see the cost.";
     if (!sms.audiencePreview.matchCount) return "Nobody matches this audience yet.";
@@ -13913,6 +14649,8 @@ const SmsReminders = () => {
             audienceRules: sms.audienceRules,
             classFilter: sms.classFilter,
             setClassFilter: sms.setClassFilter,
+            studentIds: sms.studentIds,
+            setStudentIds: sms.setStudentIds,
             classes,
             preview: sms.audiencePreview,
             loading: sms.audienceLoading,
@@ -13979,6 +14717,7 @@ const SmsReminders = () => {
           ratePes: sms.credits?.ratePes ?? 12,
           balance: sms.balance ?? 0,
           canQueue: sms.canQueue,
+          readyToConfirm: sms.readyToConfirm,
           confirmed: sms.confirmed,
           setConfirmed: sms.setConfirmed,
           sending: sms.sending,
@@ -16675,7 +17414,7 @@ const PayHeader = ({ school }) => /* @__PURE__ */ jsx("header", { className: "bo
       "Secure fee payment"
     ] })
   ] }),
-  /* @__PURE__ */ jsx(LogoMark, { className: "h-8 w-8 shrink-0", markClassName: "text-xs" })
+  /* @__PURE__ */ jsx(LogoMark, { className: "h-9 w-9 shrink-0" })
 ] }) });
 const PAY_STUDENT = {
   id: "65f1c2a4e8b9d0123456789a",
@@ -16839,8 +17578,19 @@ await check("Settings and User Management are hidden from non-admin roles in the
     if (!admin.includes(hidden)) throw new Error(`a school admin cannot see ${hidden}`);
   }
   if (teacher.length !== 7) throw new Error(`teacher rail has ${teacher.length} entries, expected 7`);
-  if (admin.length !== 9) throw new Error(`admin rail has ${admin.length} entries, expected 9`);
-  return "teacher 7, school admin 9";
+  if (admin.length !== 10) throw new Error(`admin rail has ${admin.length} entries, expected 10`);
+  return "teacher 7, school admin 10";
+});
+await check("Parent Messages is not in a teacher rail", () => {
+  const teacher = visibleDashboardNav("teacher").flatMap((g) => g.items.map((i) => i.label));
+  const accountant = visibleDashboardNav("accountant").flatMap((g) => g.items.map((i) => i.label));
+  if (teacher.includes("Parent Messages")) {
+    throw new Error("a teacher can see Parent Messages — that is the parent phone list");
+  }
+  if (!accountant.includes("Parent Messages")) {
+    throw new Error("an accountant cannot see Parent Messages, but is alerted about them");
+  }
+  return "hidden from teachers, shown to accountants";
 });
 await check("the Payments KPI band aggregates the summary, never the visible rows", () => {
   const html = renderToString(
@@ -17243,7 +17993,7 @@ await check("every Settings section declares whether it is writable", async () =
   return "7 sections, 3 read-only and each with a stated reason";
 });
 await check("the Reports catalogue never offers PDF", async () => {
-  const { REPORTS: REPORTS2 } = await import("./assets/reports-BuNrROki.js").then((n) => n.c);
+  const { REPORTS: REPORTS2 } = await import("./assets/reports-BcS3xgcI.js").then((n) => n.c);
   if (REPORTS2.length !== 9) throw new Error(`expected 9 reports, the catalogue has ${REPORTS2.length}`);
   const withPdf = REPORTS2.filter((r) => (r.formats || []).includes("pdf"));
   if (withPdf.length) {
@@ -17364,16 +18114,28 @@ await check("the pay page renders its own shell, not the marketing chrome", () =
 await check("the pay route is registered outside AppChrome", async () => {
   const { readFileSync } = await import("node:fs");
   const source = readFileSync(new URL("../../src/App.jsx", import.meta.url), "utf8");
-  if (!/path="\/pay\/:token"/.test(source)) {
-    throw new Error("/pay/:token is not registered");
+  const payRoute = source.match(/<Route\s+path="\/pay"\s+element=\{\{?<(ParentLayout)\s*\/>\}?\s*>/);
+  if (!payRoute) {
+    throw new Error('no <Route path="/pay" element={<ParentLayout />}> is registered');
   }
-  const appChrome = source.indexOf("AppChrome");
-  const payRoute = source.indexOf('path="/pay/:token"');
-  const appChromeClose = source.indexOf("</Route>", appChrome);
-  if (payRoute < appChromeClose) {
-    throw new Error("/pay/:token is nested inside AppChrome");
+  if (payRoute[1] !== "ParentLayout") {
+    throw new Error(`/pay renders under ${payRoute[1]}, not ParentLayout`);
   }
-  return "registered as a sibling of AppChrome";
+  for (const child of [":token", ":token/history", ":token/plan/request", ":token/support"]) {
+    if (!source.includes(`<Route path="${child}"`)) {
+      throw new Error(`/pay/${child} is not registered`);
+    }
+  }
+  const appChromeOpen = source.indexOf("<Route element={<AppChrome />}>");
+  const appChromeClose = source.indexOf("</Route>", appChromeOpen);
+  const payIndex = source.indexOf('<Route path="/pay"');
+  if (appChromeOpen === -1 || appChromeClose === -1) {
+    throw new Error("could not locate the AppChrome block");
+  }
+  if (payIndex < appChromeClose) {
+    throw new Error("/pay is nested inside AppChrome");
+  }
+  return "registered as a sibling of AppChrome, under ParentLayout";
 });
 await check("a loading pay page shows a skeleton, not an empty screen", () => {
   const html = renderToString(/* @__PURE__ */ jsx(PayPageHarness, { loading: true }));

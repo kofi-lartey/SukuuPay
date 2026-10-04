@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Bell,
   Building2,
   ChevronDown,
   GraduationCap,
@@ -16,6 +15,7 @@ import { useAuth } from '../../context/AuthContext';
 import { ROUTES, roleLabel } from '../../utils/constants';
 import { formatCount } from '../../utils/format';
 import { LogoMark } from '../common/Logo';
+import NotificationBell from '../common/NotificationBell';
 import Popover from './ui/Popover';
 import Badge from './ui/Badge';
 
@@ -224,21 +224,14 @@ const DashboardTopbar = ({ user, onOpenNav, navOpen = false, school, term, smsCr
             <span className="hidden sm:inline">New Payment</span>
           </Link>
 
-          {/*
-            No notifications surface exists yet, so this is a disabled control
-            with a stated reason rather than a bell that goes nowhere. The
-            in-flight AuthContext load is the only thing that legitimately puts a
-            dot on a bell, and that is the spinner.
-          */}
-          <button
-            type="button"
-            disabled
-            title="Notifications arrive with the SMS Reminders module"
-            aria-label="Notifications (coming soon)"
-            className="hidden h-10 w-10 cursor-not-allowed items-center justify-center rounded-xl text-slate-300 sm:flex"
-          >
-            <Bell className="h-5 w-5" />
-          </button>
+          {/* Replaces a hard-disabled bell whose own comment said "No notifications
+              surface exists yet". It does now, and the absence was load-bearing: a
+              `parent.message` notification was written on every pay-portal message
+              and read by nobody, so a parent could be told the school had been
+              notified and no bursar would ever see it. Hidden below `sm` only because
+              the account popover is the one control a 360px screen can spare room
+              for — the badge is not dropped, the whole panel is. */}
+          <NotificationBell className="hidden sm:block" />
 
           <Popover
             align="right"
