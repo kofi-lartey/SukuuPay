@@ -248,7 +248,6 @@ export const useSmsReminders = (reloadKey = 0) => {
   const [scheduledAt, setScheduledAt] = useState(stored?.scheduledAt || '');
   const [confirmed, setConfirmed] = useState(false);
 
-  // ── Derived composer state ──
   const audience = useMemo(
     () => ({
       type: audienceType,
@@ -662,6 +661,33 @@ export const useSmsReminders = (reloadKey = 0) => {
     [schoolId, loadHistory]
   );
 
+  // ── Derived: readiness, and the separate confirmation gate ──
+  //
+  // These are two predicates, and conflating them made the send button impossible
+  // to enable. `canQueue` included `confirmed`, while the checkbox that sets
+  // `confirmed` was rendered only when `canQueue && !confirmed`. So `confirmed`
+  // started false → `canQueue` was false → the checkbox never rendered →
+  // `confirmed` could never become true. A hard deadlock, on every audience, for
+  // every school: the button was permanently greyed and `setConfirmed` — which has
+  // exactly one caller, that checkbox — was never reachable.
+  //
+  // `readyToConfirm` is everything *except* the acknowledgement, and it decides
+  // whether to offer the checkbox at all. `canQueue` is then `readyToConfirm &&
+  // confirmed`, which is what the button needs. Splitting them means each is
+  // evaluated against the gate it actually represents.
+  //
+  // Declared here, after every input it reads, rather than beside the composer
+  // state: `unknown`, `overSegmentLimit` and `affordable` are all computed further
+  // down, and reading them from up here would be a temporal-dead-zone crash.
+  const readyToConfirm =
+    Boolean(body.trim()) &&
+    unknown.length === 0 &&
+    !overSegmentLimit &&
+    audiencePreview?.matchCount > 0 &&
+    affordable === true;
+
+  const canQueue = readyToConfirm && confirmed;
+
   return {
     // Scope
     schoolId,
@@ -742,13 +768,8 @@ export const useSmsReminders = (reloadKey = 0) => {
     audienceError,
     estimatedCost,
     affordable,
-    canQueue:
-      Boolean(body) &&
-      unknown.length === 0 &&
-      !overSegmentLimit &&
-      audiencePreview?.matchCount > 0 &&
-      affordable === true &&
-      confirmed,
+    canQueue,
+    readyToConfirm,
 
     // Actions
     send,

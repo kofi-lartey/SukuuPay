@@ -42,6 +42,7 @@ const SendBar = ({
   ratePes,
   balance,
   canQueue,
+  readyToConfirm,
   confirmed,
   setConfirmed,
   sending,
@@ -123,8 +124,14 @@ const SendBar = ({
 
           {/* The confirmation, inline rather than in a dialog: it is one checkbox
               for the whole-school case and a sentence for everything else, and a
-              modal for that would be heavier than the thing it guards. */}
-          {canQueue && !confirmed && (
+              modal for that would be heavier than the thing it guards.
+
+              Gated on `readyToConfirm`, **not** on `canQueue`. `canQueue` includes
+              `confirmed`, so gating here on `canQueue` meant the checkbox could
+              only appear once it was already ticked — it never appeared at all,
+              and with it the only way to reach `setConfirmed`. The send button was
+              then permanently disabled for every school on every audience. */}
+          {readyToConfirm && !confirmed && (
             <label className="mt-2 flex cursor-pointer items-start gap-2 text-[11px] font-semibold text-slate-600">
               <input
                 type="checkbox"
@@ -140,7 +147,12 @@ const SendBar = ({
             </label>
           )}
 
-          {blocker && !canQueue && (
+          {/* Shown only when something must be *fixed*. Once the audience is sized and
+              affordable, the remaining reason the button is greyed is that the
+              checkbox above is unticked — and printing "Confirm the recipient
+              count to send" directly beneath the box that confirms it just says
+              the same thing twice. */}
+          {blocker && !readyToConfirm && (
             <p className="mt-1.5 text-[11px] font-semibold text-slate-500">{blocker}</p>
           )}
         </div>

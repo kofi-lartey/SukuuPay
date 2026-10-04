@@ -316,6 +316,7 @@ const SmsReminders = () => {
             ratePes={sms.credits?.ratePes ?? 12}
             balance={sms.balance ?? 0}
             canQueue={sms.canQueue}
+            readyToConfirm={sms.readyToConfirm}
             confirmed={sms.confirmed}
             setConfirmed={sms.setConfirmed}
             sending={sms.sending}
