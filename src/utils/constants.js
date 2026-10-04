@@ -19,11 +19,13 @@ export const ROUTES = {
   DASHBOARD_PAYMENTS: '/dashboard/payments',
   DASHBOARD_PLANS: '/dashboard/installment-plans',
   DASHBOARD_SMS: '/dashboard/sms-reminders',
+  DASHBOARD_SMS_PURCHASE: '/dashboard/sms-requests',
   DASHBOARD_REPORTS: '/dashboard/reports',
   DASHBOARD_MESSAGES: '/dashboard/messages',
   DASHBOARD_ACTIVITY: '/dashboard/activity-log',
   DASHBOARD_USERS: '/dashboard/user-management',
   DASHBOARD_SETTINGS: '/dashboard/settings',
+  DASHBOARD_ADVERTISEMENTS: '/dashboard/advertisements',
   ONBOARDING: '/onboarding',
 
   // The platform console. A sibling of DASHBOARD, not a child of it, and the
@@ -92,6 +94,11 @@ export const ADMIN_ROUTES = {
   INVOICES: `${ROUTES.ADMIN_FINANCE}/invoices`,
   SMS_CREDITS: `${ROUTES.ADMIN_SMS}/credits`,
   SMS_LOGS: `${ROUTES.ADMIN_SMS}/logs`,
+  // The pool and the approval queue live under SMS rather than beside it, because they
+  // are two views of one decision — an operator comparing "units promised" against
+  // "units left" is doing a single calculation, and splitting them across sibling
+  // top-level routes makes that read as two pages.
+  SMS_REQUESTS: `${ROUTES.ADMIN_SMS}/requests`,
   REVENUE_ANALYTICS: `${ROUTES.ADMIN_ANALYTICS}/revenue`,
   SCHOOLS_ANALYTICS: `${ROUTES.ADMIN_ANALYTICS}/schools`,
   COLLECTION_RATE_ANALYTICS: `${ROUTES.ADMIN_ANALYTICS}/collection-rate`,
@@ -284,6 +291,18 @@ export const DASHBOARD_NAV = [
         description: 'Nudge parents who have not paid, and track delivery.',
       },
       {
+        to: ROUTES.DASHBOARD_SMS_PURCHASE,
+        label: 'Buy SMS Credit',
+        icon: 'Coins',
+        // A bursar and an accountant only — the same roles the server admits
+        // (`smsRequest.routes.js` → `authorize('school_admin', 'accountant')`).
+        // Spending the school's money is not a teacher's decision, and this entry sits
+        // next to a read-only one, so a visible purchase button would be the first sign
+        // that role separation here is decorative.
+        roles: ['super_admin', 'school_admin', 'accountant'],
+        description: 'Pay for messages, with an administrator releasing the credit.',
+      },
+      {
         to: ROUTES.DASHBOARD_MESSAGES,
         label: 'Parent Messages',
         icon: 'Inbox',
@@ -351,6 +370,20 @@ export const DASHBOARD_NAV = [
         // and hiding an entry must never be the thing that enforces it.
         roles: ['super_admin', 'school_admin'],
         description: 'School profile, academic year, paystack and billing.',
+      },
+      {
+        to: ROUTES.DASHBOARD_ADVERTISEMENTS,
+        label: 'Advertisements',
+        icon: 'Megaphone',
+        // `school_admin` and `accountant`, matching
+        // `requireAdvertiser` in `schoolAd.routes.js`.
+        //
+        // Deliberately **not** in the Outreach group. That group is read-and-act on the
+        // school's own parents, and an ad request is the school asking the *platform*
+        // for something — a different direction of travel, and it does not belong in
+        // the same rail section as SMS reminders.
+        roles: ['super_admin', 'school_admin', 'accountant'],
+        description: 'Ask to be advertised, and track the decision.',
       },
     ],
   },

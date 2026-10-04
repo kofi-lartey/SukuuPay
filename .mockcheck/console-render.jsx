@@ -39,6 +39,7 @@ import InvoicesList from '../src/pages/admin/finance/InvoicesList.jsx';
 import SmsOverview from '../src/pages/admin/sms/SmsOverview.jsx';
 import SmsCredits from '../src/pages/admin/sms/SmsCredits.jsx';
 import SmsLogs from '../src/pages/admin/sms/SmsLogs.jsx';
+import SmsRequests from '../src/pages/admin/sms/SmsRequests.jsx';
 import AnnouncementsList from '../src/pages/admin/announcements/AnnouncementsList.jsx';
 import AnnouncementCreate from '../src/pages/admin/announcements/AnnouncementCreate.jsx';
 import AnnouncementEdit from '../src/pages/admin/announcements/AnnouncementEdit.jsx';
@@ -73,6 +74,7 @@ const PAGES = [
   ['/admin/sms', SmsOverview],
   ['/admin/sms/credits', SmsCredits],
   ['/admin/sms/logs', SmsLogs],
+  ['/admin/sms/requests', SmsRequests],
   ['/admin/announcements', AnnouncementsList],
   ['/admin/announcements/new', AnnouncementCreate],
   ['/admin/announcements/:id', AnnouncementEdit],

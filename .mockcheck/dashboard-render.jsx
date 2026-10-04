@@ -292,35 +292,43 @@ await check('Settings and User Management are hidden from non-admin roles in the
   // module is added or hidden the number has to be argued about here, which is the
   // only place the rail's composition is ever reviewed.
   //
-  // The admin figure moved 9 → 10 when Parent Messages was added to the Outreach
-  // group. The teacher figure stayed at 7, and that is the part worth reading: the
-  // module is scoped to `school_admin` and `accountant` precisely so a teacher does
-  // not get it.
+  // The admin figure has moved 9 → 10 (Parent Messages), 10 → 11 (Buy SMS Credit) and
+  // 11 → 12 (Advertisements). The teacher figure has stayed at 7 across all three, and
+  // that is the part worth reading: each is scoped to `school_admin`/`accountant`
+  // precisely so a teacher does not get them.
   if (teacher.length !== 7) throw new Error(`teacher rail has ${teacher.length} entries, expected 7`);
-  if (admin.length !== 10) throw new Error(`admin rail has ${admin.length} entries, expected 10`);
-  return 'teacher 7, school admin 10';
+  if (admin.length !== 12) throw new Error(`admin rail has ${admin.length} entries, expected 12`);
+  return 'teacher 7, school admin 12';
 });
 
-await check('Parent Messages is not in a teacher rail', () => {
-  // Not a duplicate of the count above — that one only fails if the number moves, and
-  // it would be satisfied by an unrelated module appearing instead.
+await check('the money and school-data modules are not in a teacher rail', () => {
+  // The same privacy boundary across three entries, and asserted once for all of them.
   //
-  // `ParentMessage.parentPhone` is stored in full, because a bursar cannot return a
-  // call without it, so this module *is* the school's parent contact list. A teacher
-  // seeing it in the rail puts every parent number on the staff room screen. The
-  // server enforces the same line: `requireReader` in `parentMessage.routes.js` is
-  // `super_admin, school_admin, accountant`, matching the roles
-  // `findSchoolRecipients` alerts.
+  // `ParentMessage.parentPhone` holds every parent number in the school in full;
+  // `Buy SMS Credit` spends the school's money; `Advertisements` exposes the school's
+  // public-facing marketing submissions and its ad decision history. None is a
+  // teacher's decision or a teacher's data. The server draws the same lines —
+  // `requireReader` in `parentMessage.routes.js`, `requireBuyer` in
+  // `smsRequest.routes.js` and `requireAdvertiser` in `schoolAd.routes.js` are all
+  // `school_admin` + `accountant`.
+  //
+  // Kept as a named check rather than folded into the count above, because the count
+  // only fails if the *number* moves: it would be satisfied by an unrelated entry
+  // appearing instead, and would say nothing about which.
   const teacher = visibleDashboardNav('teacher').flatMap((g) => g.items.map((i) => i.label));
   const accountant = visibleDashboardNav('accountant').flatMap((g) => g.items.map((i) => i.label));
 
-  if (teacher.includes('Parent Messages')) {
-    throw new Error('a teacher can see Parent Messages — that is the parent phone list');
+  const guarded = ['Parent Messages', 'Buy SMS Credit', 'Advertisements'];
+
+  for (const hidden of guarded) {
+    if (teacher.includes(hidden)) {
+      throw new Error(`a teacher can see ${hidden} — that is not a teacher surface`);
+    }
+    if (!accountant.includes(hidden)) {
+      throw new Error(`an accountant cannot see ${hidden}, but is allowed to use it`);
+    }
   }
-  if (!accountant.includes('Parent Messages')) {
-    throw new Error('an accountant cannot see Parent Messages, but is alerted about them');
-  }
-  return 'hidden from teachers, shown to accountants';
+  return `all ${guarded.length} hidden from teachers, all shown to accountants`;
 });
 
 // -- Payments ----------------------------------------------------------------

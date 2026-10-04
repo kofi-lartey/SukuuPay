@@ -367,9 +367,21 @@ export const updateSchoolAd = async (adId, formData) => {
  * things, so the two are named apart here: `reviewSchoolAd` takes a decision,
  * `approveSchoolAd` does not exist.
  */
-export const reviewSchoolAd = async (adId, { status, rejectedReason = '' } = {}) => {
+export const reviewSchoolAd = async (
+  adId,
+  { status, rejectedReason = '', headline, writeup } = {}
+) => {
   try {
-    const { data } = await api.put(`/admin/school-ads/${adId}/approve`, { status, rejectedReason });
+    // Copy rides along **only when the caller supplies it**, which is the whole point of
+    // the destructuring here. `AdminContent` computes `copyChanged` and omits unchanged
+    // fields; sending `headline`/`writeup` unconditionally would make the server record
+    // `copyEditedByReview` on every approval, and tell every school an administrator
+    // rewrote words they did not touch.
+    const payload = { status, rejectedReason };
+    if (headline !== undefined) payload.headline = headline;
+    if (writeup !== undefined) payload.writeup = writeup;
+
+    const { data } = await api.put(`/admin/school-ads/${adId}/approve`, payload);
     return data.data || {};
   } catch (error) {
     throw toApiError(error, 'This creative could not be reviewed.');

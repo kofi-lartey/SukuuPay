@@ -58,6 +58,9 @@ const AdminContent = () => {
   const [review, setReview] = useState(null);
   const [decision, setDecision] = useState('approved');
   const [reason, setReason] = useState('');
+  // The copy a moderator may adjust while deciding. Seeded from the ad on open and
+  // submitted only when it differs — see `copyChanged` and `submitReview`.
+  const [copy, setCopy] = useState({ headline: '', writeup: '' });
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState(null);
 
@@ -107,7 +110,29 @@ const AdminContent = () => {
     setDecision(nextDecision);
     setReason('');
     setFormError(null);
+
+    // The copy fields are seeded with what is stored, so the moderator *edits* the
+    // school's words rather than retypes them. They are submitted only when they differ
+    // — see `submitReview` — so an approve with no edit sends no copy at all and
+    // `reviewSchoolAd` cannot record a change that did not happen.
+    setCopy({
+      headline: ad?.headline || '',
+      writeup: ad?.writeup || '',
+    });
   };
+
+  /**
+   * Whether the moderator actually changed anything.
+   *
+   * Compared against the stored values rather than tracked with a dirty flag, because a
+   * dirty flag lies the moment someone types a character and deletes it — and the cost
+   * of that lie is a permanent `copyEditedByReview: true` on an ad nobody edited, which
+   * the school then sees as "an administrator adjusted the wording".
+   */
+  const copyChanged =
+    Boolean(review) &&
+    (copy.headline.trim() !== (review.headline || '') ||
+      (copy.writeup || '').trim() !== (review.writeup || ''));
 
   const submitReview = async () => {
     if (!review) return;
@@ -123,18 +148,41 @@ const AdminContent = () => {
       return;
     }
 
+    // An approval with edited copy must not be shorter than the schema allows. The
+    // server rejects it either way; saying which field is at fault is the point of
+    // checking here.
+    if (decision === 'approved' && copy.headline.trim().length > 60) {
+      setFormError('The headline is limited to 60 characters.');
+      return;
+    }
+    if (decision === 'approved' && copy.writeup.trim().length > 600) {
+      setFormError('The write-up is limited to 600 characters.');
+      return;
+    }
+
     setBusy(true);
     setFormError(null);
     try {
+      // Copy rides along **only when it changed**, and only on an approval. Sending it
+      // unconditionally would mark every approval as a copy edit and tell every school
+      // an administrator rewrote their advertisement when they did not.
+      const edited = decision === 'approved' && copyChanged;
+
       await reviewSchoolAd(review._id, {
         status: decision,
         rejectedReason: decision === 'rejected' ? reason.trim() : '',
+        ...(edited
+          ? { headline: copy.headline.trim(), writeup: copy.writeup.trim() }
+          : {}),
       });
+
       setReview(null);
       refresh();
       toast.success(
         decision === 'approved'
-          ? `${review.schoolName}’s creative is now live.`
+          ? edited
+            ? `${review.schoolName}’s creative is now live, with adjusted wording.`
+            : `${review.schoolName}’s creative is now live.`
           : `${review.schoolName}’s creative was rejected and the reason recorded.`
       );
     } catch (error) {
@@ -386,7 +434,111 @@ const AdminContent = () => {
       >
         {formError && <FormAlert tone="error">{formError}</FormAlert>}
 
-        {decision === 'rejected' && (
+        {/*
+          The creative, so the decision is made against what will actually be seen.
+          Without it a moderator approves a headline they never read and discovers the
+          image on the login page.
+        */}
+        <div className="mt-3 flex gap-3 rounded-xl bg-slate-50 p-3">
+          {review?.imageUrl ? (
+            <img
+              src={review.imageUrl}
+              alt={review.imageAlt || ''}
+              className="h-16 w-24 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
+            />
+          ) : null}
+          <div className="min-w-0">
+            <p className="text-[13px] font-extrabold text-slate-800">{review?.headline}</p>
+            {review?.writeup ? (
+              <p className="mt-1 text-[12px] leading-relaxed text-slate-600">
+                {review.writeup}
+              </p>
+            ) : (
+              <p className="mt-1 text-[12px] font-semibold text-slate-400">
+                No write-up — headline only.
+              </p>
+            )}
+            {review?.linkUrl ? (
+              <a
+                href={review.linkUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="mt-1 block truncate font-mono text-[11px] text-brand-700 underline underline-offset-2"
+              >
+                {review.linkUrl}
+              </a>
+            ) : null}
+          </div>
+        </div>
+
+        {decision === 'approved' ? (
+          /*
+            The copy, editable — this is the product requirement that a super admin may
+            author ad content as well as review a school's, and it is deliberately in
+            the *same* dialog as the decision. Two round trips would leave a
+            half-finished edit sitting in the queue.
+
+            Only sent when it differs (`copyChanged`), so approving without touching
+            anything does not record a copy edit and does not tell the school an
+            administrator rewrote their words.
+          */
+          <div className="mt-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                Copy
+              </p>
+              {copyChanged ? (
+                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-extrabold text-blue-700">
+                  Will be adjusted
+                </span>
+              ) : null}
+            </div>
+
+            <div>
+              <label
+                htmlFor="review-headline"
+                className="block text-[11px]/[15px] font-semibold text-slate-700"
+              >
+                Headline
+              </label>
+              <input
+                id="review-headline"
+                type="text"
+                value={copy.headline}
+                onChange={(event) =>
+                  setCopy((current) => ({ ...current, headline: event.target.value }))
+                }
+                maxLength={60}
+                className="mt-1 min-h-[44px] w-full rounded-xl border border-slate-200 bg-white px-3.5 text-[15px] font-semibold text-slate-900 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-700/20"
+              />
+              <p className="mt-1 text-[11px] font-medium text-slate-500">
+                {copy.headline.length}/60 · shown as the bold line
+              </p>
+            </div>
+
+            <div>
+              <label
+                htmlFor="review-writeup"
+                className="block text-[11px]/[15px] font-semibold text-slate-700"
+              >
+                Write-up
+              </label>
+              <textarea
+                id="review-writeup"
+                rows={4}
+                value={copy.writeup}
+                onChange={(event) =>
+                  setCopy((current) => ({ ...current, writeup: event.target.value }))
+                }
+                maxLength={600}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] leading-relaxed text-slate-900 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-700/20"
+              />
+              <p className="mt-1 text-[11px] font-medium text-slate-500">
+                {copy.writeup.length}/600 · the school is told when the wording changes
+              </p>
+            </div>
+          </div>
+        ) : (
           <Field
             label="Reason"
             required
@@ -395,7 +547,7 @@ const AdminContent = () => {
             onChange={(event) => setReason(event.target.value)}
             placeholder="What has to change before this can run?"
             hint={`${reason.trim().length}/300`}
-            className={formError ? 'mt-3' : ''}
+            className="mt-3"
           />
         )}
       </Modal>

@@ -3,7 +3,7 @@ import { renderToString } from "react-dom/server";
 import { useLocation, Link, useNavigate, Outlet, useSearchParams, MemoryRouter, Routes, Route } from "react-router-dom";
 import React, { createContext, useState, useEffect, useCallback, useContext, useRef, useMemo, useId } from "react";
 import { a as api, t as toApiError, r as runReport, d as downloadReport, R as REPORTS, b as REPORT_CATEGORIES } from "./assets/reports-BcS3xgcI.js";
-import { Info, TriangleAlert, CircleAlert, CircleCheck, X, UserCog, Settings as Settings$1, ScrollText, ChartColumn, Inbox, MessageSquare, CalendarClock, CreditCard, Users, LayoutDashboard, Building2, ChevronUp, Bell, CheckCheck, Loader2, Trash2, Menu, GraduationCap, ChevronDown, Search, Plus, User, LogOut, AlertTriangle, RotateCcw, TrendingUp, ChevronRight, Send, Download, Receipt, HandCoins, SlidersHorizontal, Hourglass, ChevronLeft, ArrowUp, ArrowDown, PencilLine, Ban, Link as Link$1, Archive, CirclePlay, Wallet, History, Star, ShieldCheck, Camera, UploadCloud, ImageOff, FileSpreadsheet, Check, Sparkles, ArrowUpRight, ArrowRight, ArrowLeft, QrCode, Printer, BadgeCheck, Eye, FileText, UserPlus, Smartphone, Clock, ArrowDownRight, RefreshCw, Landmark, Banknote, ExternalLink, CheckCircle2, AlertCircle, List, LayoutGrid, BellRing, CalendarX2, CalendarDays, CircleDollarSign, Megaphone, Circle, Flag, Signal, Wifi, BatteryMedium, MoreVertical, Save, BarChart3, Filter, UserRound, AtSign, KeyRound, Lock, School } from "lucide-react";
+import { Info, TriangleAlert, CircleAlert, CircleCheck, X, UserCog, Settings as Settings$1, ScrollText, ChartColumn, Megaphone, Coins, Inbox, MessageSquare, CalendarClock, CreditCard, Users, LayoutDashboard, Building2, ChevronUp, Bell, CheckCheck, Loader2, Trash2, Menu, GraduationCap, ChevronDown, Search, Plus, User, LogOut, AlertTriangle, RotateCcw, TrendingUp, ChevronRight, Send, Download, Receipt, HandCoins, SlidersHorizontal, Hourglass, ChevronLeft, ArrowUp, ArrowDown, PencilLine, Ban, Link as Link$1, Archive, CirclePlay, Wallet, History, Star, ShieldCheck, Camera, UploadCloud, ImageOff, FileSpreadsheet, Check, Sparkles, ArrowUpRight, ArrowRight, ArrowLeft, QrCode, Printer, BadgeCheck, Eye, FileText, UserPlus, Smartphone, Clock, ArrowDownRight, RefreshCw, Landmark, Banknote, ExternalLink, CheckCircle2, AlertCircle, List, LayoutGrid, BellRing, CalendarX2, CalendarDays, CircleDollarSign, Circle, Flag, Signal, Wifi, BatteryMedium, MoreVertical, Save, BarChart3, Filter, UserRound, AtSign, KeyRound, Lock, School } from "lucide-react";
 import { createPortal } from "react-dom";
 import "axios";
 const TOKEN_KEYS = ["auth_token", "refresh_token"];
@@ -409,11 +409,13 @@ const ROUTES = {
   DASHBOARD_PAYMENTS: "/dashboard/payments",
   DASHBOARD_PLANS: "/dashboard/installment-plans",
   DASHBOARD_SMS: "/dashboard/sms-reminders",
+  DASHBOARD_SMS_PURCHASE: "/dashboard/sms-requests",
   DASHBOARD_REPORTS: "/dashboard/reports",
   DASHBOARD_MESSAGES: "/dashboard/messages",
   DASHBOARD_ACTIVITY: "/dashboard/activity-log",
   DASHBOARD_USERS: "/dashboard/user-management",
   DASHBOARD_SETTINGS: "/dashboard/settings",
+  DASHBOARD_ADVERTISEMENTS: "/dashboard/advertisements",
   ONBOARDING: "/onboarding",
   // The platform console. A sibling of DASHBOARD, not a child of it, and the
   // path matches the API's base path (`/api/admin`) exactly — so the service
@@ -512,6 +514,18 @@ const DASHBOARD_NAV = [
         description: "Nudge parents who have not paid, and track delivery."
       },
       {
+        to: ROUTES.DASHBOARD_SMS_PURCHASE,
+        label: "Buy SMS Credit",
+        icon: "Coins",
+        // A bursar and an accountant only — the same roles the server admits
+        // (`smsRequest.routes.js` → `authorize('school_admin', 'accountant')`).
+        // Spending the school's money is not a teacher's decision, and this entry sits
+        // next to a read-only one, so a visible purchase button would be the first sign
+        // that role separation here is decorative.
+        roles: ["super_admin", "school_admin", "accountant"],
+        description: "Pay for messages, with an administrator releasing the credit."
+      },
+      {
         to: ROUTES.DASHBOARD_MESSAGES,
         label: "Parent Messages",
         icon: "Inbox",
@@ -579,6 +593,20 @@ const DASHBOARD_NAV = [
         // and hiding an entry must never be the thing that enforces it.
         roles: ["super_admin", "school_admin"],
         description: "School profile, academic year, paystack and billing."
+      },
+      {
+        to: ROUTES.DASHBOARD_ADVERTISEMENTS,
+        label: "Advertisements",
+        icon: "Megaphone",
+        // `school_admin` and `accountant`, matching
+        // `requireAdvertiser` in `schoolAd.routes.js`.
+        //
+        // Deliberately **not** in the Outreach group. That group is read-and-act on the
+        // school's own parents, and an ad request is the school asking the *platform*
+        // for something — a different direction of travel, and it does not belong in
+        // the same rail section as SMS reminders.
+        roles: ["super_admin", "school_admin", "accountant"],
+        description: "Ask to be advertised, and track the decision."
       }
     ]
   }
@@ -663,6 +691,8 @@ const ICONS = {
   CalendarClock,
   MessageSquare,
   Inbox,
+  Coins,
+  Megaphone,
   ChartColumn,
   ScrollText,
   Settings: Settings$1,
@@ -1396,7 +1426,7 @@ const DashboardTopbar = ({ user, onOpenNav, navOpen = false, school, term, smsCr
           ]
         }
       ),
-      /* @__PURE__ */ jsx(NotificationBell, { className: "hidden sm:block" }),
+      /* @__PURE__ */ jsx(NotificationBell, {}),
       /* @__PURE__ */ jsx(
         Popover,
         {
@@ -17578,19 +17608,22 @@ await check("Settings and User Management are hidden from non-admin roles in the
     if (!admin.includes(hidden)) throw new Error(`a school admin cannot see ${hidden}`);
   }
   if (teacher.length !== 7) throw new Error(`teacher rail has ${teacher.length} entries, expected 7`);
-  if (admin.length !== 10) throw new Error(`admin rail has ${admin.length} entries, expected 10`);
-  return "teacher 7, school admin 10";
+  if (admin.length !== 12) throw new Error(`admin rail has ${admin.length} entries, expected 12`);
+  return "teacher 7, school admin 12";
 });
-await check("Parent Messages is not in a teacher rail", () => {
+await check("the money and school-data modules are not in a teacher rail", () => {
   const teacher = visibleDashboardNav("teacher").flatMap((g) => g.items.map((i) => i.label));
   const accountant = visibleDashboardNav("accountant").flatMap((g) => g.items.map((i) => i.label));
-  if (teacher.includes("Parent Messages")) {
-    throw new Error("a teacher can see Parent Messages — that is the parent phone list");
+  const guarded = ["Parent Messages", "Buy SMS Credit", "Advertisements"];
+  for (const hidden of guarded) {
+    if (teacher.includes(hidden)) {
+      throw new Error(`a teacher can see ${hidden} — that is not a teacher surface`);
+    }
+    if (!accountant.includes(hidden)) {
+      throw new Error(`an accountant cannot see ${hidden}, but is allowed to use it`);
+    }
   }
-  if (!accountant.includes("Parent Messages")) {
-    throw new Error("an accountant cannot see Parent Messages, but is alerted about them");
-  }
-  return "hidden from teachers, shown to accountants";
+  return `all ${guarded.length} hidden from teachers, all shown to accountants`;
 });
 await check("the Payments KPI band aggregates the summary, never the visible rows", () => {
   const html = renderToString(

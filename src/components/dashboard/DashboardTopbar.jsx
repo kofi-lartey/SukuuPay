@@ -226,12 +226,17 @@ const DashboardTopbar = ({ user, onOpenNav, navOpen = false, school, term, smsCr
 
           {/* Replaces a hard-disabled bell whose own comment said "No notifications
               surface exists yet". It does now, and the absence was load-bearing: a
-              `parent.message` notification was written on every pay-portal message
-              and read by nobody, so a parent could be told the school had been
-              notified and no bursar would ever see it. Hidden below `sm` only because
-              the account popover is the one control a 360px screen can spare room
-              for — the badge is not dropped, the whole panel is. */}
-          <NotificationBell className="hidden sm:block" />
+              `parent.message` notification is written on every pay-portal message and
+              was read by nobody, so a parent could be told the school had been
+              notified and no bursar would ever see it.
+
+              Visible at every width. It was previously `hidden sm:block` on the
+              reasoning that a 360px screen could only spare room for the account
+              popover — but the badge lives *inside* this control, so hiding it hid the
+              count as well. A bursar checking the school dashboard on their phone is
+              exactly the reader who most needs to know a parent is waiting, and that
+              reader currently gets no notification at all. */}
+          <NotificationBell />
 
           <Popover
             align="right"

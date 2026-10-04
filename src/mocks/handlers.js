@@ -4971,6 +4971,515 @@ const getSettings = ({ params, user }) => {
   };
 };
 
+// ?? Regulated SMS credit purchase ??
+//
+// The pool and the queue, as *one* fixture pair. That pairing is the point: an
+// operator's every decision here is "units promised" against "units left", so a mock
+// with a queue and no pool would make the queue render without the number the
+// approval depends on — which is the same class of omission as the missing `/admin/
+// school-ads` routes that hid a 404 until production.
+
+const SMS_POOL_ENTRIES = [
+  {
+    _id: 'pool000000000000000000001',
+    entryId: 'POOL-20260901-4KL2M9',
+    direction: 'topup',
+    units: 250000,
+    amountPes: 3000000,
+    provider: 'arke',
+    reference: 'ARKE-INV-88213',
+    balanceAfter: 250000,
+    note: 'Quarterly purchase',
+    createdBy: null,
+    createdAt: '2026-09-01T08:00:00.000Z',
+  },
+  {
+    _id: 'pool000000000000000000002',
+    entryId: 'POOL-20260912-9WQ1ZX',
+    direction: 'allocation',
+    units: 25000,
+    amountPes: 1250000,
+    provider: 'arke',
+    reference: 'SMS-PAY-20260912-7KQ2M1',
+    schoolId: null,
+    balanceAfter: 225000,
+    note: 'Allocated to SMS-REQ-20260912-AB12CD',
+    createdBy: null,
+    createdAt: '2026-09-12T11:20:00.000Z',
+  },
+  {
+    _id: 'pool000000000000000000003',
+    entryId: 'POOL-20260916-5RT8YN',
+    direction: 'allocation',
+    units: 5000,
+    amountPes: 250000,
+    provider: 'arke',
+    reference: 'SMS-PAY-20260916-3D8R5X',
+    schoolId: null,
+    balanceAfter: 220000,
+    note: 'Allocated to SMS-REQ-20260916-EF34GH',
+    createdBy: null,
+    createdAt: '2026-09-16T14:05:00.000Z',
+  },
+];
+
+const SMS_PURCHASE_REQUESTS = [
+  {
+    _id: 'smsreq000000000000000000a1',
+    requestId: 'SMS-REQ-20260918-7KQ2M1',
+    schoolId: null,
+    requestedBy: { _id: 'u1', firstName: 'Adwoa', lastName: 'Sarpong' },
+    units: 10000,
+    unitPricePes: 25,
+    totalPes: 250000,
+    status: 'awaiting_approval',
+    payment: {
+      reference: 'SMS-PAY-20260918-7KQ2M1',
+      provider: 'mtn',
+      status: 'completed',
+      financialTransactionId: 'MP250916.1805.A2B3C4',
+      phoneNumber: '0241234567',
+      completedAt: '2026-09-18T09:16:00.000Z',
+    },
+    approvedBy: null,
+    approvedAt: null,
+    decisionNote: null,
+    rejectionReason: null,
+    refundedAt: null,
+    createdAt: '2026-09-18T09:14:00.000Z',
+  },
+  {
+    _id: 'smsreq000000000000000000a2',
+    requestId: 'SMS-REQ-20260918-2LMN9P',
+    schoolId: null,
+    requestedBy: { _id: 'u2', firstName: 'Kofi', lastName: 'Owusu' },
+    units: 2000,
+    unitPricePes: 25,
+    totalPes: 50000,
+    status: 'awaiting_payment',
+    payment: {
+      reference: 'SMS-PAY-20260918-2LMN9P',
+      provider: 'mtn',
+      status: 'processing',
+      phoneNumber: '0551234567',
+      promptedAt: '2026-09-18T10:02:00.000Z',
+    },
+    approvedBy: null,
+    approvedAt: null,
+    createdAt: '2026-09-18T10:02:00.000Z',
+  },
+  {
+    _id: 'smsreq000000000000000000a3',
+    requestId: 'SMS-REQ-20260915-QW56RT',
+    schoolId: null,
+    requestedBy: { _id: 'u3', firstName: 'Efua', lastName: 'Asante' },
+    units: 500,
+    unitPricePes: 25,
+    totalPes: 12500,
+    status: 'rejected',
+    payment: {
+      reference: 'SMS-PAY-20260915-QW56RT',
+      provider: 'mtn',
+      status: 'completed',
+      financialTransactionId: 'MP250915.0912.X9Y8Z7',
+      phoneNumber: '0201234567',
+      completedAt: '2026-09-15T09:14:00.000Z',
+    },
+    rejectionReason: 'Duplicate of SMS-REQ-20260914-4BV2NX, already approved.',
+    // Deliberately unrefunded: this is the row that shows the "Record refund" action,
+    // and a mock where it never appears is a mock where that action is never seen.
+    refundedAt: null,
+    createdAt: '2026-09-15T09:12:00.000Z',
+  },
+];
+
+/**
+ * The pool balance, computed from the entries rather than stored.
+ *
+ * A stored number would drift the moment an entry is added, and the whole value of the
+ * ledger is that the figure is derived. Same `$cond`-on-`direction` shape the server's
+ * `getPoolTotals` aggregation uses, so the two cannot disagree about the sign
+ * convention.
+ */
+const mockPoolTotals = () => {
+  const sum = (directions) =>
+    SMS_POOL_ENTRIES.filter((entry) => directions.includes(entry.direction)).reduce(
+      (total, entry) => total + entry.units,
+      0
+    );
+
+  const totalToppedUp = sum(['topup', 'reversal']);
+  const totalAllocated = sum(['allocation']);
+
+  return { totalToppedUp, totalAllocated, availableUnits: totalToppedUp - totalAllocated };
+};
+
+const UNIT_PRICE_PES = 25;
+
+const mockQuoteSmsRequest = ({ body }) => {
+  const units = Number(body?.units);
+  if (!Number.isFinite(units) || units < 1) {
+    throw new MockError(422, '"units" must be a positive number', 'VALIDATION_ERROR');
+  }
+
+  const { availableUnits } = mockPoolTotals();
+  const totalPes = units * UNIT_PRICE_PES;
+
+  return {
+    units,
+    unitPricePes: UNIT_PRICE_PES,
+    totalPes,
+    poolAvailable: availableUnits,
+    canRequest: units <= availableUnits && UNIT_PRICE_PES > 0,
+    reason:
+      units > availableUnits
+        ? 'Only part of that is available. Please reduce the quantity.'
+        : null,
+  };
+};
+
+const mockCreateSmsRequest = ({ body }) => {
+  const quote = mockQuoteSmsRequest({ body });
+
+  // The refusal is modelled, not skipped. A mock that always succeeded would make the
+  // pool-exhausted path untestable — and that path is the one that stops a school
+  // being charged for units the platform does not have.
+  if (!quote.canRequest) {
+    throw new MockError(409, quote.reason || 'Only part of that is available.', 'SMS_POOL_EXHAUSTED');
+  }
+
+  const stamp = Date.now().toString(36).slice(-6).toUpperCase();
+  return {
+    requestId: `SMS-REQ-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${stamp}`,
+    units: quote.units,
+    unitPricePes: quote.unitPricePes,
+    totalPes: quote.totalPes,
+    status: 'awaiting_payment',
+    paymentReference: `SMS-PAY-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${stamp}`,
+    prompted: true,
+  };
+};
+
+const mockListSmsRequests = ({ query }) => {
+  const rows = SMS_PURCHASE_REQUESTS.map((row) => ({ ...row }));
+  const filtered =
+    query.status && query.status !== 'all'
+      ? rows.filter((row) => row.status === query.status)
+      : rows;
+
+  const page = Number(query.page) || 1;
+  const perPage = Number(query.perPage) || 20;
+
+  return {
+    __rows: filtered.slice((page - 1) * perPage, (page - 1) * perPage + perPage),
+    meta: {
+      page,
+      perPage,
+      total: filtered.length,
+      totalPages: Math.max(1, Math.ceil(filtered.length / perPage)),
+    },
+  };
+};
+
+const mockGetSmsRequest = ({ params }) => {
+  const row = SMS_PURCHASE_REQUESTS.find((entry) => entry.requestId === params.requestId);
+  if (!row) throw new MockError(404, 'Request not found', 'SMS_REQUEST_NOT_FOUND');
+  return row;
+};
+
+const mockGetSmsPool = () => {
+  const totals = mockPoolTotals();
+
+  return {
+    ...totals,
+    heldBySchools: 184500,
+    unitPricePes: UNIT_PRICE_PES,
+    poolLowThreshold: 10000,
+    isLow: totals.availableUnits <= 10000,
+    entries: [...SMS_POOL_ENTRIES].reverse(),
+  };
+};
+
+const mockPoolTopUp = ({ body }) => {
+  const units = Number(body?.units);
+  if (!Number.isFinite(units) || units < 1) {
+    throw new MockError(422, '"units" must be a positive number', 'VALIDATION_ERROR');
+  }
+
+  const before = mockPoolTotals().availableUnits;
+  SMS_POOL_ENTRIES.unshift({
+    _id: `pool${Date.now().toString(36)}`,
+    entryId: `POOL-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-NEW01`,
+    direction: 'topup',
+    units,
+    amountPes: body.amountPes ?? null,
+    provider: body.provider || 'arke',
+    reference: body.reference || null,
+    balanceAfter: before + units,
+    note: body.note || '',
+    createdBy: null,
+    createdAt: new Date().toISOString(),
+  });
+
+  return { entry: SMS_POOL_ENTRIES[0], availableUnits: before + units };
+};
+
+const mockAdminListSmsRequests = ({ query }) => mockListSmsRequests({ query });
+
+const mockApproveSmsRequest = ({ params }) => {
+  const row = SMS_PURCHASE_REQUESTS.find((entry) => entry.requestId === params.requestId);
+  if (!row) throw new MockError(404, 'Request not found', 'NOT_FOUND');
+
+  // Already approved is answered, not refused — mirroring the server, where a
+  // double-click is a UI event rather than a second allocation.
+  if (row.status === 'approved') {
+    return { requestId: row.requestId, schoolBalance: null, alreadyApproved: true };
+  }
+
+  if (row.status !== 'awaiting_approval') {
+    throw new MockError(
+      409,
+      `A request that is ${row.status.replace(/_/g, ' ')} cannot be approved`,
+      'SMS_REQUEST_NOT_APPROVABLE'
+    );
+  }
+
+  const { availableUnits } = mockPoolTotals();
+  if (row.units > availableUnits) {
+    throw new MockError(
+      409,
+      `Only ${availableUnits} units are left in the pool.`,
+      'SMS_POOL_EXHAUSTED'
+    );
+  }
+
+  row.status = 'approved';
+  row.approvedAt = new Date().toISOString();
+  SMS_POOL_ENTRIES.unshift({
+    _id: `pool${Date.now().toString(36)}`,
+    entryId: `POOL-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-ALLOC`,
+    direction: 'allocation',
+    units: row.units,
+    amountPes: row.totalPes,
+    provider: 'arke',
+    reference: row.payment?.reference || null,
+    balanceAfter: availableUnits - row.units,
+    note: `Allocated to ${row.requestId}`,
+    createdBy: null,
+    createdAt: new Date().toISOString(),
+  });
+
+  return { requestId: row.requestId, schoolBalance: null, alreadyApproved: false };
+};
+
+const mockRejectSmsRequest = ({ params, body }) => {
+  const reason = String(body?.reason || '').trim();
+  if (reason.length < 3) {
+    throw new MockError(422, 'Give a reason — the school is told what it is', 'VALIDATION_ERROR');
+  }
+
+  const row = SMS_PURCHASE_REQUESTS.find((entry) => entry.requestId === params.requestId);
+  if (!row) throw new MockError(404, 'Request not found', 'NOT_FOUND');
+
+  if (row.status === 'approved') {
+    throw new MockError(
+      409,
+      'This request was already approved and the units released',
+      'SMS_REQUEST_ALREADY_APPROVED'
+    );
+  }
+
+  row.status = 'rejected';
+  row.rejectionReason = reason;
+  return { requestId: row.requestId, alreadyRejected: false };
+};
+
+const mockMarkSmsRequestRefunded = ({ params }) => {
+  const row = SMS_PURCHASE_REQUESTS.find((entry) => entry.requestId === params.requestId);
+  if (!row) throw new MockError(404, 'Request not found', 'NOT_FOUND');
+
+  row.refundedAt = row.refundedAt || new Date().toISOString();
+  if (row.payment) row.payment.status = 'refunded';
+  return { requestId: row.requestId };
+};
+
+// ?? School-side advertisement requests ??
+//
+// Keyed to the *signed-in* user's school, the way the real routes are: the request
+// path has no school id at all (`/schools/me/ad-requests`), so the mock has nothing to
+// key on either. `scopedAdRequests` stamps `schoolId` from the session, which is also a
+// standing check that nothing here ever starts trusting a body field.
+
+const AD_REQUESTS = [
+  {
+    _id: 'adreq000000000000000000a1',
+    schoolId: null,
+    schoolName: 'Prampram Basic School',
+    headline: 'Admissions open for 2026/27',
+    writeup:
+      'Applications for the new academic year are now open. We offer the full primary curriculum with qualified teachers, and places are limited in JHS 2A.',
+    imageUrl: 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
+    imageAlt: 'Students in the school assembly hall',
+    linkUrl: 'https://example.edu.gh/admissions',
+    placement: 'auth_aside',
+    status: 'pending',
+    endsAt: '2026-11-30T00:00:00.000Z',
+    requestedBy: 'u1',
+    authoredByPlatform: false,
+    copyEditedByReview: false,
+    rejectedReason: '',
+    createdAt: '2026-09-18T08:30:00.000Z',
+  },
+  {
+    _id: 'adreq000000000000000000a2',
+    schoolId: null,
+    schoolName: 'Prampram Basic School',
+    headline: 'Boarding places available',
+    writeup:
+      'Secure boarding for senior students, with a resident matron and a study hall every evening from 6pm.',
+    imageUrl: 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
+    imageAlt: 'The school dormitory block',
+    linkUrl: 'https://example.edu.gh/boarding',
+    placement: 'home_hero',
+    status: 'approved',
+    endsAt: '2026-10-31T00:00:00.000Z',
+    requestedBy: 'u2',
+    authoredByPlatform: false,
+    // The case the "wording was adjusted" notice exists for. Without it in the
+    // fixture, that branch of the page never renders.
+    copyEditedByReview: true,
+    rejectedReason: '',
+    createdAt: '2026-09-10T12:00:00.000Z',
+  },
+  {
+    _id: 'adreq000000000000000000a3',
+    schoolId: null,
+    schoolName: 'Prampram Basic School',
+    headline: 'Free JHS scholarship drive',
+    writeup: null,
+    imageUrl: 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
+    imageAlt: 'A student receiving a certificate',
+    linkUrl: 'https://example.edu.gh/scholarship',
+    placement: 'dashboard_sidebar',
+    status: 'rejected',
+    endsAt: '2026-09-30T00:00:00.000Z',
+    requestedBy: 'u1',
+    authoredByPlatform: false,
+    copyEditedByReview: false,
+    rejectedReason:
+      'The link goes to an external site we cannot verify, and “free” needs a stated eligibility rule.',
+    createdAt: '2026-09-05T15:45:00.000Z',
+  },
+];
+
+const scopedAdRequests = (user) =>
+  AD_REQUESTS.map((row) => ({ ...row, schoolId: user?.schoolId || row.schoolId }));
+
+const mockListMyAdRequests = ({ user, query }) => {
+  let rows = scopedAdRequests(user);
+
+  if (query.status && query.status !== 'all') {
+    rows = rows.filter((row) => row.status === query.status);
+  }
+
+  const page = Number(query.page) || 1;
+  const perPage = Number(query.perPage) || 20;
+
+  return {
+    __rows: rows.slice((page - 1) * perPage, (page - 1) * perPage + perPage),
+    meta: {
+      page,
+      perPage,
+      total: rows.length,
+      totalPages: Math.max(1, Math.ceil(rows.length / perPage)),
+    },
+  };
+};
+
+/**
+ * `POST /schools/me/ad-requests`
+ *
+ * Reads via `FormData.get`, because `mockAdapter`'s `parseBody` returns `config.data`
+ * untouched when it is not a string — so a `FormData` arrives here as a `FormData`.
+ *
+ * The validation is modelled rather than assumed: the `linkUrl` https rule is the
+ * security-relevant one, and a mock that skipped it would let a `javascript:` URL
+ * through development and only fail on the server that actually enforces it.
+ */
+const mockCreateMyAdRequest = ({ body }) => {
+  const read = (key) => {
+    if (!body) return null;
+    if (typeof body.get === 'function') return body.get(key);
+    return body[key] ?? null;
+  };
+
+  const headline = String(read('headline') || '').trim();
+  const linkUrl = String(read('linkUrl') || '').trim();
+  const endsAt = read('endsAt');
+  const imageAlt = String(read('imageAlt') || '').trim();
+
+  const errors = {};
+  if (headline.length < 4) errors.headline = 'Give the advertisement a headline of at least 4 characters';
+  if (headline.length > 60) errors.headline = 'The headline is limited to 60 characters — put the detail in the writeup';
+  if (imageAlt.length < 5) errors.imageAlt = 'Describe the image';
+
+  if (!/^https:\/\/\S+$/i.test(linkUrl)) {
+    errors.linkUrl = 'linkUrl must be a valid https URL';
+  }
+  if (!endsAt) errors.endsAt = 'Choose an end date in the future';
+  else if (new Date(endsAt) <= new Date()) errors.endsAt = 'Choose an end date in the future';
+
+  if (Object.keys(errors).length) {
+    throw new MockError(422, Object.values(errors).join(' '), 'VALIDATION_ERROR');
+  }
+
+  const created = {
+    _id: `adreq${Date.now().toString(36)}`,
+    schoolId: null,
+    schoolName: 'Your school',
+    headline,
+    writeup: String(read('writeup') || '') || null,
+    imageUrl:
+      read('image') && typeof read('image') !== 'string'
+        ? 'https://res.cloudinary.com/demo/image/upload/sample.jpg'
+        : String(read('image') || ''),
+    imageAlt,
+    linkUrl,
+    placement: read('placement') || 'auth_aside',
+    status: 'pending',
+    endsAt: new Date(endsAt).toISOString(),
+    requestedBy: 'u1',
+    authoredByPlatform: false,
+    copyEditedByReview: false,
+    rejectedReason: '',
+    createdAt: new Date().toISOString(),
+  };
+
+  AD_REQUESTS.unshift(created);
+  return created;
+};
+
+const mockWithdrawMyAdRequest = ({ params }) => {
+  const row = AD_REQUESTS.find((entry) => entry._id === params.adId);
+  if (!row) throw new MockError(404, 'Advertisement not found', 'AD_NOT_FOUND');
+
+  // Modelled because the real service refuses anything already decided on, and the
+  // page hides the action on exactly that condition. A mock that always withdrew would
+  // let the 409 branch ship untested.
+  if (!['pending', 'draft'].includes(row.status)) {
+    throw new MockError(
+      409,
+      row.status === 'approved'
+        ? 'This advertisement is live. Contact support to take it down.'
+        : 'Only a request that has not been reviewed can be withdrawn.',
+      'AD_NOT_WITHDRAWABLE'
+    );
+  }
+
+  row.status = 'expired';
+  return { _id: row._id, status: row.status };
+};
+
 /**
  * `GET /public/school-ads`
  *
@@ -5290,6 +5799,31 @@ export const ROUTES = [
   // Public, like the real route — `payment.routes.js` mounts this under the pay token
   // with a per-token rate limiter and no `authenticate`.
   ['POST', /^\/pay\/[^/]+\/notify-school$/, notifySchool, { public: true }],
+
+  // ?? Regulated SMS credit purchase ??
+  //
+  // Ordered so the concrete literal beats the parameterised sibling: `/sms-requests/
+  // quote` and `/sms-requests/:requestId` are both two-segment paths under the same
+  // prefix, and `resolveRoute` walks this table in order.
+  ['POST', /^\/sms-requests\/quote$/, mockQuoteSmsRequest],
+  ['POST', /^\/sms-requests$/, mockCreateSmsRequest],
+  ['GET', /^\/sms-requests\/(?<requestId>[^/]+)$/, mockGetSmsRequest],
+  ['GET', /^\/sms-requests$/, mockListSmsRequests],
+
+  ['POST', /^\/admin\/sms\/pool\/topup$/, mockPoolTopUp],
+  ['POST', /^\/admin\/sms\/requests\/(?<requestId>[^/]+)\/approve$/, mockApproveSmsRequest],
+  ['POST', /^\/admin\/sms\/requests\/(?<requestId>[^/]+)\/reject$/, mockRejectSmsRequest],
+  ['POST', /^\/admin\/sms\/requests\/(?<requestId>[^/]+)\/refund$/, mockMarkSmsRequestRefunded],
+  ['GET', /^\/admin\/sms\/requests$/, mockAdminListSmsRequests],
+  ['GET', /^\/admin\/sms\/pool$/, mockGetSmsPool],
+
+  // ?? A school's own advertisement requests ??
+  //
+  // `/schools/me/…` with no school id anywhere — matching the real routes, so a mock
+  // handler that ever wanted a school parameter would have nowhere to get one from.
+  ['DELETE', /^\/schools\/me\/ad-requests\/(?<adId>[^/]+)$/, mockWithdrawMyAdRequest],
+  ['POST', /^\/schools\/me\/ad-requests$/, mockCreateMyAdRequest],
+  ['GET', /^\/schools\/me\/ad-requests$/, mockListMyAdRequests],
 
   ['GET', /^\/public\/school-ads$/, listSchoolAds, { public: true }],
   ['GET', /^\/health$/, health, { public: true }],
