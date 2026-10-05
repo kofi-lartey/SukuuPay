@@ -84,6 +84,20 @@ const Metrics = () => (
  * The slot is a fixed 200px box from first paint, so the aside does not change
  * height when the fetch resolves: metrics occupy it until live ads arrive, then
  * the carousel takes over the same box. The CTA position is stable either way.
+ *
+ * **The carousel is mounted unconditionally, and that is load-bearing.**
+ *
+ * It used to be gated: `{hasAds && <SchoolAdCarousel onCountChange={handleCount} />}`.
+ * `hasAds` is only ever set *by* that callback, from a count the carousel fetches after
+ * it mounts — so the component was never mounted, never fetched, and never reported, and
+ * `hasAds` stayed `false` forever. A circular guard, which is a cycle that has exactly
+ * one possible initial state: nothing renders. No amount of correct data could ever have
+ * put an ad on the login page, and nothing in the console said so.
+ *
+ * The unconditioned mount is safe because `SchoolAdCarousel` already handles emptiness
+ * itself — `if (total === 0) return null` — so with no live ad it renders nothing and
+ * reports `0`, which keeps the metrics in place. `hasAds` therefore decides one thing
+ * only: whether the fallback is showing. The carousel decides the other.
  */
 const SchoolAdSlot = ({ placement }) => {
   const [hasAds, setHasAds] = useState(false);
@@ -92,7 +106,7 @@ const SchoolAdSlot = ({ placement }) => {
   return (
     <div className="relative z-10 mt-6 h-[200px] border-t border-white/10 pt-5">
       {!hasAds && <Metrics />}
-      {hasAds && <SchoolAdCarousel placement={placement} className="h-full" onCountChange={handleCount} />}
+      <SchoolAdCarousel placement={placement} className="h-full" onCountChange={handleCount} />
     </div>
   );
 };
