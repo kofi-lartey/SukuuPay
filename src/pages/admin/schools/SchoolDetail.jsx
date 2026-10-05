@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Archive,
@@ -44,8 +44,8 @@ import { formatPercent } from '../../../utils/format';
 /**
  * The tabs, as data.
  *
- * `ModuleTabs` is a *controlled* component keyed on a query parameter â€” its own
- * comment explains why: a module's sections are `?tab=â€¦` on one path, so `NavLink`
+ * `ModuleTabs` is a *controlled* component keyed on a query parameter — its own
+ * comment explains why: a module's sections are `?tab=…` on one path, so `NavLink`
  * would match all of them at once and every tab would render as active. Which means
  * the tab value has to live in the URL here too, not in `useState`, so that an
  * operator can link a colleague straight to "the Ledger tab of Kumasi Basic" and the
@@ -67,7 +67,7 @@ const TABS = [
 
 const STATUS_TONES = { active: 'green', suspended: 'red', archived: 'slate' };
 
-/** `PLATFORM_EDITABLE_FIELDS`, restated â€” see `EditSchoolDialog` for why it is short. */
+/** `PLATFORM_EDITABLE_FIELDS`, restated — see `EditSchoolDialog` for why it is short. */
 const EDITABLE = ['name', 'type', 'phone', 'email', 'region', 'city', 'address', 'gpsAddress'];
 
 /**
@@ -80,7 +80,7 @@ const EDITABLE = ['name', 'type', 'phone', 'email', 'region', 'city', 'address',
  * admin's own narrow edit is genuinely dangerous to over-share, and `status` is on
  * the list of refusals for the sharpest reason of all: a generic field write that
  * could set `status` would be a suspension with no reason, no cascade and the wrong
- * audit entry â€” three of the four things that make the real one safe.
+ * audit entry — three of the four things that make the real one safe.
  *
  * So `website`, `motto` and `yearFounded` are absent from this form even though the
  * brief listed them for creation. Offering them here would be offering a control the
@@ -120,7 +120,7 @@ const EditSchoolDialog = ({ open, school, onClose, onSaved }) => {
     setError(null);
     try {
       // Only the changed keys. The endpoint is a patch, and sending the whole form
-      // would re-write fields somebody else changed in the meantime â€” a school
+      // would re-write fields somebody else changed in the meantime — a school
       // correcting its own phone number would have that correction reverted by a
       // platform operator editing the city.
       const patch = {};
@@ -147,7 +147,7 @@ const EditSchoolDialog = ({ open, school, onClose, onSaved }) => {
       open={open}
       onClose={onClose}
       title="Edit school details"
-      description={`${school.name} Â· the fields a school administrator cannot change themselves.`}
+      description={`${school.name} · the fields a school administrator cannot change themselves.`}
       size="lg"
       footer={
         <>
@@ -166,7 +166,7 @@ const EditSchoolDialog = ({ open, school, onClose, onSaved }) => {
             className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy && <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />}
-            {busy ? 'Savingâ€¦' : 'Save changes'}
+            {busy ? 'Saving…' : 'Save changes'}
           </button>
         </>
       }
@@ -231,7 +231,7 @@ const EditSchoolDialog = ({ open, school, onClose, onSaved }) => {
 
       <p className="mt-3 text-[11px] font-semibold leading-relaxed text-slate-400">
         Not editable from here: website, motto, year founded, branding, academic configuration and
-        status. The server refuses those here on purpose â€” status has its own reason-required,
+        status. The server refuses those here on purpose — status has its own reason-required,
         audited, cascading endpoint, and a generic field write that could set it would be a
         suspension with no reason and no audit trail.
       </p>
@@ -243,9 +243,9 @@ const EditSchoolDialog = ({ open, school, onClose, onSaved }) => {
  * Confirm archiving a school.
  *
  * **The copy says this is permanent, because the API says so and nothing in the
- * product reverses it.** `archiveSchool` is a **soft delete** â€” `status: 'archived'`
+ * product reverses it.** `archiveSchool` is a **soft delete** — `status: 'archived'`
  * with `deletedAt` set, students, payments, disbursements and ledger untouched
- * (`services/admin/schools.service.js:1021-1047`) â€” and there is no un-archive
+ * (`services/admin/schools.service.js:1021-1047`) — and there is no un-archive
  * endpoint anywhere in the console. So "Cancel" here does not mean the action can be
  * undone; it means the operator has not asked yet.
  *
@@ -253,13 +253,13 @@ const EditSchoolDialog = ({ open, school, onClose, onSaved }) => {
  * reads as delete to an operator who has never used one, and a platform owner who
  * believes archiving removed a school's payments will hesitate over an action they
  * should be confident about. Specifically: it does **not** deactivate the school's
- * staff â€” that is a separate decision with its own endpoint and its own audit entry
+ * staff — that is a separate decision with its own endpoint and its own audit entry
  * (`school.service.archiveSchool` does do it; the platform one deliberately does not,
  * so that a reversible-looking action cannot irreversibly lock out a hundred
  * teachers).
  *
  * One more thing worth saying out loud: an archived school is hidden from every
- * platform list but **still readable at this URL** â€” `getAdminSchoolDetail` passes
+ * platform list but **still readable at this URL** — `getAdminSchoolDetail` passes
  * `includeArchived: true` on purpose, so an archived school can still be looked at.
  * An operator who archives by mistake needs the record to open.
  */
@@ -320,7 +320,7 @@ const ArchiveSchoolDialog = ({ open, school, onClose, onArchived }) => {
             ) : (
               <Archive className="h-4 w-4" aria-hidden="true" />
             )}
-            {busy ? 'Archivingâ€¦' : 'Archive permanently'}
+            {busy ? 'Archiving…' : 'Archive permanently'}
           </button>
         </>
       }
@@ -332,11 +332,11 @@ const ArchiveSchoolDialog = ({ open, school, onClose, onArchived }) => {
         <ul className="mt-1.5 space-y-1 text-[12px] font-semibold leading-relaxed text-red-700">
           <li>Its students, payments, disbursements and ledger entries are left completely untouched.</li>
           <li>
-            Its staff are <strong>not</strong> signed out â€” deactivating accounts is a separate,
+            Its staff are <strong>not</strong> signed out — deactivating accounts is a separate,
             separately audited decision.
           </li>
           <li>
-            The school&rsquo;s own console keeps working, and this page still opens â€” an archived
+            The school&rsquo;s own console keeps working, and this page still opens — an archived
             school can still be looked at.
           </li>
           <li>And it cannot be un-archived from anywhere in this product.</li>
@@ -373,30 +373,30 @@ const ArchiveSchoolDialog = ({ open, school, onClose, onArchived }) => {
 /**
  * One school, on the platform console, in eight tabs.
  *
- * â”€â”€ One request on arrival, and one per tab â”€â”€
+ * ── One request on arrival, and one per tab ──
  *
- * The header needs `getSchool` â€” profile, status, plan, gateway, markup, tags, flags,
- * notes, student count â€” and that endpoint resolves all of it in a single server-side
+ * The header needs `getSchool` — profile, status, plan, gateway, markup, tags, flags,
+ * notes, student count — and that endpoint resolves all of it in a single server-side
  * pass precisely so the header and the tabs cannot disagree about which moment in time
  * they describe.
  *
  * **Everything else is lazy, and that is the decision worth defending.** Opening this
  * page used to mean assembling the school's whole picture: roster, payments, ledger,
  * disbursements, team, settings, notes. That is seven or eight more requests for a page
- * an operator opens most often just to *look* at a school â€” and the tabs are a
+ * an operator opens most often just to *look* at a school — and the tabs are a
  * navigation between views of one subject, not eight independent screens. Only the
  * active tab mounts, so `?tab=payments` never loads the roster. The consequences are
  * deliberate and both are good: the page is usable the instant the header resolves,
- * and a failure in the ledger has nowhere to hide â€” it cannot grey out the tabs beside
+ * and a failure in the ledger has nowhere to hide — it cannot grey out the tabs beside
  * it, so an operator is never looking at a payment total beside a ledger that silently
  * failed to load.
  *
- * â”€â”€ The header's four actions, and why each is where it is â”€â”€
+ * ── The header's four actions, and why each is where it is ──
  *
  * `Impersonate`, `Suspend`/`Unsuspend`, `Edit` and `Archive` are in the header because
  * they are decisions *about the school*, not about one tab. But only impersonation and
  * suspension are cheap to undo, and suspension cascades to every account in the school
- * (`MODULES_13_TO_17.md:1585`) â€” so both still go through a dialog with the blast radius
+ * (`MODULES_13_TO_17.md:1585`) — so both still go through a dialog with the blast radius
  * in the words. `Edit` is a form. `Archive` is permanent and gets an acknowledgement.
  *
  * **Markup is not a header action even though it is a header field.** It appears here as
@@ -405,14 +405,14 @@ const ArchiveSchoolDialog = ({ open, school, onClose, onArchived }) => {
  * percentage that changes what every parent pays belongs next to an illustration of a
  * parent's bill, not in a row of navigation buttons above it.
  *
- * â”€â”€ Read-only while impersonating â”€â”€
+ * ── Read-only while impersonating ──
  *
  * If a session is open on *this* school, the header says so and every mutating
  * control is hidden rather than disabled. Not cosmetic and not the enforcement: the
  * server refuses every write with `403 IMPERSONATION_READ_ONLY`
  * (`Backend/src/middleware/impersonation.js`), and `AdminGuard` has already scoped
  * navigation to this school. A visible-but-dead "Suspend" button is a control that
- * looks like a permission problem and is not one â€” it is a mode.
+ * looks like a permission problem and is not one — it is a mode.
  */
 const SchoolDetail = () => {
   const { schoolId } = useParams();
@@ -501,7 +501,7 @@ const SchoolDetail = () => {
 
   /**
    * Writes are refused by the server while a session is open, so the controls are
-   * hidden rather than disabled â€” see the note in the component's doc comment.
+   * hidden rather than disabled — see the note in the component's doc comment.
    */
   const readOnly = isImpersonating && session?.schoolId === schoolId;
 
@@ -556,7 +556,7 @@ const SchoolDetail = () => {
     <>
       {/*
         The header. Not `PageHeader` with a title prop, because a school's identity is
-        a logo, a name, a code and four commercial terms â€” none of which is a single
+        a logo, a name, a code and four commercial terms — none of which is a single
         string, and `PageHeader`'s `title` is exactly that. The block below keeps its
         anatomy (eyebrow, actions on the right) so the page still opens the way every
         other module opens.
@@ -606,11 +606,11 @@ const SchoolDetail = () => {
               <Badge tone="brand">{subscription.plan || 'no plan'}</Badge>
               <Badge tone="slate">{gatewayMode || 'no rail set'}</Badge>
               <span className="font-mono text-[11px] font-bold text-slate-400">
-                {school?.schoolCode || 'â€”'}
+                {school?.schoolCode || '—'}
               </span>
               <span className="text-[12px] font-semibold text-slate-500">
-                {school?.region || 'â€”'}
-                {school?.city ? ` Â· ${school.city}` : ''}
+                {school?.region || '—'}
+                {school?.city ? ` · ${school.city}` : ''}
               </span>
               <span className="text-[12px] font-extrabold tabular-nums text-slate-600">
                 {formatPercent(markup)} markup
@@ -683,7 +683,7 @@ const SchoolDetail = () => {
           <p className="text-[12px] font-bold leading-relaxed text-amber-800">
             You are viewing this school as an impersonated session. Every write is refused by the
             server while the session is open, so the controls above are hidden rather than
-            disabled â€” exit the session from the banner at the top of the console to make changes.
+            disabled — exit the session from the banner at the top of the console to make changes.
           </p>
         </Card>
       )}
@@ -708,7 +708,7 @@ const SchoolDetail = () => {
       )}
       {tab === 'notes' && <SchoolNotesTab school={school} record={state.data} />}
 
-      {/* â”€â”€ Dialogs â”€â”€ */}
+      {/* ── Dialogs ── */}
       <EditSchoolDialog
         open={editOpen}
         school={school}

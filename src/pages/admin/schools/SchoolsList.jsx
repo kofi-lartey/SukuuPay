@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Building2,
@@ -43,23 +43,23 @@ const STATUS_LABELS = { active: 'Active', suspended: 'Suspended', archived: 'Arc
  * The `sortBy` keys `listAllSchoolsQuerySchema` allow-lists
  * (`Backend/src/validations/admin.validation.js:28-31`).
  *
- * **Closed list, and it is exactly these five â€” `paymentVolume` and `students` are
+ * **Closed list, and it is exactly these five — `paymentVolume` and `students` are
  * deliberately absent.** The brief asked for them "if the server supports it"; it does
  * not. The schema is `.valid("name","createdAt","schoolCode","region","status")`, so a
  * request for `sortBy=paymentVolume` is a 422 from Joi before the query is ever built.
  * Both figures *exist* on every row, but as aggregates computed in the same
- * aggregation that fills the list (`admin.service.js:143-152`) â€” they are not fields on
+ * aggregation that fills the list (`admin.service.js:143-152`) — they are not fields on
  * `School`, so there is nothing to sort on and Mongo would have to sort in memory
  * after the fact, which a paginated endpoint cannot do honestly.
  *
- * Offering either key anyway would produce a sort control that 422s on click â€” the
+ * Offering either key anyway would produce a sort control that 422s on click — the
  * same failure `TransactionTable` documents for its `status` column ("a sort control
  * that fails its own request is worse than no control"). If those two sorts are ever
  * wanted, the fix is a server change, not a dropdown option.
  */
 const SORT_OPTIONS = [
   { value: 'createdAt', label: 'Newest first' },
-  { value: 'name', label: 'Name (Aâ€“Z)' },
+  { value: 'name', label: 'Name (A–Z)' },
   { value: 'schoolCode', label: 'School code' },
   { value: 'region', label: 'Region' },
   { value: 'status', label: 'Status' },
@@ -76,7 +76,7 @@ const GATEWAY_LABELS = {
 /**
  * Every school on the platform.
  *
- * â”€â”€ Why this file exists rather than `AdminSchools.jsx` â”€â”€
+ * ── Why this file exists rather than `AdminSchools.jsx` ──
  *
  * It was extracted from `pages/admin/AdminSchools.jsx` rather than the old file being
  * grown in place, and the extraction is clean: the whole screen is one page component
@@ -88,27 +88,27 @@ const GATEWAY_LABELS = {
  * `pages/admin/` had stopped describing what it held: one flat page per console module
  * alongside a `schools/` directory holding the detail page, its eight tabs and four
  * dialogs. A file named for the list, sitting next to a directory named for the same
- * subject, is the shape of a codebase nobody can navigate â€” the next person adds
+ * subject, is the shape of a codebase nobody can navigate — the next person adds
  * `SchoolSuspend.jsx` to `pages/admin/` and asks which of the two school files to open.
  * One subject, one directory. `ADMIN_NAV` and `ROUTES` are untouched, so the route
  * this file serves (`ROUTES.ADMIN_SCHOOLS`) is exactly the route it served before.
  *
- * â”€â”€ Filters â”€â”€
+ * ── Filters ──
  *
  * Status, region, plan, sort and page live in the query string, so a filtered view is
- * linkable and survives a reload. **Any filter change deletes `page`** â€” otherwise
+ * linkable and survives a reload. **Any filter change deletes `page`** — otherwise
  * narrowing a filter while on page 7 of the old result set lands you on an empty page,
  * which reads as "this filter matched nothing" rather than "you are past the end".
  *
  * Search and **tag** are the two exceptions, and both filter the loaded page rather
  * than re-querying, for the same reason the original search box did: typing per
- * keystroke is a request per character and a race the user can lose â€” the response for
+ * keystroke is a request per character and a race the user can lose — the response for
  * "sun" can land after the one for "sukuu" and win.
  *
  * `tag` is the newer of the two and deserves its own note, because it is a real
- * limitation rather than a choice. **The server does support `?tag=`** â€”
+ * limitation rather than a choice. **The server does support `?tag=`** —
  * `listAllSchoolsQuerySchema.tag` is in the validation schema and `listAllSchools`
- * filters `subscription.tags` (`admin.service.js:29,51`) â€” but `listSchools` in
+ * filters `subscription.tags` (`admin.service.js:29,51`) — but `listSchools` in
  * `src/services/admin.js` does not put `tag` in its `params` object, and services are
  * not editable from this screen. So the tag control filters the loaded page and the
  * scope hint below the filter bar says so, in the same words as the search box. The
@@ -118,41 +118,41 @@ const GATEWAY_LABELS = {
  * Because `tag` must not trigger a fetch, `filters` is memoised on its primitive
  * values rather than on `searchParams`. `searchParams` is a new object on every
  * navigation, so keying on it would re-run the request when the only thing that
- * changed was a tag chip â€” a request per keystroke, which is the race above.
+ * changed was a tag chip — a request per keystroke, which is the race above.
  *
- * â”€â”€ Row actions live in a `â‹¯` menu, and suspension is still behind a dialog â”€â”€
+ * ── Row actions live in a `⋯` menu, and suspension is still behind a dialog ──
  *
  * The original page deliberately had no row buttons at all: suspending cascades
  * `status` to every user in the school (`MODULES_13_TO_17.md:1585`), so it belonged
  * in `SchoolUsageDrawer`, beside the evidence for why you would do it. That reasoning
- * has not been abandoned â€” it has been met where the console has actually grown. Five
+ * has not been abandoned — it has been met where the console has actually grown. Five
  * actions cannot sit in one row of a table that is already nine columns wide, and five
  * inline icon buttons put "signs out a whole school's staff" two mis-clicks from
- * "open a page". One `â‹¯` costs a single narrow cell and puts the whole set behind an
+ * "open a page". One `⋯` costs a single narrow cell and puts the whole set behind an
  * explicit choice. Suspension is still inside it, still behind a confirmed dialog with
  * the blast radius in the words, and the row itself still opens the usage drawer.
  *
- * â”€â”€ Bulk suspend takes one reason, not N â”€â”€
+ * ── Bulk suspend takes one reason, not N ──
  *
  * The reason is not an internal justification. It is the string each school's own
  * staff are shown when they are signed out. N schools selected together share one
- * cause â€” a billing migration, an integration rollout, a fraud wave across a group â€”
+ * cause — a billing migration, an integration rollout, a fraud wave across a group —
  * and one thing to tell their staff. N reasons would produce N differently-worded
  * explanations of a single decision, which is worse for the schools and *less*
  * auditable, because the audit log records what was actually written and an operator
  * who typed three variants cannot afterwards say which one they meant. It is also a
  * form nobody would fill in: the answer they gave the first time is still on screen.
- * If the causes genuinely differ, they are not one bulk action â€” they are N single
+ * If the causes genuinely differ, they are not one bulk action — they are N single
  * suspensions, and the row menu has one.
  *
- * â”€â”€ Bulk export is a client-side CSV, and why â”€â”€
+ * ── Bulk export is a client-side CSV, and why ──
  *
  * There is no server export for the schools list. The alternatives are both worse: a
  * `getSchoolUsage` call per selected school is N round trips that can each fail
  * independently and produce a file that is silently missing rows, and building a new
  * export route is a server change for a screen whose purpose is to answer "what did I
  * just select". The rows already carry every commercial term the table shows, so the
- * file is a projection of what is on screen â€” which is also what makes it
+ * file is a projection of what is on screen — which is also what makes it
  * unsurprising. Money is written twice: integer pesewas, as the wire has it, and
  * formatted cedis, because a spreadsheet column somebody adds up should not need a
  * divide by 100 in a formula.
@@ -173,7 +173,7 @@ const SchoolsList = () => {
   const [tagTarget, setTagTarget] = useState(null);
 
   // Read the query string into primitives first, so the fetch effect below can key on
-  // them. See the note on `filters` about why this is not `useMemo(â€¦, [searchParams])`.
+  // them. See the note on `filters` about why this is not `useMemo(…, [searchParams])`.
   const status = searchParams.get('status') || '';
   const region = searchParams.get('region') || '';
   const plan = searchParams.get('plan') || '';
@@ -203,7 +203,7 @@ const SchoolsList = () => {
     };
   }, [filters, reloadKey]);
 
-  /** Any filter change resets to page 1 â€” otherwise page 7 of a new filter is empty. */
+  /** Any filter change resets to page 1 — otherwise page 7 of a new filter is empty. */
   const setFilter = useCallback(
     (key, value) => {
       setSearchParams(
@@ -237,8 +237,8 @@ const SchoolsList = () => {
         toast.success(
           `${school.name} is suspended. Every account in the school has been signed out.`
         );
-        // The row the drawer is showing is no longer accurate â€” its status changed
-        // server-side â€” so the drawer closes rather than sitting there contradicting
+        // The row the drawer is showing is no longer accurate — its status changed
+        // server-side — so the drawer closes rather than sitting there contradicting
         // the list behind it.
         setSuspendTarget(null);
         setDrilldown(null);
@@ -283,9 +283,9 @@ const SchoolsList = () => {
    * The tag vocabulary on this page, for the suggestions.
    *
    * Collected from the loaded rows rather than a fixed list. Tags are free text by
-   * design â€” the backend caps them at 20 per school and 50 characters and lowercases
+   * design — the backend caps them at 20 per school and 50 characters and lowercases
    * them, and says outright that a fixed vocabulary would need a deploy per new
-   * label â€” so a hard-coded suggestion list would be a second list to keep in step
+   * label — so a hard-coded suggestion list would be a second list to keep in step
    * with the first, and would miss every label somebody invented last week.
    */
   const knownTags = useMemo(() => {
@@ -314,7 +314,7 @@ const SchoolsList = () => {
     });
   }, [state.rows, search, tag]);
 
-  /* â”€â”€ Selection â”€â”€ */
+  /* ── Selection ── */
 
   const allVisibleSelected = visible.length > 0 && visible.every((row) => selected.has(row._id));
   const someVisibleSelected = visible.some((row) => selected.has(row._id));
@@ -342,7 +342,7 @@ const SchoolsList = () => {
    *
    * A filter or a refresh can remove a row that was ticked, and a selection that
    * keeps referring to a school no longer on screen is a bulk action whose count
-   * lies â€” "suspend 3 schools" naming one that is not there. Pruning on the change
+   * lies — "suspend 3 schools" naming one that is not there. Pruning on the change
    * rather than on click means the toolbar's count is always the number of schools
    * the operator can actually see selected.
    */
@@ -360,7 +360,7 @@ const SchoolsList = () => {
     [state.rows, selected]
   );
 
-  /* â”€â”€ Bulk export â”€â”€ */
+  /* ── Bulk export ── */
 
   const exportSelected = () => {
     if (!selectedSchools.length) return;
@@ -378,7 +378,7 @@ const SchoolsList = () => {
       'Markup %',
       'Tags',
       'Collected (pesewas)',
-      'Collected (GHâ‚µ)',
+      'Collected (GH₵)',
       'Last payment',
     ];
 
@@ -409,7 +409,17 @@ const SchoolsList = () => {
     // Quoted for RFC 4180 so Excel opens it correctly on a double-click, and revoked
     // immediately after the click so a long session exporting repeatedly does not
     // leak a blob URL per export.
-    const blob = new Blob([`ï»¿${csv}`], { type: 'text/csv;charset=utf-8' });
+    //
+    // The BOM is built with `fromCharCode`, never written as a literal character and not
+    // even as a `U+FEFF` escape sequence. A BOM is invisible *by design* — that is the
+    // entire point of it — which makes it the easiest character in a codebase for a
+    // formatter, a copy-paste, or a "strip invisible characters" pass to delete
+    // silently. When it vanishes the export still succeeds; it is only Excel's UTF-8
+    // detection that quietly stops working, in a file opened by a bursar rather
+    // than by us. `fromCharCode` survives every tool that does not know what it is
+    // looking at, and reads unambiguously in a diff.
+    const BOM = String.fromCharCode(0xfeff);
+    const blob = new Blob([BOM, csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
@@ -422,7 +432,7 @@ const SchoolsList = () => {
     toast.success(`Exported ${formatCount(selectedSchools.length)} schools.`);
   };
 
-  /* â”€â”€ Row menu items â”€â”€ */
+  /* ── Row menu items ── */
 
   const menuItemsFor = (school) => [
     {
@@ -494,7 +504,7 @@ const SchoolsList = () => {
           />
 
           {/*
-            `SelectField` takes its options as children, not an `options` prop â€” it is
+            `SelectField` takes its options as children, not an `options` prop — it is
             a styled native `<select>`. That trap has its own regression check in
             `.mockcheck`.
           */}
@@ -551,7 +561,7 @@ const SchoolsList = () => {
                 {option.label}
               </option>,
               <option key={`${option.value}:asc`} value={`${option.value}:asc`}>
-                {option.label} Â· ascending
+                {option.label} · ascending
               </option>,
             ])}
           </SelectField>
@@ -586,7 +596,7 @@ const SchoolsList = () => {
                 // and the filter is already applied, so there is nothing to submit.
                 if (event.key === 'Enter') event.currentTarget.blur();
               }}
-              placeholder="Filter by tag â€” type or pick one below"
+              placeholder="Filter by tag — type or pick one below"
               aria-label="Filter by tag"
               className="min-w-[14rem] flex-1 rounded-lg border border-slate-200 bg-white py-2 px-3 text-[13px]/[18px] font-medium text-ink placeholder:font-normal placeholder:text-slate-500 focus:border-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/30"
             />
@@ -614,7 +624,7 @@ const SchoolsList = () => {
         {/*
           The scope reminder, stated once and only when it is true. A search box that
           filters the *loaded page* next to server-side filters is ambiguous by
-          construction, so the hint says which is which â€” and it names the tag filter
+          construction, so the hint says which is which — and it names the tag filter
           explicitly rather than letting the reader assume `?tag=` in the URL means the
           server did the filtering. It does not, yet; see the note above.
         */}
@@ -625,7 +635,7 @@ const SchoolsList = () => {
         </p>
       </Card>
 
-      {/* â”€â”€ Bulk toolbar. Only while something is selected. â”€â”€ */}
+      {/* ── Bulk toolbar. Only while something is selected. ── */}
       {selectedSchools.length > 0 && (
         <div
           role="region"
@@ -786,7 +796,7 @@ const SchoolsList = () => {
                             The whole row is the target, because the row *is* the
                             summary and an operator comparing schools reads across those
                             columns. A `<tr>` with a click handler is not keyboard
-                            reachable, so the name is also a real button â€” duplicating
+                            reachable, so the name is also a real button — duplicating
                             the handler rather than wrapping the row, which would put
                             interactive content inside a clickable row and make Enter
                             fire twice.
@@ -803,13 +813,13 @@ const SchoolsList = () => {
                               {school.name}
                             </button>
                             <span className="block font-mono text-[11px] font-bold text-slate-400">
-                              {school.schoolCode || 'â€”'}
-                              {school.city ? ` Â· ${school.city}` : ''}
+                              {school.schoolCode || '—'}
+                              {school.city ? ` · ${school.city}` : ''}
                             </span>
                           </td>
 
                           <td className="px-5 py-3.5 text-[13px] font-semibold text-slate-600">
-                            {school.region || 'â€”'}
+                            {school.region || '—'}
                           </td>
 
                           {/* Tags as pills. A dash rather than an empty cell, because a
@@ -828,12 +838,12 @@ const SchoolsList = () => {
                                 )}
                               </span>
                             ) : (
-                              <span className="text-[12px] font-semibold text-slate-400">â€”</span>
+                              <span className="text-[12px] font-semibold text-slate-400">—</span>
                             )}
                           </td>
 
                           <td className="px-5 py-3.5 text-[12px] font-bold text-slate-600">
-                            {GATEWAY_LABELS[gatewayMode] || gatewayMode || 'â€”'}
+                            {GATEWAY_LABELS[gatewayMode] || gatewayMode || '—'}
                             {gatewayMode === 'manual' && (
                               <span className="mt-0.5 block text-[10px] font-semibold text-amber-600">
                                 collects outside SukuuPay
@@ -914,7 +924,7 @@ const SchoolsList = () => {
         )}
       </div>
 
-      {/* â”€â”€ The drill-down, and the lifecycle action reachable from it â”€â”€ */}
+      {/* ── The drill-down, and the lifecycle action reachable from it ── */}
       <SchoolUsageDrawer
         school={drilldown}
         onClose={() => setDrilldown(null)}
@@ -928,7 +938,7 @@ const SchoolsList = () => {
         schools={bulkSuspend ? selectedSchools : undefined}
         // The row's own counts, so the dialog can say "31 staff accounts" instead of
         // "every user in this school". The row already carries them, so this is no
-        // extra request â€” and the number is what turns an abstraction into a decision.
+        // extra request — and the number is what turns an abstraction into a decision.
         counts={
           suspendTarget
             ? {

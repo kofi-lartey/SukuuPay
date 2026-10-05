@@ -55,6 +55,21 @@
   for = "/index.html"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
+    # The SPA shell is the one response whose encoding has to be declared, because the
+    # `nosniff` header below makes Content-Type authoritative and forbids the browser
+    # from falling back to sniffing. Combined with a document whose <title> contains an
+    # em dash, a shell served without `charset` renders that single character as three.
+    #
+    # This must agree with the `<meta charset="utf-8">` in `index.html`. The meta tag
+    # covers a shell fetched without this header (a local build served by any other
+    # host, or a cached copy); the header covers the case where the browser honours the
+    # transport declaration first. Both are needed — either alone leaves a path through
+    # where the guess happens, and the guess lands on windows-1252 often enough to be
+    # seen.
+    #
+    # The mangled sequence itself is not written out here: `find-non-ascii.mjs` scans for
+    # it, and a comment reproducing it gets flagged every run.
+    Content-Type = "text/html; charset=utf-8"
 
 # Security headers. The directives below are derived from what the app actually
 # loads — an over-tight CSP here only fails in production, with a blank page
@@ -134,5 +149,22 @@
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    # `microphone=(self)` rather than `microphone=()`.
+    #
+    # `()` denies the microphone outright, and the Parents Portal voice recorder calls
+    # `navigator.mediaDevices.getUserMedia({ audio: true })` — so on the deployed site
+    # `getUserMedia` was rejected by the browser before the page ever saw a permission
+    # prompt, and the recorder rendered its "microphone access is blocked for this site"
+    # branch. The feature passed locally because the Vite dev server sends no
+    # Permissions-Policy at all, so the header was the only thing standing between the
+    # recorder and production.
+    #
+    # `(self)` rather than `*`: the recording must not be capturable by a cross-origin
+    # iframe embedded in the app. This is also the one directive here that exists to
+    # *enable* something, so it is the one worth re-checking whenever a capture feature is
+    # added or removed.
+    #
+    # `camera=()` stays denied: nothing in the product captures video. `geolocation=()`
+    # stays denied for the same reason.
+    Permissions-Policy = "camera=(), microphone=(self), geolocation=()"
     Content-Security-Policy = "default-src 'self'; connect-src 'self' https://sukuupay-backend.onrender.com https://accounts.google.com; img-src 'self' data: blob: https://images.unsplash.com https://res.cloudinary.com https://lh3.googleusercontent.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' https://accounts.google.com 'sha256-mTJ4cJaTm2Gw95GeXEpZdvEEY9ybh6FZu1bwcNE7QlY='; frame-src 'self' https://accounts.google.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"

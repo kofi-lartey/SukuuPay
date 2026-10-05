@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Building2, LoaderCircle, ShieldAlert } from 'lucide-react';
 import PageHeader from '../../../components/dashboard/PageHeader';
@@ -21,7 +21,7 @@ import { GHANA_REGIONS, GHANA_SCHOOL_TYPES, ROUTES } from '../../../utils/consta
  * nothing else, which is enough for "delete my draft" and not enough for "provision a
  * customer".
  *
- * It also states what the operator did **not** set â€” the markup and the trial â€” and
+ * It also states what the operator did **not** set — the markup and the trial — and
  * where those values came from, because those are the two fields that decide what the
  * school pays and for how long, and they are both defaults the server filled in rather
  * than anything on this form.
@@ -35,10 +35,10 @@ const ConfirmCreateDialog = ({ open, draft, busy, error, onCancel, onConfirm }) 
     ['Region', draft.region],
     ['City', draft.city],
     ['Address', draft.address],
-    ['Website', draft.website || 'â€”'],
-    ['Motto', draft.motto || 'â€”'],
-    ['GPS address', draft.gpsAddress || 'â€”'],
-    ['Year founded', draft.yearFounded || 'â€”'],
+    ['Website', draft.website || '—'],
+    ['Motto', draft.motto || '—'],
+    ['GPS address', draft.gpsAddress || '—'],
+    ['Year founded', draft.yearFounded || '—'],
   ].filter(([, value]) => value);
 
   return (
@@ -69,7 +69,7 @@ const ConfirmCreateDialog = ({ open, draft, busy, error, onCancel, onConfirm }) 
             ) : (
               <Building2 className="h-4 w-4" aria-hidden="true" />
             )}
-            {busy ? 'Creatingâ€¦' : 'Create school'}
+            {busy ? 'Creating…' : 'Create school'}
           </button>
         </>
       }
@@ -105,16 +105,16 @@ const ConfirmCreateDialog = ({ open, draft, busy, error, onCancel, onConfirm }) 
 /**
  * Create one school by hand.
  *
- * â”€â”€ Why this exists at all â”€â”€
+ * ── Why this exists at all ──
  *
  * Rarely the right tool, and the service's own doc comment says so: self-signup and the
  * onboarding wizard both provision a school already. It exists for the school a
- * customer has paid for and whose administrator will never complete the wizard â€” a
+ * customer has paid for and whose administrator will never complete the wizard — a
  * migration from a competitor, or a school with no reliable email. Those are the two
  * cases where a platform operator is the only person who can get them onto the
  * platform, and where "send them a signup link" has already been tried.
  *
- * â”€â”€ `slug` and `schoolCode` are deliberately absent from this form â”€â”€
+ * ── `slug` and `schoolCode` are deliberately absent from this form ──
  *
  * The server generates both (`generateUniqueSlug`, `generateSchoolCode`) and the schema
  * accepts them only as an *override* for the case where an operator has been handed a
@@ -122,7 +122,7 @@ const ConfirmCreateDialog = ({ open, draft, busy, error, onCancel, onConfirm }) 
  * would be worse than not offering them at all, for two reasons:
  *
  *   - **a hand-typed code collides.** `schoolCode` is `unique`. An operator inventing
- *     `ACC-2026-01` for two schools gets a 409 on the second one â€” and by then they
+ *     `ACC-2026-01` for two schools gets a 409 on the second one — and by then they
  *     have typed it twice and believed it was accepted the first time. Generating
  *     server-side removes a whole class of failure that the operator cannot see coming;
  *   - **nobody can guess the format.** If codes were `ABC-1234`, then generating them
@@ -132,13 +132,13 @@ const ConfirmCreateDialog = ({ open, draft, busy, error, onCancel, onConfirm }) 
  *     screen should not be on the screen.
  *
  * The override remains reachable, deliberately, for the operator who genuinely has a
- * code â€” and it is not this form, because this form is for the common case.
+ * code — and it is not this form, because this form is for the common case.
  *
- * â”€â”€ `yearFounded` is on the form, with an honest hint â”€â”€
+ * ── `yearFounded` is on the form, with an honest hint ──
  *
  * `School.yearFounded` exists on the model (`schoolModel.js:36-40`) but
  * `createSchoolAsPlatformSchema` does not list it, and `middleware/validate` runs
- * `stripUnknown: true` â€” so a submitted `yearFounded` is **silently removed**. That is
+ * `stripUnknown: true` — so a submitted `yearFounded` is **silently removed**. That is
  * a one-line backend gap, not a reason to drop the field: the operator has the year in
  * front of them and somebody will want it stored. So it is on the form with a hint
  * that says plainly that the create endpoint does not persist it yet, rather than
@@ -148,7 +148,7 @@ const ConfirmCreateDialog = ({ open, draft, busy, error, onCancel, onConfirm }) 
  *
  * On success this navigates to the new school's detail page rather than back to the
  * list. The list would confirm the school exists; the detail page is where the next
- * four things happen â€” markup, plan, gateway, flags â€” and a create that drops the
+ * four things happen — markup, plan, gateway, flags — and a create that drops the
  * operator on a table row is a create that ends with them hunting for where to go next.
  */
 const SchoolCreate = () => {
@@ -193,7 +193,7 @@ const SchoolCreate = () => {
       found.email = 'A valid email address is required';
     }
     if (!draft.phone || draft.phone.replace(/\D/g, '').length < 9) {
-      found.phone = 'A Ghana phone number is required â€” this is what parents are told';
+      found.phone = 'A Ghana phone number is required — this is what parents are told';
     }
     if (!draft.region) found.region = 'Required';
     if (!draft.city.trim()) found.city = 'Required';
@@ -212,7 +212,7 @@ const SchoolCreate = () => {
    * The payload.
    *
    * **Only the keys the schema lists, and nothing empty.** `stripUnknown: true`
-   * removes unknown keys rather than rejecting them, so a stray field is not a 422 â€”
+   * removes unknown keys rather than rejecting them, so a stray field is not a 422 —
    * it is a silent no-op, which is worse. And `''` is not a valid string for most of
    * these (`website` and `motto` use `.allow('')`, the rest do not), so an untouched
    * optional field is *omitted* rather than sent blank.
@@ -254,7 +254,7 @@ const SchoolCreate = () => {
       return { ok: true };
     } catch (caught) {
       // Never thrown out of a confirm handler. A 409 here is usually the email, slug
-      // or code already existing, and the server's message says which â€” which is the
+      // or code already existing, and the server's message says which — which is the
       // one piece of information the operator needs and a generic failure would throw
       // away.
       setError(caught.message || 'That school could not be created.');
@@ -267,12 +267,12 @@ const SchoolCreate = () => {
   /*
    * Escape closes the confirmation.
    *
-   * `Modal` already handles Escape, so this is not about the key â€” it is about the
+   * `Modal` already handles Escape, so this is not about the key — it is about the
    * *state*: Escape leaves the form's draft intact and closes the dialog, which is
    * what a keyboard user expects, and nothing else in this page needs a listener.
    */
   useEffect(() => {
-    document.title = 'New school Â· SukuuPay';
+    document.title = 'New school · SukuuPay';
     return () => {
       document.title = 'SukuuPay';
     };
@@ -402,7 +402,7 @@ const SchoolCreate = () => {
               className="sm:col-span-2"
               value={draft.gpsAddress}
               onChange={(event) => set('gpsAddress', event.target.value)}
-              placeholder="Only if the school uses one â€” parents pay by name, not location"
+              placeholder="Only if the school uses one — parents pay by name, not location"
             />
           </div>
         </Card>
@@ -410,7 +410,7 @@ const SchoolCreate = () => {
         <Card padding="p-5" className="mt-4">
           <h2 className="text-[13px] font-extrabold leading-tight text-ink">Optional</h2>
           <p className="mt-0.5 text-[11px] font-semibold text-slate-500">
-            Nothing here is required, and nothing here is sent blank â€” an untouched field is
+            Nothing here is required, and nothing here is sent blank — an untouched field is
             omitted so the server applies its own default.
           </p>
 
@@ -429,7 +429,7 @@ const SchoolCreate = () => {
               value={draft.yearFounded}
               onChange={(event) => set('yearFounded', event.target.value)}
               error={problems.yearFounded}
-              hint="1800â€“present"
+              hint="1800–present"
             />
             <Field
               label="Motto"
@@ -441,12 +441,12 @@ const SchoolCreate = () => {
 
           {/*
             Said on the form, not only in a comment. The server's create schema does
-            not list `yearFounded`, and `stripUnknown: true` removes it â€” so a value
+            not list `yearFounded`, and `stripUnknown: true` removes it — so a value
             typed here is accepted and then discarded. Better one sentence of warning
             than a field that quietly loses what somebody typed.
           */}
           <p className="mt-3 text-[11px] font-semibold leading-relaxed text-amber-700">
-            The platform create endpoint does not store a year founded yet â€” the field exists on the
+            The platform create endpoint does not store a year founded yet — the field exists on the
             school record but is not yet accepted here, so a value typed above is discarded. The
             school&rsquo;s own settings save it.
           </p>

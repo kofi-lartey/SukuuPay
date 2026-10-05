@@ -1,6 +1,33 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <!--
+      MUST be the first thing in <head>, within the first 1024 bytes.
+
+      This was missing entirely, and it is why the title below rendered as three odd
+      characters instead of an em dash in the browser tab. The file was always valid
+      UTF-8; with no declaration the browser *guesses* an encoding, and for a document
+      served from a CDN that guess frequently lands on windows-1252. An em dash is three
+      UTF-8 bytes, and windows-1252 assigns each of those bytes a printable character of
+      its own, so one character became three.
+
+      (The three characters are deliberately not written out here. `scripts/
+      find-non-ascii.mjs` scans for exactly that sequence, and reproducing it in a file
+      meant the repair tool kept "fixing" this comment — a comment whose entire job was
+      to describe the corruption.)
+
+      The position is load-bearing, not stylistic. A browser that has already parsed past
+      1024 bytes, or already decoded a chunk of the document, will not re-read a charset
+      declared later. So it goes above the verification meta tag, above the icons, above
+      everything.
+
+      `netlify.toml` additionally sends `X-Content-Type-Options: nosniff` with no charset
+      on the Content-Type header. That combination makes the *header* authoritative, so
+      the charset is declared there too — the two must agree, and both are needed: the
+      header covers the initial navigation, the meta tag covers anything that arrives
+      without one.
+    -->
+    <meta charset="utf-8" />
     <meta name="google-site-verification" content="G46K2VQ2grOVK34kpkNy-FxOPP-G2wrfpc5zUHd1PGM" />
     <!-- iOS ignores SVG for the home screen and Android reads the manifest, so both
       are needed for the app to have an icon on a phone. 256 (not 120) is the
