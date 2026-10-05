@@ -357,10 +357,33 @@ export const mockAdapter = async (config) => {
     // both, and its `meta.sms` came back `undefined` on the client.
     const meta = result && typeof result === 'object' ? result.meta : undefined;
 
+    /*
+     * A `__rows` handler's other keys, carried onto the response beside the array.
+     *
+     * The `__rows` branch used to spread nothing but `meta`, so a handler that returned
+     * `{ __rows, meta, counts }` lost `counts` — the key was written, returned by the
+     * handler, and thrown away here. `listParentMessages` does exactly that, and
+     * `services/parentMessages.js` reads `data.counts` for the "3 waiting for an
+     * answer" badge and the per-tab tallies.
+     *
+     * The symptom is the worst kind of mock bug: four parent messages listed on screen
+     * while every count beside them read zero and the header said "Nothing unanswered".
+     * To anyone testing in mock mode that is indistinguishable from a school receiving
+     * no messages at all — which is the report that sent someone looking through the
+     * write path for a bug that was in the mock.
+     *
+     * `__` prefixed keys are the adapter's own vocabulary and are excluded, so `__rows`,
+     * `__raw` and `__status` do not leak into the payload as `undefined`.
+     */
+    const extra =
+      rows !== undefined && result && typeof result === 'object'
+        ? Object.fromEntries(Object.entries(result).filter(([key]) => key !== 'meta' && !key.startsWith('__')))
+        : {};
+
     const payload = raw
       ? { success: true, data: raw, ...(meta ? { meta } : {}) }
       : rows !== undefined
-      ? { success: true, data: rows, ...(meta ? { meta } : {}) }
+      ? { success: true, data: rows, ...(meta ? { meta } : {}), ...extra }
       : isPlainObject
       ? { success: true, ...result, ...(meta ? { meta } : {}), data: result.students ?? result }
       : { success: true, data: result };

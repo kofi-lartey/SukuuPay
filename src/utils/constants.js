@@ -42,6 +42,12 @@ export const ROUTES = {
   ADMIN_SCHOOLS: '/admin/schools',
   ADMIN_USERS: '/admin/users',
   ADMIN_CONTENT: '/admin/content',
+  // A **sibling page of Content, not a nav entry.** It is reached from that page's
+  // "New creative" action rather than from the rail, for the reason
+  // `announcements/new` works the same way: the rail answers "which module am I
+  // in?" and authoring is not a module. `isNavItemActive` is prefix-aware, so
+  // `/admin/content/new` still lights Content as the current module.
+  ADMIN_CONTENT_NEW: '/admin/content/new',
   ADMIN_SETTINGS: '/admin/settings',
   ADMIN_PAYMENTS: '/admin/payments',
   ADMIN_FINANCE: '/admin/finance',
@@ -378,11 +384,24 @@ export const DASHBOARD_NAV = [
         // `school_admin` and `accountant`, matching
         // `requireAdvertiser` in `schoolAd.routes.js`.
         //
+        // **`super_admin` was here and is deliberately gone.** It contradicted the
+        // comment above it: this page is the school asking the *platform* for
+        // something, and every route behind it refuses a platform admin —
+        // `requireAdvertiser` excludes the role, `listSchoolAdRequests` throws
+        // `SCHOOL_ACCESS_DENIED` without a `schoolId` to resolve, and a `super_admin`
+        // has `schoolId: null` by design. So the entry could only ever have led to a
+        // 403, from a shell `RoleLanding` redirects away from anyway.
+        //
+        // Where a platform admin authors instead: `ROUTES.ADMIN_CONTENT_NEW`, behind
+        // `AdminGuard` and `POST /admin/school-ads`. That is the console's own
+        // endpoint — it takes an optional `schoolId` and sets `authoredByPlatform` —
+        // so an ad the platform writes needs no pretending to be a school's request.
+        //
         // Deliberately **not** in the Outreach group. That group is read-and-act on the
         // school's own parents, and an ad request is the school asking the *platform*
         // for something — a different direction of travel, and it does not belong in
         // the same rail section as SMS reminders.
-        roles: ['super_admin', 'school_admin', 'accountant'],
+        roles: ['school_admin', 'accountant'],
         description: 'Ask to be advertised, and track the decision.',
       },
     ],

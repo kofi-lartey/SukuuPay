@@ -47,6 +47,7 @@ import Step4SendReminder from './pages/onboarding/Step4SendReminder';
 import AdminLayout from './components/admin/AdminLayout';
 import AdminOverview from './pages/admin/AdminOverview';
 import AdminContent from './pages/admin/AdminContent';
+import AdminAdCreate from './pages/admin/AdminAdCreate';
 import SchoolsList from './pages/admin/schools/SchoolsList';
 import SchoolDetail from './pages/admin/schools/SchoolDetail';
 import SchoolCreate from './pages/admin/schools/SchoolCreate';
@@ -276,6 +277,14 @@ function App() {
                 <Route path="health" element={<SystemHealth />} />
                 <Route path="reports" element={<ReportsCenter />} />
                 <Route path="content" element={<AdminContent />} />
+                {/*
+                  `content/new` has no `content/:id` sibling to be shadowed by — the
+                  queue is a list without a detail route, because reviewing is done in
+                  a dialog on the row. It still sits directly after `content` so the
+                  pair reads as one module, and `isNavItemActive`'s prefix matching is
+                  what keeps Content lit as the current module here.
+                */}
+                <Route path="content/new" element={<AdminAdCreate />} />
                 <Route path="settings" element={<PlatformSettings />} />
 
                 <Route path="*" element={<NotFound variant="admin" />} />

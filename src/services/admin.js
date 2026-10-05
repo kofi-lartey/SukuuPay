@@ -47,6 +47,33 @@ export const AD_PLACEMENTS = ['auth_aside', 'home_hero', 'dashboard_sidebar'];
 export const AD_STATUSES = ['draft', 'pending', 'approved', 'rejected', 'expired'];
 
 /**
+ * The placement vocabulary, keyed by the values in `AD_PLACEMENTS`.
+ *
+ * One map rather than a second literal in each page. The queue (`AdminContent`) and
+ * the authoring form (`AdminAdCreate`) are two steps of the same journey — a creative
+ * is written on one and judged on the other — and when the two carry their own
+ * labels the operator picks "Sign-in pages" on one screen and reads "Login & signup
+ * aside" on the next, which reads as two features rather than one slot.
+ *
+ * `help` is the sentence a picker needs and a queue row does not: where the creative
+ * will actually be seen. Placement is otherwise an opaque enum on both sides.
+ */
+export const AD_PLACEMENT_DETAILS = {
+  auth_aside: {
+    label: 'Login & signup aside',
+    help: 'The panel beside the login and signup forms. The most-seen slot on the site.',
+  },
+  home_hero: {
+    label: 'Homepage hero',
+    help: 'A wide banner on the public home page, above the fold.',
+  },
+  dashboard_sidebar: {
+    label: 'School dashboard sidebar',
+    help: 'A panel inside a school dashboard, seen only by that school’s own staff.',
+  },
+};
+
+/**
  * `{ page, perPage, total, pages }` → the `Pagination` component's shape.
  *
  * `totalPages` is computed rather than read, because the two upstream keys are
@@ -306,28 +333,49 @@ export const listSchoolAds = async ({ page = 1, perPage = 20, status = '', place
 };
 
 /**
- * `POST /admin/school-ads` — submit a creative. Filed `pending`.
+ * `POST /admin/school-ads` — author a creative.
  *
- * `multipart/form-data` through `uploadSchoolAd` (multer → Cloudinary), so the
- * body is a `FormData`, not JSON — the service layer's `Content-Type:
- * application/json` default would otherwise serialise the file's `[object File]`
- * and the server would reject a body it never parsed.
+ * `multipart/form-data` through `uploadSchoolAd` (multer → Cloudinary), so the body is
+ * a `FormData`, not JSON.
+ *
+ * **No `Content-Type` is set, and that is load-bearing rather than an omission.**
+ * Writing `'Content-Type': 'multipart/form-data'` by hand is what this function used to
+ * do, on the reasoning that the instance default of `application/json` would otherwise
+ * serialise the file. The reasoning is wrong in a way that costs an afternoon:
+ *
+ *   - A multipart content type is only valid **with a boundary parameter**, and the
+ *     boundary is generated when the body is encoded. A hand-written one has none.
+ *   - In a browser axios deletes the header for any `FormData` body before it reaches
+ *     XHR (`axios.cjs:5159`), so the browser writes its own and it worked.
+ *   - Anywhere that deletion does not happen, the request goes out with a
+ *     `Content-Type: multipart/form-data` and **no boundary**, and busboy aborts with
+ *     `Multipart: Boundary not found`. Verified against the real multer chain: every
+ *     field is dropped, `req.body` ends up empty, and the file never becomes `req.file`.
+ *
+ * So the header was correct only by accident of an internal axios behaviour, and the
+ * failure mode it produces — *fields parsed, file missing* — is the one hardest to
+ * diagnose, because the 422 that comes back blames the image rather than the request.
+ *
+ * Letting axios infer the type is also what keeps this consistent with
+ * `createAdRequest`, which correctly sets no header at all.
+ *
+ * The image is appended with an explicit filename, matching `createAdRequest`. A
+ * `File` already carries its own name so this is not strictly required, but stating it
+ * removes the dependency on `FormData.append` defaulting the filename from the blob.
  *
  * The body shape is `createSchoolAdSchema`: `schoolId` (may be empty/null),
  * `schoolName`, `headline` (4–60 chars — it renders in the auth sidebar, so it is
  * short on purpose), `imageUrl`, `imageAlt` (required, and it is the only thing
  * describing the creative to a screen reader), `linkUrl` (**https only** —
  * `javascript:` here would put an XSS sink on every login page), `placement`, a
- * required `endsAt` in the future, and `sortWeight` (−100…100).
+ * required `endsAt` in the future, `sortWeight` (−100…100), and `publish`.
  */
 export const createSchoolAd = async (formData) => {
   try {
-    const { data } = await api.post('/admin/school-ads', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const { data } = await api.post('/admin/school-ads', formData);
     return data.data || {};
   } catch (error) {
-    throw toApiError(error, 'This creative could not be submitted.');
+    throw toApiError(error, 'This creative could not be posted.');
   }
 };
 
@@ -341,12 +389,13 @@ export const createSchoolAd = async (formData) => {
  * had gone live. Status changes go through `reviewSchoolAd` and nowhere else.
  *
  * `.min(1)` on the schema: an edit with no changed fields is a 422, not a no-op.
+ *
+ * No `Content-Type`, for the same reason and with the same evidence as
+ * `createSchoolAd` above.
  */
 export const updateSchoolAd = async (adId, formData) => {
   try {
-    const { data } = await api.put(`/admin/school-ads/${adId}`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const { data } = await api.put(`/admin/school-ads/${adId}`, formData);
     return data.data || {};
   } catch (error) {
     throw toApiError(error, 'This creative could not be updated.');
@@ -1478,9 +1527,27 @@ export const getSchoolsAnalytics = async ({ from = '', to = '' } = {}) => {
  * a permanently empty panel — with no error anywhere, because `[]` renders
  * perfectly.
  *
- * Normalising here means a component asks for `rows` once and cannot be wrong about
- * the key. Both spellings are accepted so the service can be tidied without a
- * frontend release.
+ * ## A row's identity is normalised here too, and it was the same trap
+ *
+ * Analytics rows name their school **`schoolId`**, not `_id` — `analytics.service.js`
+ * projects `{ schoolId: school._id, name, … }` deliberately, so a row is not a School
+ * document and does not claim to be one. A component reaching for `row._id` therefore
+ * gets `undefined`.
+ *
+ * That produced two bugs from one line. `AtRiskCard` keyed its list on `school._id`, so
+ * every row's key was `undefined` and React logged *"Each child in a list should have a
+ * unique key prop"*. The warning was correct and it was pointing at a real fault: the
+ * same `school._id` built each row's link, so **every "Needs attention" row pointed at
+ * `/admin/schools/undefined`** — a page that cannot exist, on the panel whose entire job
+ * is to let an operator open a school and chase it.
+ *
+ * `_id` is filled in from `schoolId` so a component has one spelling to reach for. The
+ * original is kept: a payload that does carry `_id` is left exactly as it arrived, and
+ * `schoolId` is not removed, so nothing downstream loses a field it was reading.
+ *
+ * Normalising here means a component asks for `rows` once and cannot be wrong about the
+ * key or the identity. Both spellings of the list are accepted so the service can be
+ * tidied without a frontend release.
  */
 const normaliseSchoolList = (payload) => {
   const list = Array.isArray(payload)
@@ -1490,7 +1557,13 @@ const normaliseSchoolList = (payload) => {
       : Array.isArray(payload?.rows)
         ? payload.rows
         : [];
-  return list;
+
+  return list.map((row) => {
+    if (!row || typeof row !== 'object') return row;
+    if (row._id) return row;
+    if (!row.schoolId) return row;
+    return { ...row, _id: row.schoolId };
+  });
 };
 
 /** `GET /admin/analytics/usage` — SMS, imports, payments, activity. */
@@ -1688,6 +1761,7 @@ export default {
   GATEWAY_MODES,
   FEATURE_FLAGS,
   AD_PLACEMENTS,
+  AD_PLACEMENT_DETAILS,
   AD_STATUSES,
   ASSIGNABLE_ROLES,
   USER_STATUSES,

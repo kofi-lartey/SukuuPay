@@ -42,6 +42,18 @@ export const listAdRequests = async ({ page = 1, perPage = 20, status = 'all' } 
  * Always `pending`, always server-side — a school has no route that reaches an approved
  * ad. `imageUrl` is only sent when there is no file, which is the console's paste-an-
  * already-hosted-asset path and is not offered on this form.
+ *
+ * **No `Content-Type` here, and that was the bug.** This call sends a `FormData` and
+ * inherited the `application/json` instance default, so axios's `transformRequest` did
+ * `JSON.stringify(formDataToJSON(data))`: the request left the browser as
+ * `{"image":{}}` and the server never saw a multipart body at all. A school attaching a
+ * creative got a 422 from a handler that had nothing to work with, and nothing in the
+ * failure named the transport.
+ *
+ * `services/api.js` now deletes the header for any `FormData` body, so this is correct
+ * whether or not anyone remembers. The filename is still stated explicitly, matching
+ * `parentPay.notifySchool`, so the part is unambiguously a file to multer's
+ * `.single("image")` rather than a nameless field.
  */
 export const createAdRequest = async ({ file, headline, writeup, imageAlt, linkUrl, placement, endsAt }) => {
   try {

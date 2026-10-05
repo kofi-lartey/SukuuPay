@@ -4428,6 +4428,103 @@ const adminListSchoolAds = ({ user, query }) => {
   };
 };
 
+/**
+ * `POST /admin/school-ads` — the console authoring its own creative.
+ *
+ * Registered because the route has existed on the server, `super_admin`-gated, since
+ * the ad feature was written, while the mock only ever carried the queue's two reads
+ * and its review. That gap is invisible until someone uses the console to author an
+ * ad, gets a mock 404, and concludes the feature does not exist.
+ *
+ * Reads via `FormData.get`: `mockAdapter`'s `parseBody` returns `config.data`
+ * untouched when it is not a string, so a `FormData` arrives as a `FormData`.
+ *
+ * The three rules modelled rather than assumed are the ones a mock that skipped them
+ * would let ship untested:
+ *
+ *   - **`publish` decides the status, and nothing else can.** `publish: true` resolves
+ *     to `approved`; absent or false resolves to `pending`. A mock that honoured a
+ *     posted `status` would make a form which can name a state look correct, and the
+ *     real schema has no such field — `stripUnknown` drops it.
+ *   - **`authoredByPlatform: true`.** Every ad through this route is
+ *     platform-authored, and it is what makes the review audit record
+ *     `selfApproved`.
+ *   - **`linkUrl` must be https.** The same `safeUrl` XSS rule as the school path.
+ */
+const adminCreateSchoolAd = ({ user, body }) => {
+  requireSuperAdmin(user);
+
+  const read = (key) => {
+    if (!body) return null;
+    if (typeof body.get === 'function') return body.get(key);
+    return body[key] ?? null;
+  };
+
+  const schoolName = String(read('schoolName') || '').trim();
+  const headline = String(read('headline') || '').trim();
+  const imageAlt = String(read('imageAlt') || '').trim();
+  const linkUrl = String(read('linkUrl') || '').trim();
+  const endsAt = read('endsAt');
+
+  const errors = {};
+  if (schoolName.length < 2) errors.schoolName = 'schoolName must be at least 2 characters';
+  if (headline.length < 4) errors.headline = 'headline must be at least 4 characters';
+  else if (headline.length > 60) errors.headline = 'headline is limited to 60 characters';
+  if (imageAlt.length < 5) errors.imageAlt = 'Describe the image';
+
+  if (!/^https:\/\/\S+$/i.test(linkUrl)) {
+    errors.linkUrl = 'linkUrl must be a valid https URL';
+  }
+  if (!endsAt) errors.endsAt = 'endsAt must be in the future';
+  else if (new Date(endsAt) <= new Date()) errors.endsAt = 'endsAt must be in the future';
+
+  const upload = read('image');
+  const imageUrl = upload && typeof upload !== 'string' ? 'https://res.cloudinary.com/demo/image/upload/sample.jpg' : String(read('imageUrl') || upload || '');
+  if (!imageUrl) errors.image = 'An ad image is required';
+
+  if (Object.keys(errors).length) {
+    throw new MockError(422, Object.values(errors).join(' '), 'VALIDATION_ERROR');
+  }
+
+  // A named school must exist, or the creative can never be attributed or unpublished
+  // when that school leaves the platform — the same 404 the controller raises.
+  const schoolId = read('schoolId') ? String(read('schoolId')) : null;
+  if (schoolId && !platformSchoolRows().some((school) => school._id === schoolId)) {
+    throw new MockError(404, 'School not found', 'SCHOOL_NOT_FOUND');
+  }
+
+  /*
+   * The verb, resolved. Strictly `'true'`, because the controller is strictly `true`
+   * too and a mock that accepted any truthy value would let a page sending `1` or
+   * `'yes'` pass here and 422 in production.
+   */
+  const goLive = read('publish') === true || read('publish') === 'true';
+
+  const created = {
+    _id: objectId(1000 + PLATFORM_ADS.length),
+    schoolId,
+    schoolName,
+    headline,
+    writeup: String(read('writeup') || '').trim() || null,
+    imageUrl,
+    imageAlt,
+    linkUrl,
+    placement: read('placement') || 'auth_aside',
+    status: goLive ? 'approved' : 'pending',
+    approvedBy: goLive ? user?._id || null : null,
+    approvedAt: goLive ? new Date().toISOString() : null,
+    sortWeight: Number(read('sortWeight')) || 0,
+    endsAt: new Date(endsAt).toISOString(),
+    authoredByPlatform: true,
+    copyEditedByReview: false,
+    rejectedReason: '',
+    createdAt: new Date().toISOString(),
+  };
+
+  PLATFORM_ADS.unshift(created);
+  return created;
+};
+
 const adminReviewSchoolAd = ({ user, params, body }) => {
   requireSuperAdmin(user);
   const ad = PLATFORM_ADS.find((entry) => entry._id === params.adId);
@@ -4747,7 +4844,27 @@ const deleteNotification = ({ params }) => {
  * than a bare `delivered` — the confirmation screen branches on it, so a mock that
  * always returned `true` would make that screen untestable.
  */
-const notifySchool = ({ body }) => {
+/**
+ * `POST /pay/:token/notify-school` — a parent writes to the school.
+ *
+ * **This handler used to write nothing.** It validated the body, replied
+ * `adminsNotified: 2`, and returned. The `ParentMessage` was never created, so a parent
+ * who typed a real question into the pay portal and then signed in as the school's
+ * bursar found the inbox exactly as they had left it. That is the most direct possible
+ * reading of "messages from parents are not received", and it was true of every mock
+ * session on the product.
+ *
+ * It now inserts the row, which is what makes the feature demonstrable end to end: the
+ * parent submits, the school admin opens `/dashboard/messages`, and the message is
+ * there — `status: 'new'`, `schoolId` stamped from the signed-in session the way
+ * `scopedParentMessages` does on read, so it appears for that school and counts in the
+ * "waiting for an answer" tally.
+ *
+ * The real path resolves the school from the pay token, which identifies the student;
+ * a mock has no tokens to resolve, so the session's school is the honest stand-in and
+ * is documented as such rather than left looking like a real lookup.
+ */
+const notifySchool = ({ body, user }) => {
   // Reads from either a plain object (the text-only JSON submission) or a `FormData`
   // (the multipart one carrying a recording). The mock adapter's `parseBody` returns
   // `config.data` untouched when it is not a string, so a `FormData` arrives here as a
@@ -4776,13 +4893,47 @@ const notifySchool = ({ body }) => {
     );
   }
 
-  return {
-    messageId: `PMSG-MOCK-${Date.now().toString(36).toUpperCase()}`,
+  const parentName = String(read('parentName') || '').trim() || 'A parent';
+  const parentPhone = String(read('parentPhone') || '').trim() || '024 000 0000';
+  const messageId = `PMSG-MOCK-${Date.now().toString(36).toUpperCase()}`;
+  const audioUrl = hasAudio ? 'https://res.cloudinary.com/demo/video/upload/sample.webm' : null;
+
+  PARENT_MESSAGES.unshift({
+    _id: `pmsg${Date.now().toString(36)}`,
+    schoolId: user?.schoolId || null,
+    messageId,
+    studentId: null,
+    studentRef: 'STU-MOCK',
+    studentName: 'A student on your roster',
+    studentClass: 'JHS 2A',
+    parentName,
+    parentPhone,
+    message: text || null,
+    audio: hasAudio ? { url: audioUrl, mimeType: 'audio/webm', durationSeconds: 12, bytes: 48000 } : null,
     hasAudio,
-    audioUrl: hasAudio ? 'https://res.cloudinary.com/demo/video/upload/sample.webm' : null,
+    // `readAt`, matching the model. The inbox reads this field and nothing else, so a
+    // fixture that invented a `read` key here would render every message permanently
+    // unread — which is the bug this collection already had once.
+    status: 'new',
+    readAt: null,
+    readBy: null,
+    resolvedAt: null,
+    resolutionNote: null,
+    smsAlerted: true,
+    smsAlertFailure: null,
+    createdAt: new Date().toISOString(),
+  });
+
+  return {
+    messageId,
+    hasAudio,
+    audioUrl,
     delivered: true,
     notificationLogged: true,
-    adminsNotified: 2,
+    // `findSchoolRecipients` targets `school_admin` and `accountant`, and reports the
+    // rows it actually wrote. A hardcoded 2 was a demo that claimed a delivery the
+    // mock never modelled.
+    adminsNotified: hasAudio || text ? 1 : 0,
     schoolPhone: '030 200 1000',
   };
 };
@@ -5742,6 +5893,7 @@ export const ROUTES = [
   ['PUT', /^\/admin\/school-ads\/(?<adId>[^/]+)\/approve$/, adminReviewSchoolAd],
   ['GET', /^\/admin\/schools$/, adminListSchools],
   ['GET', /^\/admin\/school-ads$/, adminListSchoolAds],
+  ['POST', /^\/admin\/school-ads$/, adminCreateSchoolAd],
   ['GET', /^\/admin\/revenue\/series$/, adminRevenueSeries],
   ['GET', /^\/admin\/revenue$/, adminRevenue],
   ['GET', /^\/admin\/settings$/, adminGetSettings],

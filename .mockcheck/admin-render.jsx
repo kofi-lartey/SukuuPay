@@ -35,11 +35,12 @@ import AdminOverview from '../src/pages/admin/AdminOverview.jsx';
 import AdminSchools from '../src/pages/admin/AdminSchools.jsx';
 import AdminUsers from '../src/pages/admin/AdminUsers.jsx';
 import AdminContent from '../src/pages/admin/AdminContent.jsx';
+import AdminAdCreate from '../src/pages/admin/AdminAdCreate.jsx';
 import AdminSettings from '../src/pages/admin/AdminSettings.jsx';
 import KpiRow from '../src/pages/admin/overview/KpiRow.jsx';
 import NotFound from '../src/pages/NotFound.jsx';
 import Forbidden from '../src/pages/Forbidden.jsx';
-import { ADMIN_NAV, isNavItemActive, roleLabel, visibleAdminNav } from '../src/utils/constants.js';
+import { ADMIN_NAV, isNavItemActive, roleLabel, visibleAdminNav, ROUTES } from '../src/utils/constants.js';
 import { EMPTY_ADMIN_KPIS } from '../src/data/adminEmpty.js';
 
 let pass = 0;
@@ -75,6 +76,7 @@ const at = (path) => (
             <Route path="schools" element={<AdminSchools />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="content" element={<AdminContent />} />
+            <Route path="content/new" element={<AdminAdCreate />} />
             <Route path="settings" element={<AdminSettings />} />
             <Route path="*" element={<NotFound variant="admin" />} />
           </Route>
@@ -147,6 +149,11 @@ await check('every console module renders inside the shell', () => {
     ['/admin/users', 'Users'],
     ['/admin/content', 'Content'],
     ['/admin/settings', 'Settings'],
+    // Authoring is not a rail module — it is reached from Content's own action — so
+    // it is listed here rather than in the nav assertions below. Rendering it is the
+    // point: a wrong import path or a `Field` used as a `SelectField` in the ad form
+    // is otherwise only visible in a browser console.
+    ['/admin/content/new', 'New creative'],
   ];
 
   pages.forEach(([path, needle]) => {
@@ -154,7 +161,83 @@ await check('every console module renders inside the shell', () => {
     if (!has(html, needle)) throw new Error(`${path} did not render "${needle}"`);
   });
 
-  return '5 module pages rendered';
+  return `${pages.length} module pages rendered`;
+});
+
+await check('the ad form posts directly, and previews before it does', async () => {
+  const html = at_('/admin/content/new');
+
+  // The platform writes its own ads, so there is nothing to wait for: the action asks
+  // for a preview and the confirmation posts it live. A control promising to *submit for
+  // approval* would describe a moderation step that does not exist on this path.
+  if (!has(html, 'Preview and post')) throw new Error('the primary action does not lead to a preview');
+  if (has(html, 'Submit for approval')) {
+    throw new Error('the form offers to submit for approval, which the console path does not do');
+  }
+
+  // `createSchoolAdSchema` requires `schoolName` whether or not a school is picked — it
+  // is the name the public carousel prints above the headline — so the field has to be
+  // here, required, and not treated as a consequence of the picker.
+  if (!has(html, 'Advertiser name')) throw new Error('the required advertiser name is missing');
+
+  // The https rule on `linkUrl` is the XSS control: the link renders as an anchor on
+  // every unauthenticated page.
+  if (!has(html, 'Must start with https://')) throw new Error('the https-only rule on the link is not stated');
+
+  // The preview renders the real component rather than a hand-built card. Asserted on
+  // the module because the dialog is closed on first paint and renders nothing here:
+  // what matters is that the page imports `CarouselView` rather than growing its own
+  // approximation of the login-page creative, which is how a preview silently stops
+  // matching production.
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync('src/pages/admin/AdminAdCreate.jsx', 'utf8');
+  assert(
+    source.includes("import { CarouselView } from '../../components/auth/SchoolAdCarousel'"),
+    'the preview must render the component the login page renders'
+  );
+  assert(source.includes('<CarouselView'), 'the preview dialog does not render CarouselView');
+  assert(
+    source.includes("payload.append('publish', 'true')"),
+    'the payload must ask the server to post the ad live'
+  );
+  assert(
+    !source.includes("payload.append('status'"),
+    'the client must never send a status — the schema has no such field'
+  );
+
+  return 'preview first, publish: true on the wire, status never sent';
+});
+
+await check('the ad form is reachable from the content queue', async () => {
+  const html = at_('/admin/content');
+
+  if (!has(html, 'New creative')) throw new Error('the queue offers no way into the authoring form');
+
+  // The action navigates rather than linking, so there is no href to read off the
+  // rendered button — the path is asserted from the router and the constant instead,
+  // which is what would silently drift apart.
+  const { readFileSync } = await import('node:fs');
+  const app = readFileSync('src/App.jsx', 'utf8');
+  assert(
+    app.includes('<Route path="content/new" element={<AdminAdCreate />} />'),
+    'the authoring form has no route'
+  );
+  assert(
+    ROUTES.ADMIN_CONTENT_NEW === '/admin/content/new',
+    'the route constant and the registered path disagree'
+  );
+
+  // `isNavItemActive` is prefix-aware, so the page still belongs to the Content
+  // module: the rail has to keep naming it, or the shell header contradicts the
+  // page the operator is on.
+  const active = visibleAdminNav('super_admin')
+    .flatMap((group) => group.items)
+    .find((item) => isNavItemActive(ROUTES.ADMIN_CONTENT_NEW, item));
+  if (!active || active.label !== 'Content') {
+    throw new Error(`${ROUTES.ADMIN_CONTENT_NEW} does not resolve to the Content module`);
+  }
+
+  return 'linked from the queue, still lit as Content';
 });
 
 await check('exactly one rail entry is marked current, and it is the module being viewed', () => {

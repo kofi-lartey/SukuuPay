@@ -121,14 +121,19 @@ export const getBilling = async (schoolId) => {
   }
 };
 
-/** `PUT /schools/:schoolId/logo` — multipart, outside `updateSchool`'s JSON. */
+/**
+ * `PUT /schools/:schoolId/logo` — multipart, outside `updateSchool`'s JSON.
+ *
+ * `logo` is the multer field name on the route, and the filename is stated rather than
+ * derived from the blob. No `Content-Type` is set: `services/api.js` deletes it for any
+ * `FormData` body, which is what makes the boundary correct. See `services/upload.js`
+ * for the full reasoning.
+ */
 export const uploadSchoolLogo = async (schoolId, file) => {
   try {
     const body = new FormData();
-    body.append('logo', file);
-    const { data } = await api.put(`/schools/${schoolId}/logo`, body, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    body.append('logo', file, file.name);
+    const { data } = await api.put(`/schools/${schoolId}/logo`, body);
     return data.data || data.school || {};
   } catch (error) {
     throw toApiError(error, 'Could not upload that logo.');
@@ -146,10 +151,8 @@ export const uploadSchoolLogo = async (schoolId, file) => {
 export const uploadSchoolStamp = async (schoolId, file) => {
   try {
     const body = new FormData();
-    body.append('stamp', file);
-    const { data } = await api.put(`/schools/${schoolId}/stamp`, body, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    body.append('stamp', file, file.name);
+    const { data } = await api.put(`/schools/${schoolId}/stamp`, body);
     return data.data || data.school || {};
   } catch (error) {
     throw toApiError(error, 'Could not upload that seal.');

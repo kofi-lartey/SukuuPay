@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Check, Megaphone, X } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Check, Megaphone, Plus, X } from 'lucide-react';
 import PageHeader from '../../components/dashboard/PageHeader';
 import EmptyState from '../../components/dashboard/EmptyState';
 import Pagination from '../../components/students/Pagination';
@@ -9,8 +9,16 @@ import Card from '../../components/dashboard/ui/Card';
 import Modal from '../../components/common/Modal';
 import { Field, SelectField, FormAlert } from '../../components/common/FormField';
 import { useToast } from '../../hooks/useToast';
-import { AD_PLACEMENTS, AD_STATUSES, listSchoolAds, reviewSchoolAd } from '../../services/admin';
+import { useImpersonation } from '../../hooks/useImpersonation';
+import {
+  AD_PLACEMENTS,
+  AD_PLACEMENT_DETAILS,
+  AD_STATUSES,
+  listSchoolAds,
+  reviewSchoolAd,
+} from '../../services/admin';
 import { formatCount } from '../../utils/format';
+import { ROUTES } from '../../utils/constants';
 
 const STATUS_TONES = {
   draft: 'slate',
@@ -20,14 +28,10 @@ const STATUS_TONES = {
   expired: 'slate',
 };
 
-const PLACEMENT_LABELS = {
-  auth_aside: 'Login & signup aside',
-  home_hero: 'Homepage hero',
-  dashboard_sidebar: 'School dashboard sidebar',
-};
+const placementLabel = (placement) => AD_PLACEMENT_DETAILS[placement]?.label || placement;
 
 /**
- * The creative moderation queue.
+ * The creative moderation queue, and the authoring form's way in.
  *
  * Backed end to end by `/api/admin/school-ads`. These five routes are the **only**
  * content surface in the product and the only ones that are **undocumented** —
@@ -35,7 +39,7 @@ const PLACEMENT_LABELS = {
  * `/admin/schools/:id/unsuspend` — so `services/admin.js` is currently the only
  * written record of their contract. Worth writing down before this grows.
  *
- * Two rules from the API shape the whole page:
+ * Four rules from the API shape the whole page:
  *
  *   - **Approve is the only status transition available**, and it is a body field
  *     on `PUT /admin/school-ads/:id/approve`, not a route per decision. So Approve
@@ -46,14 +50,21 @@ const PLACEMENT_LABELS = {
  *   - **Rejecting requires a reason** (`approveSchoolAdSchema` 422s without one),
  *     because that reason is what gets told to the school that submitted it. So
  *     the field is required in the dialog rather than optional and regrettable.
- *
- * There is no placement filter by default and that is not an oversight: the schema
- * defaults `placement` to `auth_aside`, and a moderation queue that only ever showed
- * one placement would be a queue with the other two invisible.
+ *   - **Creating is also two steps, but the steps are the operator's own.** A creative
+ *     a super admin authors is posted straight (`publish: true` on
+ *     `POST /admin/school-ads`), so it lands here already `approved`; one a school
+ *     submits arrives `pending` and waits below. `AdminAdCreate` previews the ad before
+ *     it posts rather than filing it for approval, because there is no second pair of
+ *     eyes to file it for.
+ *   - **There is no placement filter by default and that is not an oversight**: the
+ *     schema defaults `placement` to `auth_aside`, and a moderation queue that only
+ *     ever showed one placement would be a queue with the other two invisible.
  */
 const AdminContent = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const toast = useToast();
+  const { isImpersonating } = useImpersonation();
   const [reloadKey, setReloadKey] = useState(0);
   const [review, setReview] = useState(null);
   const [decision, setDecision] = useState('approved');
@@ -199,7 +210,29 @@ const AdminContent = () => {
       <PageHeader
         eyebrow="Platform console"
         title="Content"
-        description="The school creatives shown on the public pages. A creative is filed pending and goes live only when you approve it."
+        description="The creatives shown on the public pages. One you author here goes live as soon as you post it; one a school submits waits in this queue for your decision."
+        actions={
+          /*
+            Authoring lives on its own page rather than in this header, for the same
+            reason `announcements/new` does: this file is a queue of decisions, and a
+            form inlined above it would push every row the operator came to judge
+            below the fold.
+
+            Disabled while impersonating, like `AnnouncementsList`. The server refuses
+            every write during an impersonation (`IMPERSONATION_WRITE_ALLOWLIST` is
+            just `/impersonate/end`), so the honest treatment is a control that says
+            so rather than one that fails on submit.
+          */
+          <button
+            type="button"
+            onClick={() => navigate(ROUTES.ADMIN_CONTENT_NEW)}
+            disabled={isImpersonating}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            New creative
+          </button>
+        }
       />
 
       <Card padding="p-4">
@@ -231,7 +264,7 @@ const AdminContent = () => {
             <option value="">All placements</option>
             {AD_PLACEMENTS.map((placement) => (
               <option key={placement} value={placement}>
-                {PLACEMENT_LABELS[placement] || placement}
+                {placementLabel(placement)}
               </option>
             ))}
           </SelectField>
@@ -263,11 +296,24 @@ const AdminContent = () => {
         ) : state.rows.length === 0 ? (
           <EmptyState
             icon={Megaphone}
-            title={hasFilters ? 'Nothing in the queue for these filters' : 'No creatives submitted yet'}
+            title={hasFilters ? 'Nothing in the queue for these filters' : 'No creatives yet'}
             description={
               hasFilters
                 ? 'Try a different status or placement.'
-                : 'Schools can submit a creative for the public pages; each one arrives here for review.'
+                : 'Schools can submit a creative for the public pages; each one arrives here for review. You can also author one yourself.'
+            }
+            action={
+              hasFilters ? null : (
+                <button
+                  type="button"
+                  onClick={() => navigate(ROUTES.ADMIN_CONTENT_NEW)}
+                  disabled={isImpersonating}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40"
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  New creative
+                </button>
+              )
             }
           />
         ) : (
@@ -307,12 +353,37 @@ const AdminContent = () => {
                             <p className="text-[11px] font-semibold text-slate-500">{ad.schoolName}</p>
                           </div>
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <Badge tone="slate">{PLACEMENT_LABELS[ad.placement] || ad.placement}</Badge>
+                            <Badge tone="slate">{placementLabel(ad.placement)}</Badge>
                             <Badge tone={STATUS_TONES[ad.status] || 'slate'} dot>
                               {ad.status}
                             </Badge>
+                            {/*
+                              `visibility` is the server's answer to "why is this not on
+                              the login page?", computed from the same rule that serves
+                              the public slider. It is shown for every approved creative
+                              rather than only for hidden ones, because an operator
+                              comparing the queue against the live page should be able
+                              to see that the queue agrees with the page — and a
+                              creative reading "Approved" with a silent empty login
+                              panel is exactly the state that is impossible to
+                              diagnose from the queue alone.
+                            */}
+                            {ad.status === 'approved' &&
+                              (ad.visibility?.live ? (
+                                <Badge tone="green">Showing</Badge>
+                              ) : (
+                                <Badge tone="amber" title={ad.visibility?.reason || undefined}>
+                                  Not showing
+                                </Badge>
+                              ))}
                           </div>
                         </div>
+
+                        {ad.status === 'approved' && ad.visibility?.reason && (
+                          <p className="mt-1.5 text-[11px] font-semibold leading-relaxed text-amber-700">
+                            {ad.visibility.reason}
+                          </p>
+                        )}
 
                         <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
                           <div className="flex gap-2 text-[11px]">

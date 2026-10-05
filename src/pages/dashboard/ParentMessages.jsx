@@ -136,11 +136,20 @@ const ParentMessages = () => {
    */
   const onRead = useCallback(
     (row) => {
-      if (row.read) return;
+      // `readAt`, not `read`. `ParentMessage` has no `read` boolean — `Notification` has
+      // one, and the two collections sit side by side on this screen, which is exactly
+      // how the wrong field name survives. Reading `row.read` off a model that has no
+      // such key is `undefined` forever, so every message rendered permanently unread
+      // with a "Mark as read" button that never went away: the inbox could not show
+      // that anything had been dealt with, and looked broken rather than unattended.
+      if (row.readAt) return;
+      const stamp = new Date().toISOString();
       setState((current) => ({
         ...current,
         rows: current.rows.map((item) =>
-          String(item._id) === String(row._id) ? { ...item, read: true, status: 'read' } : item
+          String(item._id) === String(row._id)
+            ? { ...item, readAt: item.readAt || stamp, status: item.status === 'new' ? 'read' : item.status }
+            : item
         ),
       }));
       markParentMessageRead(row._id).catch(() => {});
@@ -168,16 +177,36 @@ const ParentMessages = () => {
       try {
         await resolveParentMessage(resolving._id, note.trim());
         toast.success('Marked as resolved.');
+
+        /*
+         * Step back a page when this was the last row on it.
+         *
+         * Under the default filter (`all`) resolving does not remove the row, but under
+         * `?status=new` — which is what a bursar triages from — it does. Resolve the
+         * only unanswered message on page 4 and the re-query keeps `?page=4`, which now
+         * starts past the end of the result set: the inbox renders "Nothing in this
+         * filter" with messages still sitting on page 3. Which is the one response that
+         * makes a working inbox look like it lost the school's history.
+         *
+         * `state.rows.length` rather than `meta.total`, because the page is stale the
+         * moment the write succeeds and this is the one case where a wrong guess is
+         * visible: over-eagerly stepping back just shows an earlier page, while
+         * under-stepping shows an empty one.
+         */
+        const wasLastRowOnPage = state.rows.length <= 1 && Number(filters.page) > 1;
+
         setResolving(null);
         setNote('');
-        refresh();
+
+        if (wasLastRowOnPage) setFilter('page', String(Number(filters.page) - 1));
+        else refresh();
       } catch (error) {
         setNoteError(error.message);
       } finally {
         setBusy(false);
       }
     },
-    [note, refresh, resolving, toast]
+    [note, filters.page, refresh, resolving, setFilter, state.rows.length, toast]
   );
 
   const counts = state.counts || {};
@@ -306,7 +335,7 @@ const ParentMessages = () => {
             <li key={row._id}>
               <Card
                 padding="p-4"
-                className={row.read ? '' : 'border-amber-200 bg-amber-50/40'}
+                className={row.readAt ? '' : 'border-amber-200 bg-amber-50/40'}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -401,7 +430,7 @@ const ParentMessages = () => {
 
                 {/* Marked on open, so the affordance is only needed when triage has
                     skipped past something. */}
-                {!row.read ? (
+                {!row.readAt ? (
                   <div className="mt-3">
                     <button
                       type="button"
@@ -420,9 +449,20 @@ const ParentMessages = () => {
 
       {state.meta && state.meta.totalPages > 1 ? (
         <div className="mt-5">
+          {/*
+            `onPerPageChange` is required, not optional. `Pagination` renders a rows-per-page
+            `<select>` and calls it unconditionally (`Pagination.jsx:49`), so omitting it
+            made changing the page size throw a `TypeError` on every page but the first —
+            a control that is visible, enabled and destroys the page when used.
+
+            Changing the size always returns to page 1: page 5 of 20 is meaningless at
+            100 rows, and `setFilter` already drops `page` for any non-page key.
+          */}
           <Pagination
             meta={state.meta}
+            itemLabel="messages"
             onPageChange={(page) => setFilter('page', page === 1 ? '' : String(page))}
+            onPerPageChange={(perPage) => setFilter('perPage', String(perPage))}
           />
         </div>
       ) : null}

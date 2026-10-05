@@ -2,7 +2,7 @@ import { jsx, jsxs, Fragment } from "react/jsx-runtime";
 import { renderToString } from "react-dom/server";
 import { useLocation, Link, useNavigate, Outlet, useSearchParams, MemoryRouter, Routes, Route } from "react-router-dom";
 import React, { createContext, useState, useEffect, useCallback, useContext, useRef, useMemo, useId } from "react";
-import { a as api, t as toApiError, r as runReport, d as downloadReport, R as REPORTS, b as REPORT_CATEGORIES } from "./assets/reports-BcS3xgcI.js";
+import { a as api, t as toApiError, r as runReport, d as downloadReport, R as REPORTS, b as REPORT_CATEGORIES } from "./assets/reports-DcmjoRap.js";
 import { Info, TriangleAlert, CircleAlert, CircleCheck, X, UserCog, Settings as Settings$1, ScrollText, ChartColumn, Megaphone, Coins, Inbox, MessageSquare, CalendarClock, CreditCard, Users, LayoutDashboard, Building2, ChevronUp, Bell, CheckCheck, Loader2, Trash2, Menu, GraduationCap, ChevronDown, Search, Plus, User, LogOut, AlertTriangle, RotateCcw, TrendingUp, ChevronRight, Send, Download, Receipt, HandCoins, SlidersHorizontal, Hourglass, ChevronLeft, ArrowUp, ArrowDown, PencilLine, Ban, Link as Link$1, Archive, CirclePlay, Wallet, History, Star, ShieldCheck, Camera, UploadCloud, ImageOff, FileSpreadsheet, Check, Sparkles, ArrowUpRight, ArrowRight, ArrowLeft, QrCode, Printer, BadgeCheck, Eye, FileText, UserPlus, Smartphone, Clock, ArrowDownRight, RefreshCw, Landmark, Banknote, ExternalLink, CheckCircle2, AlertCircle, List, LayoutGrid, BellRing, CalendarX2, CalendarDays, CircleDollarSign, Circle, Flag, Signal, Wifi, BatteryMedium, MoreVertical, Save, BarChart3, Filter, UserRound, AtSign, KeyRound, Lock, School } from "lucide-react";
 import { createPortal } from "react-dom";
 import "axios";
@@ -431,6 +431,12 @@ const ROUTES = {
   ADMIN_SCHOOLS: "/admin/schools",
   ADMIN_USERS: "/admin/users",
   ADMIN_CONTENT: "/admin/content",
+  // A **sibling page of Content, not a nav entry.** It is reached from that page's
+  // "New creative" action rather than from the rail, for the reason
+  // `announcements/new` works the same way: the rail answers "which module am I
+  // in?" and authoring is not a module. `isNavItemActive` is prefix-aware, so
+  // `/admin/content/new` still lights Content as the current module.
+  ADMIN_CONTENT_NEW: "/admin/content/new",
   ADMIN_SETTINGS: "/admin/settings",
   ADMIN_PAYMENTS: "/admin/payments",
   ADMIN_FINANCE: "/admin/finance",
@@ -601,11 +607,24 @@ const DASHBOARD_NAV = [
         // `school_admin` and `accountant`, matching
         // `requireAdvertiser` in `schoolAd.routes.js`.
         //
+        // **`super_admin` was here and is deliberately gone.** It contradicted the
+        // comment above it: this page is the school asking the *platform* for
+        // something, and every route behind it refuses a platform admin —
+        // `requireAdvertiser` excludes the role, `listSchoolAdRequests` throws
+        // `SCHOOL_ACCESS_DENIED` without a `schoolId` to resolve, and a `super_admin`
+        // has `schoolId: null` by design. So the entry could only ever have led to a
+        // 403, from a shell `RoleLanding` redirects away from anyway.
+        //
+        // Where a platform admin authors instead: `ROUTES.ADMIN_CONTENT_NEW`, behind
+        // `AdminGuard` and `POST /admin/school-ads`. That is the console's own
+        // endpoint — it takes an optional `schoolId` and sets `authoredByPlatform` —
+        // so an ad the platform writes needs no pretending to be a school's request.
+        //
         // Deliberately **not** in the Outreach group. That group is read-and-act on the
         // school's own parents, and an ad request is the school asking the *platform*
         // for something — a different direction of travel, and it does not belong in
         // the same rail section as SMS reminders.
-        roles: ["super_admin", "school_admin", "accountant"],
+        roles: ["school_admin", "accountant"],
         description: "Ask to be advertised, and track the decision."
       }
     ]
@@ -1707,7 +1726,7 @@ const createStudent = async (payload) => {
 };
 const bulkImport = async (file, meta = {}) => {
   const form = new FormData();
-  form.append("file", file);
+  form.append("file", file, file.name);
   if (meta.schoolId) form.append("schoolId", meta.schoolId);
   if (meta.academicYear) form.append("academicYear", meta.academicYear);
   if (meta.defaultDeadline) form.append("defaultDeadline", meta.defaultDeadline);
@@ -1717,8 +1736,7 @@ const bulkImport = async (file, meta = {}) => {
   if (meta.dryRun) form.append("dryRun", "true");
   try {
     const { data } = await api.post("/students/bulk", form, {
-      timeout: 12e4,
-      headers: { "Content-Type": "multipart/form-data" }
+      timeout: 12e4
     });
     return data?.data || null;
   } catch (error) {
@@ -5488,7 +5506,7 @@ const normalise = (raw) => {
 const isValidGhanaPhone = (raw) => GHANA_PHONE_REGEX.test(normalise(raw));
 const asMultipart = (file, field = "file", extra = {}) => {
   const form = new FormData();
-  form.append(field, file);
+  form.append(field, file, file.name);
   Object.entries(extra).forEach(([key, value]) => {
     if (value !== void 0 && value !== null) form.append(key, String(value));
   });
@@ -5499,7 +5517,7 @@ const uploadStudentPhoto = async (file, studentId) => {
     const { data } = await api.post(
       "/upload/student-photo",
       asMultipart(file, "file", { studentId }),
-      { headers: { "Content-Type": "multipart/form-data" }, timeout: 6e4 }
+      { timeout: 6e4 }
     );
     return data?.data?.url || data?.url || null;
   } catch (error) {
@@ -18026,7 +18044,7 @@ await check("every Settings section declares whether it is writable", async () =
   return "7 sections, 3 read-only and each with a stated reason";
 });
 await check("the Reports catalogue never offers PDF", async () => {
-  const { REPORTS: REPORTS2 } = await import("./assets/reports-BcS3xgcI.js").then((n) => n.c);
+  const { REPORTS: REPORTS2 } = await import("./assets/reports-DcmjoRap.js").then((n) => n.c);
   if (REPORTS2.length !== 9) throw new Error(`expected 9 reports, the catalogue has ${REPORTS2.length}`);
   const withPdf = REPORTS2.filter((r) => (r.formats || []).includes("pdf"));
   if (withPdf.length) {

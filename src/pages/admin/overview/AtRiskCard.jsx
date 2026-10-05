@@ -69,6 +69,14 @@ const AtRiskCard = ({ state }) => {
           />
         ) : (
           <ul className="space-y-2">
+            {/*
+              Keyed on `_id`, which `normaliseSchoolList` fills in from the row's
+              `schoolId`. The analytics service projects `schoolId` rather than `_id`,
+              because a row is not a School document — so this used to key every row on
+              `undefined`, which React reported as a missing-key warning, and built every
+              row's link with the same `undefined`: `/admin/schools/undefined` on the
+              panel whose whole purpose is to let an operator open a school and chase it.
+            */}
             {rows.slice(0, 6).map((school) => (
               <li key={school._id}>
                 <Link

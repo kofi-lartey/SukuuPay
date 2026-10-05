@@ -203,7 +203,11 @@ export const createStudent = async (payload) => {
  */
 export const bulkImport = async (file, meta = {}) => {
   const form = new FormData();
-  form.append('file', file);
+  // Filename stated rather than derived from the blob: `/students/bulk` is
+  // `csvUpload` (`.single("file")`), and a part with no filename is a field to multer
+  // rather than a file. No `Content-Type` — `services/api.js` deletes it for any
+  // `FormData` body so axios can write multipart with a real boundary.
+  form.append('file', file, file.name);
   if (meta.schoolId) form.append('schoolId', meta.schoolId);
   if (meta.academicYear) form.append('academicYear', meta.academicYear);
   if (meta.defaultDeadline) form.append('defaultDeadline', meta.defaultDeadline);
@@ -215,7 +219,6 @@ export const bulkImport = async (file, meta = {}) => {
   try {
     const { data } = await api.post('/students/bulk', form, {
       timeout: 120000,
-      headers: { 'Content-Type': 'multipart/form-data' },
     });
     return data?.data || null;
   } catch (error) {

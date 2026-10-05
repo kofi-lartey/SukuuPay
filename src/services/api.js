@@ -32,6 +32,46 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    /*
+     * A `FormData` body owns its own `Content-Type`, and this is the one place that
+     * makes that true for the whole product rather than per call site.
+     *
+     * Two mistakes meet at this line, and the instance default above is what creates
+     * the second one.
+     *
+     * **A multipart content type is only valid with a boundary parameter**, and the
+     * boundary is generated while the body is encoded — nobody can hand-write a correct
+     * one. Setting `'Content-Type': 'multipart/form-data'` literally sends a header with
+     * no boundary, and busboy rejects the whole body with `Multipart: Boundary not
+     * found`: every field is dropped and `req.file` is never set. It survives only
+     * because axios deletes the header for a `FormData` body in a browser
+     * (`axios.cjs:5159`), so the code is correct by accident of an internal detail
+     * rather than by construction. `upload.js`, `settings.js` and `students.js` all did
+     * this.
+     *
+     * **The `application/json` instance default destroys any FormData that is left
+     * alone.** `transformRequest` decides what to do with a FormData by reading this
+     * header (`axios.cjs:2390`), and with `application/json` still in place it does
+     * `JSON.stringify(formDataToJSON(data))` — the request goes out as JSON, every
+     * `File` collapses to `{}`, and the server never sees a multipart body at all.
+     * `createAdRequest` was the casualty: school ad requests with an uploaded creative
+     * sent `{"image":{}}`, so the image was discarded before it left the browser.
+     *
+     * Deleting the header resolves both, because an absent content type is what axios
+     * wants to see in each case: `transformRequest` passes the FormData through
+     * untouched, and the browser writes `multipart/form-data` with a correct boundary.
+     * `services/parentPay.js` documented this rule for its own call site years before
+     * anything enforced it; this line is the enforcement, and it is why a future
+     * multipart call cannot reintroduce either bug by forgetting.
+     *
+     * Checked before the request is built, so `transformRequest` — which runs after the
+     * interceptors — sees the deleted header rather than the original.
+     */
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+      config.headers.delete('Content-Type');
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
