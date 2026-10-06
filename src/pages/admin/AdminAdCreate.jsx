@@ -87,7 +87,7 @@ const EMPTY_FORM = {
   imageAlt: '',
   imageUrl: '',
   linkUrl: '',
-  placement: 'auth_aside',
+  placement: 'advertisement_page',
   endsAt: '',
   sortWeight: '0',
 };

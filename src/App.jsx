@@ -14,6 +14,7 @@ import HowItWorks from './pages/HowItWorks';
 import Pricing from './pages/Pricing';
 import ForSchools from './pages/ForSchools';
 import Contact from './pages/Contact';
+import AdvertisementsHub from './pages/AdvertisementsHub';
 import Login from './pages/auth/Login';
 import Signup from './pages/auth/Signup';
 import VerifyEmail from './pages/auth/VerifyEmail';
@@ -106,6 +107,7 @@ function App() {
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/for-schools" element={<ForSchools />} />
               <Route path="/contact" element={<Contact />} />
+              <Route path="/advertisements" element={<AdvertisementsHub />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
 

@@ -41,7 +41,7 @@ export const SUBSCRIPTION_PLANS = ['trial', 'basic', 'standard', 'premium', 'ent
 export const SCHOOL_STATUSES = ['active', 'suspended', 'archived'];
 
 /** `SchoolAd.AD_PLACEMENTS` — where a creative can appear on the public site. */
-export const AD_PLACEMENTS = ['auth_aside', 'home_hero', 'dashboard_sidebar'];
+export const AD_PLACEMENTS = ['advertisement_page', 'home_hero'];
 
 /** `SchoolAd.AD_STATUSES`. */
 export const AD_STATUSES = ['draft', 'pending', 'approved', 'rejected', 'expired'];
@@ -59,17 +59,13 @@ export const AD_STATUSES = ['draft', 'pending', 'approved', 'rejected', 'expired
  * will actually be seen. Placement is otherwise an opaque enum on both sides.
  */
 export const AD_PLACEMENT_DETAILS = {
-  auth_aside: {
-    label: 'Login & signup aside',
-    help: 'The panel beside the login and signup forms. The most-seen slot on the site.',
+  advertisement_page: {
+    label: 'Advertisement page',
+    help: 'The public School Advertisements page. The most-seen slot on the site.',
   },
   home_hero: {
     label: 'Homepage hero',
     help: 'A wide banner on the public home page, above the fold.',
-  },
-  dashboard_sidebar: {
-    label: 'School dashboard sidebar',
-    help: 'A panel inside a school dashboard, seen only by that school’s own staff.',
   },
 };
 

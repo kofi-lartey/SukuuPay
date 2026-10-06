@@ -4,6 +4,7 @@ export const ROUTES = {
   PRICING: '/pricing',
   HOW_IT_WORKS: '/how-it-works',
   FOR_SCHOOLS: '/for-schools',
+  ADVERTISEMENTS: '/advertisements',
   CONTACT: '/contact',
   LOGIN: '/login',
   SIGNUP: '/signup',
@@ -221,6 +222,7 @@ export const NAV_LINKS = [
   { label: 'Pricing', to: ROUTES.PRICING },
   { label: 'How It Works', to: ROUTES.HOW_IT_WORKS },
   { label: 'For Schools', to: ROUTES.FOR_SCHOOLS, accent: true },
+  { label: 'Advertisements', to: ROUTES.ADVERTISEMENTS },
   { label: 'Contact', to: ROUTES.CONTACT },
 ];
 

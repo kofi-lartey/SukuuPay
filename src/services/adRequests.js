@@ -103,19 +103,14 @@ export const withdrawAdRequest = async (adId) => {
 /** The placements a school can ask for. Mirrors `AD_PLACEMENTS` on the server. */
 export const AD_PLACEMENTS = [
   {
-    value: 'auth_aside',
-    label: 'Sign-in pages',
-    help: 'The green panel beside the login and signup forms. The most seen placement.',
+    value: 'advertisement_page',
+    label: 'Advertisement page',
+    help: 'The public School Advertisements page. The most seen placement.',
   },
   {
     value: 'home_hero',
     label: 'Home page banner',
     help: 'A wide banner on the public home page.',
-  },
-  {
-    value: 'dashboard_sidebar',
-    label: 'School dashboard',
-    help: 'A small panel inside the school dashboard. Shown only to your own staff.',
   },
 ];
 

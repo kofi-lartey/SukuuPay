@@ -3,9 +3,10 @@ import api from './api';
 /**
  * Fetches the approved, currently-live ad creatives for a placement.
  *
- * Called from the unauthenticated auth pages, so this deliberately treats every
- * failure as "no ads": the endpoint is a marketing nicety, and an empty slider
- * must never stand between a bursar and the login form. Never throws.
+ * Called from the public marketing surfaces — the hero slider and the
+ * advertisements page — so this deliberately treats every failure as
+ * "no ads": the endpoint is a marketing nicety, and an empty slider
+ * must never stand between a visitor and the page content. Never throws.
  *
  * ## The failure is logged, though
  *
@@ -19,10 +20,10 @@ import api from './api';
  * state on the login path, not an exception, and it must not look like one in a
  * production browser's error reporting.
  */
-export const fetchSchoolAds = async (placement = 'auth_aside') => {
+export const fetchSchoolAds = async (placement = 'advertisement_page', { perPage } = {}) => {
   try {
     const { data } = await api.get('/public/school-ads', {
-      params: { placement },
+      params: { placement, ...(perPage ? { perPage } : {}) },
       timeout: 8000,
     });
 

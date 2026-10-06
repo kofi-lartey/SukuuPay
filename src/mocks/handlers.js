@@ -4254,10 +4254,10 @@ const adminUnsuspendSchool = ({ user, params }) => {
 };
 
 const PLATFORM_ADS = [
-  { _id: objectId(31), schoolName: 'Greenfield Academy', headline: 'Admissions open for 2026', placement: 'auth_aside', status: 'pending', imageAlt: 'Greenfield Academy senior school campus building', linkUrl: 'https://example.com/greenfield/apply', sortWeight: 10, endsAt: '2026-12-31T00:00:00.000Z' },
+  { _id: objectId(31), schoolName: 'Greenfield Academy', headline: 'Admissions open for 2026', placement: 'advertisement_page', status: 'pending', imageAlt: 'Greenfield Academy senior school campus building', linkUrl: 'https://example.com/greenfield/apply', sortWeight: 10, endsAt: '2026-12-31T00:00:00.000Z' },
   { _id: objectId(32), schoolName: 'Riverside International', headline: 'Now boarding, grades 1–12', placement: 'home_hero', status: 'pending', imageAlt: 'Riverside International School main gate', linkUrl: 'https://example.com/riverside/apply', sortWeight: 5, endsAt: '2026-11-30T00:00:00.000Z' },
-  { _id: objectId(33), schoolName: 'New Horizon School', headline: 'Term fees payable in three parts', placement: 'dashboard_sidebar', status: 'approved', imageAlt: 'New Horizon School fee payment announcement', linkUrl: 'https://example.com/newhorizon/plans', sortWeight: 0, endsAt: '2026-10-31T00:00:00.000Z' },
-  { _id: objectId(34), schoolName: 'Ashanti Grove School', headline: 'Scholarships available', placement: 'auth_aside', status: 'rejected', imageAlt: 'Ashanti Grove School scholarship advert', linkUrl: 'https://example.com/grove/scholarship', sortWeight: 0, endsAt: '2026-09-30T00:00:00.000Z', rejectedReason: 'The creative names a fee discount. Fee terms cannot be advertised without the school confirming them in writing.' },
+  { _id: objectId(33), schoolName: 'New Horizon School', headline: 'Term fees payable in three parts', placement: 'advertisement_page', status: 'approved', imageAlt: 'New Horizon School fee payment announcement', linkUrl: 'https://example.com/newhorizon/plans', sortWeight: 0, endsAt: '2026-10-31T00:00:00.000Z' },
+  { _id: objectId(34), schoolName: 'Ashanti Grove School', headline: 'Scholarships available', placement: 'advertisement_page', status: 'rejected', imageAlt: 'Ashanti Grove School scholarship advert', linkUrl: 'https://example.com/grove/scholarship', sortWeight: 0, endsAt: '2026-09-30T00:00:00.000Z', rejectedReason: 'The creative names a fee discount. Fee terms cannot be advertised without the school confirming them in writing.' },
 ];
 
 /**
@@ -4509,7 +4509,7 @@ const adminCreateSchoolAd = ({ user, body }) => {
     imageUrl,
     imageAlt,
     linkUrl,
-    placement: read('placement') || 'auth_aside',
+    placement: read('placement') || 'advertisement_page',
     status: goLive ? 'approved' : 'pending',
     approvedBy: goLive ? user?._id || null : null,
     approvedAt: goLive ? new Date().toISOString() : null,
@@ -5476,7 +5476,7 @@ const AD_REQUESTS = [
     imageUrl: 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
     imageAlt: 'Students in the school assembly hall',
     linkUrl: 'https://example.edu.gh/admissions',
-    placement: 'auth_aside',
+    placement: 'advertisement_page',
     status: 'pending',
     endsAt: '2026-11-30T00:00:00.000Z',
     requestedBy: 'u1',
@@ -5515,7 +5515,7 @@ const AD_REQUESTS = [
     imageUrl: 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
     imageAlt: 'A student receiving a certificate',
     linkUrl: 'https://example.edu.gh/scholarship',
-    placement: 'dashboard_sidebar',
+    placement: 'home_hero',
     status: 'rejected',
     endsAt: '2026-09-30T00:00:00.000Z',
     requestedBy: 'u1',
@@ -5600,7 +5600,7 @@ const mockCreateMyAdRequest = ({ body }) => {
         : String(read('image') || ''),
     imageAlt,
     linkUrl,
-    placement: read('placement') || 'auth_aside',
+    placement: read('placement') || 'advertisement_page',
     status: 'pending',
     endsAt: new Date(endsAt).toISOString(),
     requestedBy: 'u1',
@@ -5643,30 +5643,126 @@ const mockWithdrawMyAdRequest = ({ params }) => {
  * today is an empty array, and a mock that answered with a 503 here would give it a
  * failure mode it does not have against the real API.
  */
-const listSchoolAds = () => {
+const PUBLIC_AD_POOL = [
+  {
+    _id: objectId(11),
+    schoolId: objectId(11),
+    schoolName: 'Greenfield Academy',
+    headline: 'Admissions open for 2026',
+    writeup: 'Applications for the new academic year are now open. Full primary curriculum with qualified teachers.',
+    imageUrl: 'https://picsum.photos/seed/sukuupay-greenfield/960/540',
+    imageAlt: 'Greenfield Academy senior school campus building',
+    linkUrl: 'https://example.com/greenfield/apply',
+    placement: 'advertisement_page',
+    status: 'approved',
+    endsAt: new Date(Date.now() + 60 * 86400000).toISOString(),
+  },
+  {
+    _id: objectId(12),
+    schoolId: objectId(12),
+    schoolName: 'Riverside International',
+    headline: 'Now boarding, grades 1–12',
+    writeup: 'Secure boarding for senior students with a resident matron and study hall every evening.',
+    imageUrl: 'https://picsum.photos/seed/sukuupay-riverside/960/540',
+    imageAlt: 'Riverside International School main gate',
+    linkUrl: 'https://example.com/riverside/apply',
+    placement: 'home_hero',
+    status: 'approved',
+    endsAt: new Date(Date.now() + 45 * 86400000).toISOString(),
+  },
+  {
+    _id: objectId(13),
+    schoolId: objectId(13),
+    schoolName: 'New Horizon School',
+    headline: 'Term fees payable in three parts',
+    writeup: null,
+    imageUrl: 'https://picsum.photos/seed/sukuupay-newhorizon/960/540',
+    imageAlt: 'New Horizon School fee payment announcement',
+    linkUrl: 'https://example.com/newhorizon/plans',
+    placement: 'advertisement_page',
+    status: 'approved',
+    endsAt: new Date(Date.now() + 30 * 86400000).toISOString(),
+  },
+];
+
+const listSchoolAds = ({ query }) => {
   const settings = currentPlatformSettings();
   if (settings.features.adsEnabled === false) return { ads: [], adsEnabled: false };
 
+  const placement = query.placement || 'advertisement_page';
+  const perPage = Math.min(Math.max(Number(query.perPage) || 6, 1), 24);
+
+  const live = PUBLIC_AD_POOL.filter(
+    (ad) =>
+      ad.status === 'approved' &&
+      new Date(ad.endsAt) > new Date() &&
+      (placement === 'all' || ad.placement === placement)
+  );
+
+  return { ads: live.slice(0, perPage), adsEnabled: true };
+};
+
+const listPublicSchoolLogos = () => {
+  const db = getDb();
+  const schools = db.schools
+    .filter((school) => school.status === 'active' && !school.deletedAt && school.logo)
+    .slice(0, 24)
+    .map((school) => ({
+      _id: school._id,
+      name: school.name,
+      logo: school.logo,
+      brandColor: school.brandColor,
+    }));
+  return { success: true, schools };
+};
+
+const listPublicSchool = ({ params }) => {
+  const db = getDb();
+  let school = db.schools.find((s) => s._id === params.schoolId && s.status === 'active' && !s.deletedAt);
+
+  // Demo fallback: if the ad pool's synthetic IDs don't match the DB, build
+  // a plausible record from the mock ad so the detail modal always has
+  // something to show in the test personas.
+  if (!school) {
+    const ad = PUBLIC_AD_POOL.find((a) => String(a.schoolId) === String(params.schoolId));
+    if (ad) {
+      school = {
+        _id: params.schoolId,
+        name: ad.schoolName,
+        logo: ad.imageUrl,
+        brandColor: '#0F5132',
+        address: '12 Independence Avenue, Cantonments',
+        city: 'Accra',
+        region: 'Greater Accra',
+        phone: '+233 24 000 0000',
+        email: 'office@example.net',
+        website: ad.linkUrl,
+        motto: 'Excellence in education',
+        type: 'private',
+        yearFounded: 1998,
+      };
+    }
+  }
+
+  if (!school) return { success: false, message: 'School not found' };
+
   return {
-    ads: [
-    {
-      _id: objectId(11),
-      schoolName: 'Greenfield Academy',
-      headline: 'Admissions open for 2026',
-      imageUrl: 'https://picsum.photos/seed/sukuupay-greenfield/960/540',
-      imageAlt: 'Greenfield Academy senior school campus building',
-      linkUrl: 'https://example.com/greenfield/apply',
+    success: true,
+    school: {
+      _id: school._id,
+      name: school.name,
+      logo: school.logo,
+      brandColor: school.brandColor,
+      address: school.address,
+      city: school.city,
+      region: school.region,
+      phone: school.phone,
+      email: school.email,
+      website: school.website,
+      motto: school.motto,
+      type: school.type,
+      yearFounded: school.yearFounded,
     },
-    {
-      _id: objectId(12),
-      schoolName: 'Riverside International',
-      headline: 'Now boarding, grades 1–12',
-      imageUrl: 'https://picsum.photos/seed/sukuupay-riverside/960/540',
-      imageAlt: 'Riverside International School main gate',
-      linkUrl: 'https://example.com/riverside/apply',
-    },
-    ],
-    adsEnabled: true,
   };
 };
 
@@ -5982,6 +6078,8 @@ export const ROUTES = [
   ['GET', /^\/schools\/me\/ad-requests$/, mockListMyAdRequests],
 
   ['GET', /^\/public\/school-ads$/, listSchoolAds, { public: true }],
+  ['GET', /^\/public\/schools\/logos$/, listPublicSchoolLogos, { public: true }],
+  ['GET', /^\/public\/schools\/(?<schoolId>[^/]+)$/, listPublicSchool, { public: true }],
   ['GET', /^\/health$/, health, { public: true }],
 ];
 

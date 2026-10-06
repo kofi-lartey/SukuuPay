@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import Hero from '../components/home/Hero';
+import SchoolLogoCarousel from '../components/home/SchoolLogoCarousel';
 
 const Home = () => {
   const { user } = useAuth();
@@ -10,6 +11,7 @@ const Home = () => {
   return (
     <div className="min-h-screen bg-white">
       <Hero />
+      <SchoolLogoCarousel />
 
       {user && (
         <div className="border-t border-slate-100 bg-slate-50/60">

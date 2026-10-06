@@ -1,7 +1,5 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useCallback, useState } from 'react';
-import { SchoolAdCarousel } from './SchoolAdCarousel';
 import {
   BadgeCheck,
   Building2,
@@ -64,7 +62,7 @@ const FeatureList = ({ items, className = '' }) => (
   </ul>
 );
 
-/** Fallback row, rendered only while no ad is live. */
+/** Real platform configuration — which networks, where money settles, what a term looks like. */
 const Metrics = () => (
   <dl className="grid h-full grid-cols-3 items-center gap-3 border-t border-white/10 pt-5 text-center">
     {METRICS.map((metric) => (
@@ -77,39 +75,6 @@ const Metrics = () => (
     ))}
   </dl>
 );
-
-/**
- * Advertisement band with a metrics fallback.
- *
- * The slot is a fixed 200px box from first paint, so the aside does not change
- * height when the fetch resolves: metrics occupy it until live ads arrive, then
- * the carousel takes over the same box. The CTA position is stable either way.
- *
- * **The carousel is mounted unconditionally, and that is load-bearing.**
- *
- * It used to be gated: `{hasAds && <SchoolAdCarousel onCountChange={handleCount} />}`.
- * `hasAds` is only ever set *by* that callback, from a count the carousel fetches after
- * it mounts — so the component was never mounted, never fetched, and never reported, and
- * `hasAds` stayed `false` forever. A circular guard, which is a cycle that has exactly
- * one possible initial state: nothing renders. No amount of correct data could ever have
- * put an ad on the login page, and nothing in the console said so.
- *
- * The unconditioned mount is safe because `SchoolAdCarousel` already handles emptiness
- * itself — `if (total === 0) return null` — so with no live ad it renders nothing and
- * reports `0`, which keeps the metrics in place. `hasAds` therefore decides one thing
- * only: whether the fallback is showing. The carousel decides the other.
- */
-const SchoolAdSlot = ({ placement }) => {
-  const [hasAds, setHasAds] = useState(false);
-  const handleCount = useCallback((total) => setHasAds(total > 0), []);
-
-  return (
-    <div className="relative z-10 mt-6 h-[200px] border-t border-white/10 pt-5">
-      {!hasAds && <Metrics />}
-      <SchoolAdCarousel placement={placement} className="h-full" onCountChange={handleCount} />
-    </div>
-  );
-};
 
 const AsideFrame = ({ pill, headline, description, features, children }) => (
   <aside className="relative flex flex-col justify-between overflow-hidden bg-gradient-to-br from-brand-800 via-brand-700 to-brand-900 p-8 text-white lg:col-span-5">
@@ -132,10 +97,12 @@ const AsideFrame = ({ pill, headline, description, features, children }) => (
       {children}
     </div>
 
-    {/* The advertisement occupies the metrics row's slot rather than adding a
-     *  new band, so the aside does not grow and the form CTA stays put. The
-     *  metrics are the fallback shown when no ad is live. */}
-    <SchoolAdSlot placement="auth_aside" />
+    {/* Fixed-height platform facts: which networks, where money settles,
+     *  what a term looks like. The slot is 200px so the aside does not
+     *  change height on first paint. */}
+    <div className="relative z-10 mt-6 h-[200px] border-t border-white/10 pt-5">
+      <Metrics />
+    </div>
 
     <p className="relative z-10 mt-5 border-t border-white/10 pt-5 text-center text-[11px] font-medium text-emerald-200/80">
       © 2026 SukuuPay Ghana Ltd. Made with pride in Ghana 🇬🇭

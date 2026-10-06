@@ -91,7 +91,7 @@ const Advertisements = () => {
     writeup: '',
     imageAlt: '',
     linkUrl: '',
-    placement: 'auth_aside',
+    placement: 'advertisement_page',
     endsAt: defaultEndsAt(),
   });
   const [file, setFile] = useState(null);

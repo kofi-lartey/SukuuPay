@@ -169,6 +169,20 @@ function buildWorld({
   const region = 'Greater Accra';
   const classes = [...CLASS_SETS.jhs, ...CLASS_SETS.basic];
 
+  const schoolInitials = name
+    .split(' ')
+    .filter(Boolean)
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  const schoolLogo = completedProfile
+    ? `data:image/svg+xml;base64,${btoa(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect fill="#0F5132" width="80" height="80"/><text x="50%" y="55%" text-anchor="middle" dy=".3em" fill="white" font-size="28" font-family="sans-serif">${schoolInitials}</text></svg>`
+      )}`
+    : null;
+
   const school = {
     _id: schoolId,
     name,
@@ -195,7 +209,7 @@ function buildWorld({
       ? { latitude: 5.5601, longitude: -0.2053, source: 'map_pin', updatedAt: new Date().toISOString() }
       : { latitude: null, longitude: null, source: null, updatedAt: null },
 
-    logo: null,
+    logo: schoolLogo,
     stamp: null,
     brandColor: '#0F5132',
     payment: {

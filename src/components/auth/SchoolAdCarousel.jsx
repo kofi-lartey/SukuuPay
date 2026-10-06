@@ -1,6 +1,5 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useSchoolAds } from '../../hooks/useSchoolAds';
 
 const Dots = ({ total, index, goTo }) => (
   <div className="flex items-center justify-center gap-1.5">
@@ -45,9 +44,6 @@ export const CarouselView = ({ ads, index, onPause, onStep, onGoTo, className = 
           alt={ad.imageAlt}
           loading="lazy"
           onError={(event) => {
-            // A creative whose host is down must not leave a broken-image glyph
-            // in the middle of the login panel. Swapping in a brand gradient
-            // keeps the band intact and still advertises the school by name.
             event.currentTarget.style.display = 'none';
           }}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -89,34 +85,3 @@ export const CarouselView = ({ ads, index, onPause, onStep, onGoTo, className = 
     </section>
   );
 };
-
-/**
- * Rotating panel of approved school creatives.
- *
- * Renders nothing at all when there is no live ad, so the aside falls back to
- * the metrics row rather than showing an empty frame on the login path. Height
- * comes from the caller, which owns the fixed slot this band sits in.
- */
-export const SchoolAdCarousel = ({ placement = 'auth_aside', className = '', onCountChange }) => {
-  const { ads, index, total, goTo, next, prev, setPaused } = useSchoolAds(placement);
-
-  // Report upward so the slot can swap its metrics fallback for this band.
-  useEffect(() => {
-    onCountChange?.(total);
-  }, [total, onCountChange]);
-
-  if (total === 0) return null;
-
-  return (
-    <CarouselView
-      ads={ads}
-      index={index}
-      className={className}
-      onPause={setPaused}
-      onGoTo={goTo}
-      onStep={(delta) => (delta > 0 ? next() : prev())}
-    />
-  );
-};
-
-export default SchoolAdCarousel;
