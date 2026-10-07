@@ -4705,6 +4705,19 @@ const markParentMessageRead = ({ params }) => {
   if (!row) throw new MockError(404, 'Message not found', 'NOT_FOUND');
   row.status = row.status === 'new' ? 'read' : row.status;
   row.readAt = row.readAt || new Date().toISOString();
+
+  // The bell clears too. The real `clearNotificationsFor` matches on
+  // `meta.parentMessageRef`, and without this the notification stays bold in the
+  // bell even though the inbox has settled the row — which trains bursars to
+  // ignore the bell, the exact failure the parent-message feature was built to
+  // stop.
+  MOCK_NOTIFICATIONS.forEach((n) => {
+    if (n.meta?.parentMessageRef === params.id && !n.read) {
+      n.read = true;
+      n.readAt = row.readAt;
+    }
+  });
+
   return row;
 };
 
@@ -4727,6 +4740,15 @@ const resolveParentMessage = ({ params, body }) => {
   row.status = 'resolved';
   row.resolutionNote = note.slice(0, 500);
   row.resolvedAt = new Date().toISOString();
+
+  // Resolving also clears the bell entry, the same as marking read does.
+  MOCK_NOTIFICATIONS.forEach((n) => {
+    if (n.meta?.parentMessageRef === params.id && !n.read) {
+      n.read = true;
+      n.readAt = row.resolvedAt;
+    }
+  });
+
   return row;
 };
 
@@ -4854,11 +4876,12 @@ const deleteNotification = ({ params }) => {
  * reading of "messages from parents are not received", and it was true of every mock
  * session on the product.
  *
- * It now inserts the row, which is what makes the feature demonstrable end to end: the
- * parent submits, the school admin opens `/dashboard/messages`, and the message is
- * there — `status: 'new'`, `schoolId` stamped from the signed-in session the way
- * `scopedParentMessages` does on read, so it appears for that school and counts in the
- * "waiting for an answer" tally.
+ * It now inserts the row and writes a matching unread notification — the real
+ * backend's `notifyAdmins` does both, and until the mock did too the bell never rang
+ * for a parent message the inbox had already recorded. The notification's
+ * `meta.parentMessageRef` is the row's `_id`, so marking the message read or
+ * resolved from the inbox clears the bell entry the same way
+ * `parentMessage.service.js:clearNotificationsFor` does on the server.
  *
  * The real path resolves the school from the pay token, which identifies the student;
  * a mock has no tokens to resolve, so the session's school is the honest stand-in and
@@ -4898,7 +4921,7 @@ const notifySchool = ({ body, user }) => {
   const messageId = `PMSG-MOCK-${Date.now().toString(36).toUpperCase()}`;
   const audioUrl = hasAudio ? 'https://res.cloudinary.com/demo/video/upload/sample.webm' : null;
 
-  PARENT_MESSAGES.unshift({
+  const parentMessageRow = {
     _id: `pmsg${Date.now().toString(36)}`,
     schoolId: user?.schoolId || null,
     messageId,
@@ -4922,6 +4945,42 @@ const notifySchool = ({ body, user }) => {
     smsAlerted: true,
     smsAlertFailure: null,
     createdAt: new Date().toISOString(),
+  };
+  PARENT_MESSAGES.unshift(parentMessageRow);
+
+  // **This notification was not written before, so a parent message that landed on
+  // the inbox made no sound in the bell** — the exact half of the defect this handler
+  // was fixed to demonstrate. The real backend's `notifyAdmins` writes one per admin;
+  // the mock has no per-user inbox split (see `listNotifications`), so a single unread
+  // row mirrors the shape the bell reads and the badge count that depends on it.
+  //
+  // `parentMessageRef` is the message's `_id`, the same field
+  // `parentMessage.service.js:clearNotificationsFor` deletes on. Keeping the two in
+  // sync means marking the message read from the inbox clears the bell entry too.
+  const now = new Date().toISOString();
+  MOCK_NOTIFICATIONS.unshift({
+    _id: `ntf${now.getTime().toString(36)}`,
+    type: hasAudio ? 'parent.audio_message' : 'parent.message',
+    title: hasAudio
+      ? `Parent voice note — ${parentName}`
+      : `Parent message — A student on your roster`,
+    message: hasAudio
+      ? `${parentName} sent a voice note about a student on your roster (JHS 2A).`
+      : `${parentName} asked about a student on your roster (JHS 2A): ${text.slice(0, 120)}`,
+    link: '/dashboard/messages',
+    read: false,
+    createdAt: now,
+    meta: {
+      parentMessageId: messageId,
+      parentMessageRef: parentMessageRow._id,
+      studentRef: parentMessageRow.studentRef,
+      studentName: parentMessageRow.studentName,
+      parentName,
+      parentPhone,
+      message: text || '',
+      audioUrl,
+      hasAudio,
+    },
   });
 
   return {
