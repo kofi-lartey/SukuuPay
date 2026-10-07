@@ -54,9 +54,14 @@ const MAX_BYTES = 5 * 1024 * 1024;
 /**
  * Picks the best container this browser can record.
  *
- * Order matters and is deliberate: Opus-in-WebM is the only combination with
- * broad hardware support *and* good speech compression. Safari has no WebM/Opus
- * encoder and falls to `audio/mp4`, which every recent Safari and iOS supports.
+ * Order is deliberate and changed from the original: MP4/AAC is preferred over
+ * WebM/Opus because Cloudinary's ffmpeg probe can decode MP4 reliably but
+ * frequently fails to find an audio channel in fragmented WebM blobs produced
+ * by Chrome on Android's MediaRecorder. A slightly larger file is worth a file
+ * that actually uploads.
+ *
+ * `audio/mp4` is supported by every current Chrome, Safari, Edge, and Firefox.
+ * WebM stays in the list only for the rare browser that lacks MP4.
  *
  * `isTypeSupported` is checked rather than assumed. Constructing a `MediaRecorder`
  * with an unsupported `mimeType` throws in some browsers and silently produces an
@@ -66,9 +71,10 @@ const MAX_BYTES = 5 * 1024 * 1024;
 const pickMimeType = () => {
   if (typeof MediaRecorder === 'undefined') return '';
   const candidates = [
+    'audio/mp4',
+    'audio/mp4;codecs=mp4a.40.2',
     'audio/webm;codecs=opus',
     'audio/webm',
-    'audio/mp4',
     'audio/ogg;codecs=opus',
   ];
   return candidates.find((type) => MediaRecorder.isTypeSupported?.(type)) || '';
@@ -237,7 +243,7 @@ const AudioRecorder = ({ onChange }) => {
       if (event.data && event.data.size > 0) chunksRef.current.push(event.data);
     };
 
-    recorder.onstop = () => {
+    recorder.onstop = async () => {
       clearTimer();
       stopTracks();
       setRecording(false);
@@ -250,15 +256,37 @@ const AudioRecorder = ({ onChange }) => {
       // A take that recorded nothing is discarded, not uploaded. Sending a 0-byte
       // file would look like a message the parent wrote and produce a bursar opening
       // an audio player with nothing in it.
-      if (duration < 1 || blob.size === 0) {
+      if (duration < 1 || blob.size < 1024) {
         discard();
-        setError('That recording was too short. Hold the button while you speak, or write your message.');
+        setError(
+          'That recording was too short. Hold the button while you speak, or write your message.'
+        );
         return;
       }
 
       if (blob.size > MAX_BYTES) {
         discard();
         setError('That recording is too long to send. Keep it under a minute, or write your message.');
+        return;
+      }
+
+      // Sanity check the blob header. WebM starts with 1a 45 df a3, MP4 with
+      // 00 00 00 xx, and Ogg with 4f 67 67 53. A blob that starts with all zeros or
+      // has fewer than 4 bytes is not decodable and will fail at Cloudinary with an
+      // opaque error. Catch it here instead of letting it reach the server.
+      const header = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+      const headerHex = Array.from(header)
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+      const isWebM = headerHex.startsWith('1a45dfa3');
+      const isMP4 = headerHex.startsWith('000000');
+      const isOgg = headerHex.startsWith('4f676753');
+
+      if (!isWebM && !isMP4 && !isOgg) {
+        discard();
+        setError(
+          'We could not finish that recording on this phone. Please try again, or write your message below.'
+        );
         return;
       }
 
@@ -276,7 +304,7 @@ const AudioRecorder = ({ onChange }) => {
       onChange?.({ file, url, seconds: duration, mimeType: type });
     };
 
-    recorder.start();
+    recorder.start(1000);
     mediaRecorderRef.current = recorder;
     streamRef.current = stream;
     setRecording(true);

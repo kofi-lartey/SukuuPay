@@ -88,7 +88,21 @@ const ContactSchool = () => {
       });
       setSent(response);
     } catch (caught) {
-      setError(caught?.message || 'We could not send your message. Please try again.');
+      const code = caught?.code;
+      const audioErrors = [
+        'AUDIO_UNREADABLE',
+        'AUDIO_TOO_SHORT',
+        'AUDIO_BAD_HEADER',
+        'AUDIO_UNSUPPORTED_TYPE',
+      ];
+
+      if (audioErrors.includes(code)) {
+        // Clear the local clip so the parent can re-record
+        setAudio(null);
+        setError(caught.message);
+      } else {
+        setError(caught?.message || 'We could not send your message. Please try again.');
+      }
     } finally {
       setSubmitting(false);
     }
