@@ -47,122 +47,93 @@ const CardSurface = ({ children, className = '', bleed = false }) => (
 );
 
 const IdCardFront = ({ values, school, showPhoto = true, showQr = true }) => (
-  <CardSurface className="flex flex-col p-[4%]">
-    {/* Issuing institution */}
-    <header className="flex items-start justify-between gap-2 border-b-2 border-amber-400 pb-[3%]">
-      <div className="flex min-w-0 items-center gap-2">
+  <CardSurface className="relative flex flex-col p-[4%]">
+    {/* Issuing institution — centred: logo (or brand circle), name, motto */}
+    <header className="flex flex-col items-center gap-1 border-b border-slate-200 pb-[4%]">
+      {school?.logo ? (
+        <img src={school.logo} alt="" className="h-7 w-7 rounded-md object-contain" />
+      ) : (
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-700 text-[10px] font-extrabold text-white">
-          S
+          {BRAND_BADGE_TEXT[0]}
         </span>
-        <span className="min-w-0">
-          <span className="block truncate text-[10px] font-extrabold uppercase leading-tight text-ink">
-            {school?.name || 'School name not set'}
-          </span>
-          {school?.motto && (
-            <span className="block truncate text-[7px] italic text-slate-500">
-              {school.motto}
-            </span>
-          )}
-        </span>
-      </div>
-      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[7px] font-bold text-slate-600">
-        {school?.schoolCode || '—'}
+      )}
+      <span className="truncate text-[10px] font-extrabold uppercase leading-tight text-ink">
+        {school?.name || 'School name not set'}
       </span>
+      {school?.motto && (
+        <span className="truncate text-[7px] italic text-slate-500">{school.motto}</span>
+      )}
     </header>
 
-    {/* Identity + academic + contact */}
-    <div className="flex flex-1 gap-[4%] pt-[4%]">
+    {/* Photo (left, 32mm) + info list (right) */}
+    <div className="mt-[4%] flex items-start gap-[4%]">
       <div className="shrink-0">
         {showPhoto && values.studentImage ? (
           <img
             src={values.studentImage}
             alt=""
-            className="h-16 w-16 rounded-md object-cover ring-1 ring-slate-900/10"
+            className="h-28 w-28 rounded-md object-cover ring-1 ring-slate-900/10"
           />
         ) : (
-          /* An explicit "no photo" block rather than an empty hole. On a
-             *printed card a blank rectangle reads as a printing fault; a
-             labelled one reads as a missing photograph, which is what it is. */
-          <span className="flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-md bg-slate-100 text-[7px] font-bold uppercase text-slate-400 ring-1 ring-slate-900/5">
+          <span className="flex h-28 w-28 flex-col items-center justify-center gap-0.5 rounded-md bg-slate-100 text-[7px] font-bold uppercase text-slate-400 ring-1 ring-slate-900/5">
             No photo
           </span>
         )}
       </div>
 
-      <div className="min-w-0 flex-1 space-y-[3%]">
+      <dl className="min-w-0 flex-1 space-y-[3%]">
         <div>
-          <p className="text-[6px] font-bold uppercase tracking-wide text-slate-400">
-            Full student name
-          </p>
-          <p className="truncate text-[12px] font-extrabold leading-tight text-ink">
+          <dt className="text-[6px] font-bold uppercase tracking-wide text-slate-400">Student ID</dt>
+          <dd className="truncate font-mono text-[9px] font-bold text-ink">
+            {values.studentId || '—'}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-[6px] font-bold uppercase tracking-wide text-slate-400">Full name</dt>
+          <dd className="truncate text-[12px] font-extrabold leading-tight text-ink">
             {values.studentName || '—'}
-          </p>
+          </dd>
         </div>
-
-        <div className="grid grid-cols-2 gap-x-2">
-          <div className="min-w-0">
-            <p className="text-[6px] font-bold uppercase tracking-wide text-slate-400">Student ID</p>
-            <p className="truncate font-mono text-[9px] font-bold text-ink">
-              {values.studentId || '—'}
-            </p>
-          </div>
-          <div className="min-w-0">
-            <p className="text-[6px] font-bold uppercase tracking-wide text-slate-400">
-              Class / stream
-            </p>
-            <p className="truncate text-[9px] font-extrabold text-ink">
-              {values.studentClass || '—'}
-            </p>
-          </div>
-          <div className="min-w-0">
-            <p className="text-[6px] font-bold uppercase tracking-wide text-slate-400">
-              Academic cycle
-            </p>
-            <p className="truncate text-[9px] font-extrabold text-ink">
-              {values.academicYear || '—'}
-            </p>
-          </div>
-          <div className="min-w-0">
-            <p className="text-[6px] font-bold uppercase tracking-wide text-slate-400">
-              Date of birth
-            </p>
-            <p className="truncate text-[9px] font-extrabold text-ink">
-              {values.dateOfBirth
-                ? new Date(values.dateOfBirth).toLocaleDateString('en-GB')
-                : '—'}
-            </p>
-          </div>
+        <div>
+          <dt className="text-[6px] font-bold uppercase tracking-wide text-slate-400">Class / stream</dt>
+          <dd className="truncate text-[9px] font-extrabold text-ink">
+            {values.studentClass || '—'}
+          </dd>
         </div>
-
-        <div className="min-w-0 border-t border-slate-100 pt-[2%]">
-          <p className="truncate text-[7px] font-semibold text-slate-500">
-            Guardian:{' '}
-            <span className="font-extrabold text-slate-700">
-              {values.guardianName || '—'}
-            </span>
-            {values.guardianPhone && ` · ${values.guardianPhone}`}
-          </p>
+        <div>
+          <dt className="text-[6px] font-bold uppercase tracking-wide text-slate-400">Emergency</dt>
+          <dd className="truncate text-[9px] font-extrabold text-ink">
+            {values.emergencyContact || '—'}
+          </dd>
         </div>
-      </div>
-
-      {showQr && (
-        <div className="shrink-0 text-center">
-          <span className="flex h-12 w-12 items-center justify-center rounded bg-slate-50 ring-1 ring-slate-900/5">
-            <QrCode className="h-8 w-8 text-slate-700" aria-hidden="true" />
-          </span>
-          <span className="mt-0.5 block text-[5px] font-bold uppercase tracking-wide text-slate-400">
-            Scan to pay
-          </span>
-        </div>
-      )}
+      </dl>
     </div>
 
-    <footer className="flex items-center justify-between border-t border-slate-100 pt-[2%]">
+    {/* QR — bottom-right corner */}
+    {showQr && (
+      <div className="absolute bottom-[4%] right-[4%] shrink-0 text-center">
+        <span className="flex h-12 w-12 items-center justify-center rounded bg-slate-50 ring-1 ring-slate-900/5">
+          <QrCode className="h-8 w-8 text-slate-700" aria-hidden="true" />
+        </span>
+        <span className="mt-0.5 block text-[5px] font-bold uppercase tracking-wide text-slate-400">
+          Scan to pay
+        </span>
+      </div>
+    )}
+
+    {/* School stamp — bottom-left, faint */}
+    {school?.stamp && (
+      <img
+        src={school.stamp}
+        alt=""
+        className="absolute bottom-[4%] left-[4%] h-6 w-6 object-contain opacity-15"
+      />
+    )}
+
+    {/* Footer — centred */}
+    <footer className="absolute bottom-[2%] left-0 right-0 border-t border-slate-200 text-center pt-[2%]">
       <span className="text-[6px] font-bold uppercase tracking-wide text-slate-400">
         GES compliant student card
-      </span>
-      <span className="rounded bg-brand-50 px-1.5 py-0.5 text-[6px] font-extrabold text-brand-800">
-        Powered by {BRAND_BADGE_TEXT}
       </span>
     </footer>
   </CardSurface>
@@ -194,23 +165,12 @@ const IdCardBack = ({ values, school }) => (
         </p>
       </div>
 
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex h-10 flex-1 items-end gap-px bg-white px-1.5 pb-1 pt-1 ring-1 ring-slate-900/10">
-          {/* A barcode is bars, not text: a fake one built from characters
-              renders as letters and is not scannable. */}
-          {(values.studentId || '000000').split('').map((char, index) => (
-            <span
-              key={index}
-              className="h-full bg-slate-900"
-              style={{
-                width: `${((char.charCodeAt(0) % 3) + 1) * 0.7}px`,
-                opacity: (char.charCodeAt(0) % 5) / 7 + 0.45,
-              }}
-            />
-          ))}
-        </div>
-        <p className="shrink-0 font-mono text-[6px] font-bold text-slate-600">
-          “{values.studentId || '—'}”
+      <div className="flex items-center justify-center gap-2">
+        <p className="shrink-0 font-mono text-[7px] font-bold uppercase tracking-wider text-slate-600">
+          Student ID
+        </p>
+        <p className="truncate font-mono text-[9px] font-extrabold text-ink">
+          "{values.studentId || '—'}"
         </p>
       </div>
 
@@ -219,6 +179,7 @@ const IdCardBack = ({ values, school }) => (
           <dt className="font-bold uppercase text-slate-400">Guardian</dt>
           <dd className="truncate font-extrabold text-slate-700">
             {values.guardianName || '—'}
+            {values.guardianPhone && ` · ${values.guardianPhone}`}
           </dd>
         </div>
         <div>
