@@ -31,8 +31,17 @@ import {
   GHANA_REGIONS,
   ACADEMIC_TERMS,
   GRADING_SYSTEMS,
-} from '../../services/settings';
+  } from '../../services/settings';
 import { ROUTES } from '../../utils/constants';
+
+/** Human-readable labels for the payment gateway modes. */
+const GATEWAY_LABELS = {
+  paystack: 'Paystack',
+  hubtel: 'Hubtel (disabled)',
+  arke: 'Arkesel (disabled)',
+  mnotify: 'Mnotify (disabled)',
+  manual: 'Manual',
+};
 
 /**
  * The Settings module's sections, in the rail order.
@@ -606,7 +615,9 @@ const Settings = () => {
               <p className="mt-0.5 text-[13px] font-medium text-slate-500">{section.blurb}</p>
 
               <div className="mt-4">
-                <DetailRow label="Collection gateway">{settings.payment?.gatewayMode || 'hubtel'}</DetailRow>
+                <DetailRow label="Collection gateway">
+                  {GATEWAY_LABELS[settings.payment?.gatewayMode] || settings.payment?.gatewayMode || 'Paystack'}
+                </DetailRow>
                 <DetailRow label="Platform markup">
                   {`${settings.payment?.platformMarkupPercent ?? 0}%`}
                   <span className="ml-1 text-[11px] font-medium text-slate-400">on each collection</span>

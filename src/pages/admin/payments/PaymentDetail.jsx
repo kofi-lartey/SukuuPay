@@ -126,6 +126,7 @@ const Row = ({ label, value, mono = false }) => (
 );
 
 const PROVIDER_LABELS = {
+  paystack: 'Paystack',
   hubtel: 'Hubtel',
   arke: 'Arke',
   mnotify: 'MNotify',

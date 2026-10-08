@@ -737,6 +737,48 @@ export const SIGNUP_ROLES = [
 /** Mirrors the `role` enum on the User model. */
 export const USER_ROLES = ['super_admin', 'school_admin', 'accountant', 'teacher', 'viewer'];
 
+// ── ID Card constants ─────────────────────────────────────────────────────────
+
+export const ID_CARD_AUDIENCES = [
+  { value: 'student', label: 'Students' },
+  { value: 'staff', label: 'Staff' },
+  { value: 'prefect', label: 'Prefects' },
+  { value: 'visitor', label: 'Visitors' },
+  { value: 'custom', label: 'Custom' },
+];
+
+export const SHEET_LAYOUTS = [
+  {
+    value: '6up_a4_landscape',
+    label: '6 per sheet (3×2)',
+    caption: 'Recommended — standard card size',
+    cols: 3,
+    rows: 2,
+  },
+  {
+    value: '9up_a4_landscape',
+    label: '9 per sheet (3×3)',
+    caption: 'Compact — for large batches',
+    cols: 3,
+    rows: 3,
+  },
+];
+
+export const PRINT_SIDES = [
+  { value: 'front_back', label: 'Front + Back', description: 'Fronts on odd pages, backs on even' },
+  { value: 'front', label: 'Front Only', description: 'Single-sided printing' },
+];
+
+export const TEMPLATE_FIELDS = [
+  { key: 'showPhoto', label: 'Student photo', icon: 'User' },
+  { key: 'showQr', label: 'QR code', icon: 'QrCode' },
+  { key: 'showStamp', label: 'School stamp', icon: 'Stamp' },
+  { key: 'showEmergency', label: 'Emergency contact', icon: 'Phone' },
+  { key: 'showGuardian', label: 'Guardian info', icon: 'Users' },
+  { key: 'showClass', label: 'Class / stream', icon: 'School' },
+  { key: 'showStudentId', label: 'Student ID', icon: 'CreditCard' },
+];
+
 /**
  * How each role is written when the app names one to a person.
  *

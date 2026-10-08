@@ -1434,8 +1434,8 @@ const advanceBatch = (batchId, schoolId) => {
   return null;
 };
 
-/** GET /id-cards/batch/:batchId — HTML preview */
-const getIdCardBatchPreview = ({ params, user }) => {
+/** GET /id-cards/batch/:batchId/preview-data — JSON preview data */
+const getIdCardBatchPreviewData = ({ params, user }) => {
   const schoolId = resolveSchoolId(user);
   const batchId = params.batchId;
   const store = batchStore();
@@ -1447,7 +1447,7 @@ const getIdCardBatchPreview = ({ params, user }) => {
 
   const pending = advanceBatch(batchId, schoolId);
   if (pending) {
-    return { __raw: { status: 'pending', retryAfter: 3 }, __status: 202 };
+    return { __raw: { success: true, status: 'pending' }, __status: 202 };
   }
 
   const school = findSchool(schoolId);
@@ -1455,37 +1455,58 @@ const getIdCardBatchPreview = ({ params, user }) => {
     store[batchId].studentIds.includes(s._id)
   );
 
-  const cards = students
-    .map(
-      (student) => `
-      <div class="id-card-preview">
-        <div class="card-header">${escapeHtml(school?.name || 'School')}</div>
-        <div class="card-body">
-          <div class="student-name">${escapeHtml(student.studentName)}</div>
-          <div class="student-id">ID: ${escapeHtml(student.studentId || '')}</div>
-          <div class="student-class">${escapeHtml(student.studentClass)}</div>
-          ${
-            student.studentImage
-              ? `<img class="student-photo" src="${student.studentImage}" alt="Photo" />`
-              : '<div class="photo-placeholder">No Photo</div>'
-          }
-        </div>
-      </div>`
-    )
-    .join('');
+  const cards = students.map((student) => ({
+    studentId: student.studentId,
+    studentName: student.studentName,
+    studentClass: student.studentClass,
+    guardianName: (student.parents?.[0]?.parentName) || '',
+    guardianPhone: (student.parents?.[0]?.phone) || '',
+    emergencyContact: student.emergencyContacts?.[0]
+      ? `${student.emergencyContacts[0].contactName} (${student.emergencyContacts[0].phone})`
+      : '',
+    studentImage: student.studentImage,
+    qrCodeUrl: student.qrCodeUrl,
+    academicYear: school?.academic?.currentYear,
+  }));
 
   return {
-    __text: {
-      mimeType: 'text/html; charset=utf-8',
-      filename: 'id-card-batch-preview.html',
-      body: `<!DOCTYPE html><html><head><meta charset="utf-8"><title>ID card batch preview</title></head><body><h1>${escapeHtml(
-        school?.name || 'School'
-      )}</h1><p>${store[batchId].totalCards} cards</p>${cards}</body></html>`,
+    __json: {
+      success: true,
+      school: school?.name || 'School',
+      cards,
+      layout: store[batchId].sheetLayout,
+      sides: store[batchId].settingsSnapshot?.sides || 'front_back',
+      includeCutGuides: store[batchId].settingsSnapshot?.includeCutGuides || false,
     },
   };
 };
 
-/** GET /id-cards/batch/:batchId/pdf */
+/** GET /id-cards/batch/:batchId/status — batch generation status */
+const getIdCardBatchStatus = ({ params, user }) => {
+  const schoolId = resolveSchoolId(user);
+  const batchId = params.batchId;
+  const store = batchStore();
+
+  if (!store[batchId]) throw new MockError(404, 'Batch not found', 'NOT_FOUND');
+  if (store[batchId].schoolId !== schoolId) {
+    throw new MockError(404, 'Batch not found', 'NOT_FOUND');
+  }
+
+  const pending = advanceBatch(batchId, schoolId);
+  if (pending) {
+    return { __raw: { success: true, status: 'pending' }, __status: 202 };
+  }
+
+  return {
+    __json: {
+      success: true,
+      status: store[batchId].status || 'ready',
+      pdfUrl: store[batchId].pdfUrl || null,
+      totalCards: store[batchId].totalCards,
+      sheetLayout: store[batchId].sheetLayout,
+    },
+  };
+};
 const getIdCardBatchPdf = ({ params, user }) => {
   const schoolId = resolveSchoolId(user);
   const batchId = params.batchId;
@@ -5924,7 +5945,8 @@ export const ROUTES = [
   ['POST', /^\/id-cards\/batch$/, createIdCardBatch],
   ['GET', /^\/id-cards\/qr-links\/(?<schoolId>[^/]+)$/, getQrLinksExport],
   ['GET', /^\/id-cards\/batch\/(?<batchId>[^/]+)\/pdf$/, getIdCardBatchPdf],
-  ['GET', /^\/id-cards\/batch\/(?<batchId>[^/]+)$/, getIdCardBatchPreview],
+  ['GET', /^\/id-cards\/batch\/(?<batchId>[^/]+)\/preview-data$/, getIdCardBatchPreviewData],
+  ['GET', /^\/id-cards\/batch\/(?<batchId>[^/]+)\/status$/, getIdCardBatchStatus],
   ['GET', /^\/id-cards\/(?<studentId>[^/]+)$/, getStudentIdCard],
 
   // `promote/preview` is a literal two-segment path and must precede

@@ -37,28 +37,9 @@ const FILTERS = [
   { value: 'no-photo', label: 'Missing photo' },
 ];
 
-/** 8 cards per A4 sheet, the layout the print studio is specced for. */
-const CARDS_PER_SHEET = 8;
+const CARDS_PER_SHEET = 6;
+const QUOTE_PER_CARD = 3.5;
 
-/**
- * The ID card print studio.
- *
- * **Printability is decided per student, from the field manifest, before
- * anything is sent.** A card with no name on it is not a card, and a batch that
- * prints 984 good ones and 16 broken ones costs a reprint of all 1,000 — so the
- * blocked students are excluded from the batch and named in the UI, rather than
- * being discovered on the finished sheet.
- *
- * **The batch is asynchronous and the UI says so.** `POST /id-cards/batch`
- * answers 202 and a background job renders the PDF. So "started" and "ready"
- * are different states, the button reports which one it is in, and the download
- * polls. Presenting a spinner that ends in "queued" and nothing else would
- * leave the user believing they had a file.
- *
- * **Cost is shown, never charged.** The per-card price is a quote from the
- * print partner, not something this app bills, so it is labelled as an estimate
- * and there is no checkout to fake.
- */
 const IdCardPrintStudio = ({ schoolId, school, classes }) => {
   const { success, warning, error: errorToast } = useToast();
   const [page, setPage] = useState(1);
@@ -68,14 +49,9 @@ const IdCardPrintStudio = ({ schoolId, school, classes }) => {
   const [selection, setSelection] = useState(() => new Set());
   const [focused, setFocused] = useState(null);
   const [showBleed, setShowBleed] = useState(false);
-
-  // `idle` → `starting` → `pending` → `ready` | `failed`
   const [batch, setBatch] = useState({ status: 'idle', batchId: null });
   const pollRef = useRef(null);
 
-  // Renamed rather than reshaped in the hook: the hook's state is keyed `rows`
-  // to match `listStudents`, and renaming there would make it differ from every
-  // other service call for no gain.
   const { rows: students, loading, error, meta, refresh } = usePrintRoster({
     page,
     perPage: PER_PAGE,
@@ -83,9 +59,6 @@ const IdCardPrintStudio = ({ schoolId, school, classes }) => {
     search,
   });
 
-  // Readiness is derived from the record, never stored. `school` is passed in
-  // because a card is half school data, and a readiness check that only saw the
-  // student would call a card printable with no issuing school on it.
   const rows = useMemo(
     () =>
       students.map((student) => ({
@@ -122,13 +95,15 @@ const IdCardPrintStudio = ({ schoolId, school, classes }) => {
   );
 
   const selectedPrintable = useMemo(
-    () => visible.filter(({ student, readiness }) => readiness.canPrint && selection.has(String(student._id || student.id))),
+    () =>
+      visible.filter(
+        ({ student, readiness }) =>
+          readiness.canPrint && selection.has(String(student._id || student.id))
+      ),
     [visible, selection]
   );
 
   const sheets = Math.ceil(selectedPrintable.length / CARDS_PER_SHEET);
-  // A quote, not a charge. Labelled as an estimate wherever it appears.
-  const QUOTE_PER_CARD = 3.5;
   const estimate = selectedPrintable.length * QUOTE_PER_CARD;
 
   const toggle = (id) =>
@@ -153,22 +128,15 @@ const IdCardPrintStudio = ({ schoolId, school, classes }) => {
 
   const blockedSelected = useMemo(() => {
     const blocked = new Set(
-      rows.filter(({ readiness }) => !readiness.canPrint).map(({ student }) => String(student._id || student.id))
+      rows
+        .filter(({ readiness }) => !readiness.canPrint)
+        .map(({ student }) => String(student._id || student.id))
     );
     return [...selection].filter((id) => blocked.has(id));
   }, [rows, selection]);
 
-  // Poll cleanup on unmount: a batch that keeps polling after the tab closes
-  // keeps a request timer alive for the rest of the session.
   useEffect(() => () => clearTimeout(pollRef.current), []);
 
-  /**
-   * Download once the batch reports ready.
-   *
-   * `downloadIdCardBatchPdf` answers `{ status: 'pending' }` while the job runs
-   * rather than throwing, so the loop is driven by the same 202 contract the
-   * preview uses.
-   */
   const downloadWhenReady = useCallback(
     async (batchId, attempt = 0) => {
       if (attempt > 40) {
@@ -192,9 +160,6 @@ const IdCardPrintStudio = ({ schoolId, school, classes }) => {
   );
 
   const startBatch = async () => {
-    // Refuses rather than silently dropping: a user who selected a student and
-    // clicked print expects *those* students, and quietly printing 20 of 25 is
-    // worse than an error they can act on.
     if (blockedSelected.length) {
       warning(
         `${formatCount(blockedSelected.length)} selected ${
@@ -230,7 +195,6 @@ const IdCardPrintStudio = ({ schoolId, school, classes }) => {
 
   return (
     <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-      {/* ── Selection ─────────────────────────────────────────────────── */}
       <div className="space-y-4 xl:col-span-2">
         <Card padding="p-4">
           <div className="flex flex-wrap items-center gap-3">
@@ -291,7 +255,9 @@ const IdCardPrintStudio = ({ schoolId, school, classes }) => {
                   }}
                   aria-pressed={active}
                   className={`rounded-xl px-3 py-1.5 text-[12px] font-extrabold transition-colors ${
-                    active ? 'bg-brand-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    active
+                      ? 'bg-brand-700 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   {option.label}
@@ -351,10 +317,6 @@ const IdCardPrintStudio = ({ schoolId, school, classes }) => {
                           : 'border-amber-300 hover:border-amber-400'
                     }`}
                   >
-                    {/* Selection and preview are separate acts, so they get
-                        separate controls. A card whose only click is "select"
-                        would leave no way to look at one without first adding it
-                        to a batch the user may not have meant to start. */}
                     <button
                       type="button"
                       onClick={() => toggle(id)}
@@ -398,7 +360,11 @@ const IdCardPrintStudio = ({ schoolId, school, classes }) => {
                           </Badge>
                         )}
                         {!student.studentImage && <Badge tone="slate">No photo</Badge>}
-                        {student.payLink && <Badge tone="brand" icon={QrCode}>QR</Badge>}
+                        {student.payLink && (
+                          <Badge tone="brand" icon={QrCode}>
+                            QR
+                          </Badge>
+                        )}
                       </span>
 
                       {!readiness.canPrint && (
@@ -423,17 +389,12 @@ const IdCardPrintStudio = ({ schoolId, school, classes }) => {
             </div>
 
             {meta && meta.totalPages > 1 && (
-              <Pagination
-                meta={meta}
-                onPageChange={setPage}
-                itemLabel="students"
-              />
+              <Pagination meta={meta} onPageChange={setPage} itemLabel="students" />
             )}
           </>
         )}
       </div>
 
-      {/* ── Batch panel ───────────────────────────────────────────────── */}
       <div className="space-y-4">
         <Card padding="p-5">
           <h3 className="text-sm font-extrabold text-ink">Print batch</h3>
@@ -447,9 +408,7 @@ const IdCardPrintStudio = ({ schoolId, school, classes }) => {
             </div>
             <div className="flex items-baseline justify-between gap-3">
               <dt className="font-semibold text-slate-500">A4 sheets needed</dt>
-              <dd className="font-extrabold tabular-nums text-ink">
-                {formatCount(sheets)}
-              </dd>
+              <dd className="font-extrabold tabular-nums text-ink">{formatCount(sheets)}</dd>
             </div>
             <div className="flex items-baseline justify-between gap-3">
               <dt className="font-semibold text-slate-500">Verified photos</dt>
@@ -462,9 +421,7 @@ const IdCardPrintStudio = ({ schoolId, school, classes }) => {
             </div>
             <div className="flex items-baseline justify-between gap-3">
               <dt className="font-semibold text-slate-500">Pay QR linked</dt>
-              <dd className="font-extrabold tabular-nums text-ink">
-                {formatCount(totals.withQr)}
-              </dd>
+              <dd className="font-extrabold tabular-nums text-ink">{formatCount(totals.withQr)}</dd>
             </div>
           </dl>
 
@@ -478,8 +435,8 @@ const IdCardPrintStudio = ({ schoolId, school, classes }) => {
               </span>
             </p>
             <p className="mt-1 text-[11px] font-semibold text-slate-500">
-              {formatCedi(QUOTE_PER_CARD * 100)} per card. An estimate from the print
-              partner — nothing is charged here.
+              {formatCedi(QUOTE_PER_CARD * 100)} per card. An estimate from the print partner —
+              nothing is charged here.
             </p>
           </div>
 
@@ -512,8 +469,8 @@ const IdCardPrintStudio = ({ schoolId, school, classes }) => {
 
           {batch.status === 'pending' && (
             <p className="mt-2 text-[11px] font-semibold text-slate-500">
-              The cards render in the background. The download starts on its own
-              when the file is ready.
+              The cards render in the background. The download starts on its own when the file is
+              ready.
             </p>
           )}
 
@@ -589,10 +546,13 @@ const IdCardPrintStudio = ({ schoolId, school, classes }) => {
 
         <Card padding="p-4">
           <p className="flex items-start gap-2 text-[11px] font-semibold text-slate-500">
-            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-600" aria-hidden="true" />
-            Cards are generated on the server from your school&rsquo;s own record.
-            Printability is checked per student against the card field list, so a
-            card without a name or guardian is held back rather than printed.
+            <ShieldCheck
+              className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-600"
+              aria-hidden="true"
+            />
+            Cards are generated on the server from your school&rsquo;s own record. Printability is
+            checked per student against the card field list, so a card without a name or guardian is
+            held back rather than printed.
           </p>
           <button
             type="button"

@@ -39,6 +39,10 @@ import Reports from './pages/dashboard/Reports';
 import ActivityLog from './pages/dashboard/ActivityLog';
 import UserManagement from './pages/dashboard/UserManagement';
 import Settings from './pages/dashboard/Settings';
+import IdCardBulkPrint from './pages/idCards/IdCardBulkPrint';
+import IdCardBatchPrint from './pages/idCards/IdCardBatchPrint';
+import IdCardSettings from './pages/settings/IdCardSettings';
+import IdCardTemplates from './pages/settings/IdCardTemplates';
 import OnboardingLayout from './pages/onboarding/OnboardingLayout';
 import Step1SchoolProfile from './pages/onboarding/Step1SchoolProfile';
 import Step2PaymentSetup from './pages/onboarding/Step2PaymentSetup';
@@ -195,6 +199,10 @@ function App() {
                 <Route path="activity-log" element={<ActivityLog />} />
                 <Route path="user-management" element={<UserManagement />} />
                 <Route path="settings" element={<Settings />} />
+                <Route path="id-cards/settings" element={<IdCardSettings />} />
+                <Route path="id-cards/templates" element={<IdCardTemplates />} />
+                <Route path="id-cards/bulk" element={<IdCardBulkPrint />} />
+                <Route path="id-cards/batch/:batchId/print" element={<IdCardBatchPrint />} />
                 <Route path="*" element={<NotFound variant="app" />} />
               </Route>
             </Route>

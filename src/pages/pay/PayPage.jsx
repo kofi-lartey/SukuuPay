@@ -5,6 +5,7 @@ import { Link2Off, ShieldCheck } from 'lucide-react';
 import PayHeader from '../../components/pay/PayHeader';
 import BalanceCard from '../../components/pay/BalanceCard';
 import MomoForm from '../../components/pay/MomoForm';
+import CardForm from '../../components/pay/CardForm';
 import PaymentResult from '../../components/pay/PaymentResult';
 import Card from '../../components/dashboard/ui/Card';
 import { getPayView, initiatePay, verifyPay, downloadPayReceipt } from '../../services/publicPay';
@@ -39,6 +40,7 @@ const PayPage = () => {
 
   const [state, setState] = useState({ loading: true, error: null, view: null });
   const [payment, setPayment] = useState({ status: 'idle', error: null, data: null });
+  const [paymentMethod, setPaymentMethod] = useState('card');
   const polls = useRef(0);
   const timer = useRef(null);
 
@@ -108,6 +110,13 @@ const PayPage = () => {
     polls.current = 0;
     try {
       const result = await initiatePay(token, payload);
+      // Paystack returns an authorizationUrl — redirect the parent to Paystack's
+      // hosted checkout. The webhook settles the payment on return.
+      if (result?.paystack?.authorizationUrl) {
+        window.location.href = result.paystack.authorizationUrl;
+        return;
+      }
+
       // A gateway that accepts the request but reports "pending" inline should not
       // send us back to the form — the prompt is already out.
       const inline = String(result?.status || '').toLowerCase();
@@ -193,15 +202,50 @@ const PayPage = () => {
           <>
             <BalanceCard student={student} />
 
-            <div className="mt-4">
-              {payment.status === 'idle' || payment.status === 'starting' ? (
-                <MomoForm
-                  student={student}
-                  submitting={payment.status === 'starting'}
-                  onSubmit={startPayment}
-                />
-              ) : (
-                <PaymentResult
+             <div className="mt-4">
+               {payment.status === 'idle' || payment.status === 'starting' ? (
+                 <>
+                   <div className="mb-4 flex gap-2">
+                     <button
+                       type="button"
+                       onClick={() => setPaymentMethod('momo')}
+                       className={`flex-1 rounded-xl px-4 py-2.5 text-[13px] font-extrabold ${
+                         paymentMethod === 'momo'
+                           ? 'bg-brand-700 text-white'
+                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                       }`}
+                     >
+                       Mobile Money (MTN)
+                     </button>
+                     <button
+                       type="button"
+                       onClick={() => setPaymentMethod('card')}
+                       className={`flex-1 rounded-xl px-4 py-2.5 text-[13px] font-extrabold ${
+                         paymentMethod === 'card'
+                           ? 'bg-brand-700 text-white'
+                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                       }`}
+                     >
+                       Card or Bank (Paystack)
+                     </button>
+                   </div>
+
+                   {paymentMethod === 'momo' ? (
+                     <MomoForm
+                       student={student}
+                       submitting={payment.status === 'starting'}
+                       onSubmit={startPayment}
+                     />
+                   ) : (
+                     <CardForm
+                       student={student}
+                       submitting={payment.status === 'starting'}
+                       onSubmit={startPayment}
+                     />
+                   )}
+                 </>
+               ) : (
+                 <PaymentResult
                   status={payment.status}
                   payment={payment.data}
                   error={payment.error}

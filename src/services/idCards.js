@@ -4,10 +4,9 @@ import { toApiError } from './toApiError';
 /**
  * The ID card print surface.
  *
- * Four endpoints, and the shape of the flow is dictated by the server: creating
- * a batch answers **202**, not 200. The PDF is rendered by a background job, so
- * the request that starts it cannot also return the file. Anything built on this
- * service has to treat "started" and "ready" as two genuinely different states,
+ * Creating a batch answers **202**, not 200. The PDF is rendered by a background
+ * job, so the request that starts it cannot also return the file. Anything built on
+ * this service has to treat "started" and "ready" as two genuinely different states,
  * and polling is part of the contract rather than an optimisation.
  */
 
@@ -46,7 +45,8 @@ export const createIdCardBatch = async (studentIds, options = {}) => {
         studentIds,
         includeQr: options.includeQr !== false,
         includePhoto: options.includePhoto !== false,
-        cardTemplate: 'default',
+        useSchoolSettings: options.useSchoolSettings !== false,
+        templateId: options.templateId || null,
       },
       { timeout: 60000 }
     );
@@ -57,39 +57,50 @@ export const createIdCardBatch = async (studentIds, options = {}) => {
 };
 
 /**
- * The batch preview, which is also the readiness signal.
- *
- * `responseType: 'text'` is explicit because the 200 response is HTML and the
- * default JSON transform would either mangle it or throw on it.
- *
- * **202 is checked on the resolved response, not in the catch.** Axios rejects
- * on 4xx and 5xx only; 202 is a success, so it resolves. Branching on
- * `error.response.status` here would never fire, and the studio would take the
- * "ready" path on a batch that has not been generated — showing HTML that does
- * not exist and handing back a download that 404s.
+ * Merge multiple existing batches into a single new batch.
+ * Returns `{ batchId, status }`.
  */
-export const getIdCardBatchPreview = async (batchId) => {
+export const mergeIdCardBatches = async (batchIds) => {
   try {
-    const response = await api.get(
-      `/id-cards/batch/${encodeURIComponent(batchId)}`,
-      { responseType: 'text', timeout: 30000 }
+    const { data } = await api.post(
+      '/id-cards/batch/merge',
+      { batchIds },
+      { timeout: 60000 }
     );
-
-    if (response.status === 202) {
-      const body = await parseMaybeJson(response.data);
-      return { status: 'pending', retryAfter: body?.retryAfter || 15 };
-    }
-
-    return { status: 'ready', html: response.data };
+    return data?.data || null;
   } catch (error) {
-    // 4xx/5xx do reject. A failed batch is a 500 carrying
-    // `data.status === "failed"`, which is a terminal answer rather than a
-    // transport problem — surfaced as a failure state, not thrown.
-    if (error.response?.data?.code === 'BATCH_FAILED') {
-      const body = await parseMaybeJson(error.response.data);
-      return { status: 'failed', error: body?.error || 'Batch generation failed.' };
-    }
-    throw toApiError(error, 'The preview could not be loaded.');
+    throw toApiError(error, 'The batches could not be merged.');
+  }
+};
+
+/**
+ * Get full preview data for a batch (cards, school, batch metadata).
+ * Used by the print preview page to render React card components.
+ */
+export const getIdCardBatchPreviewData = async (batchId) => {
+  try {
+    const { data } = await api.get(
+      `/id-cards/batch/${encodeURIComponent(batchId)}/preview-data`,
+      { timeout: 30000 }
+    );
+    return data?.data;
+  } catch (error) {
+    throw toApiError(error, 'The preview data could not be loaded.');
+  }
+};
+
+/**
+ * Poll batch status. Returns `{ status, ... }`.
+ */
+export const getIdCardBatchStatus = async (batchId) => {
+  try {
+    const { data } = await api.get(
+      `/id-cards/batch/${encodeURIComponent(batchId)}/status`,
+      { timeout: 15000 }
+    );
+    return data?.data;
+  } catch (error) {
+    throw toApiError(error, 'The batch status could not be loaded.');
   }
 };
 
@@ -147,6 +158,35 @@ export const exportQrLinks = async (schoolId, params = {}) => {
   }
 };
 
+/** List recent batches for a school. */
+export const listBatches = async (schoolId, params = {}) => {
+  try {
+    const { data } = await api.get(
+      `/id-cards/batches/${encodeURIComponent(schoolId)}`,
+      { params, timeout: 15000 }
+    );
+    return {
+      batches: data?.data || [],
+      meta: data?.meta,
+    };
+  } catch (error) {
+    throw toApiError(error, 'Could not load ID card batches.');
+  }
+};
+
+/** Get the latest ready batch for preview. */
+export const getLatestBatch = async (schoolId) => {
+  try {
+    const { data } = await api.get(
+      `/id-cards/batches/latest`,
+      { params: { schoolId }, timeout: 15000 }
+    );
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, 'Could not load the latest batch.');
+  }
+};
+
 /**
  * A response body is JSON or a Blob depending on how it failed — a JSON error
  * against a `text`/`blob` request arrives as a Blob, and reading it blind gives
@@ -173,8 +213,12 @@ const parseMaybeJson = async (body) => {
 
 export default {
   createIdCardBatch,
-  getIdCardBatchPreview,
+  getIdCardBatchPreviewData,
+  getIdCardBatchStatus,
   downloadIdCardBatchPdf,
   downloadStudentIdCard,
   exportQrLinks,
+  listBatches,
+  getLatestBatch,
+  mergeIdCardBatches,
 };
