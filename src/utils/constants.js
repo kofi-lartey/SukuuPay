@@ -910,16 +910,16 @@ export const ONBOARDING_STEP_KEY_PREFIX = 'sukuupay_onboarding_step';
  * `studentname` are the same column).
  */
 export const STUDENT_IMPORT_COLUMNS = [
-  'Student Name',
-  'Student Class',
-  'Gender',
-  'Date Of Birth',
-  'Parent Name',
-  'Parent Phone',
-  'Parent Email',
-  'Parent Relationship',
-  'Total Owed',
-  'Deadline',
+  { key: 'name', label: 'Student Name', required: true },
+  { key: 'class', label: 'Class', required: true },
+  { key: 'gender', label: 'Gender', required: false },
+  { key: 'dob', label: 'Date of Birth', required: false },
+  { key: 'parentName', label: 'Parent Name', required: true },
+  { key: 'parentPhone', label: 'Parent Phone', required: true },
+  { key: 'parentEmail', label: 'Parent Email', required: false },
+  { key: 'parentRelationship', label: 'Parent Relationship', required: false },
+  { key: 'totalOwed', label: 'Total Owed', required: true },
+  { key: 'deadline', label: 'Deadline', required: false },
 ];
 
 /** Longest a single SMS segment can be before the gateway splits it. */

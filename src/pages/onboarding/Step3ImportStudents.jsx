@@ -120,7 +120,7 @@ const formatBytes = (bytes) => {
 };
 
 const downloadTemplate = () => {
-  const header = STUDENT_IMPORT_COLUMNS.join(',');
+  const header = STUDENT_IMPORT_COLUMNS.map((c) => c.label).join(',');
   const sample = [
     'Ama Serwaa Mensah',
     'JHS 2A',
