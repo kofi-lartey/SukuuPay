@@ -18,7 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { ROUTES, isNavItemActive, visibleDashboardNav } from '../../utils/constants';
-
+import { LogoMark } from '../common/Logo';
 /**
  * lucide name → component, resolving the strings in `DASHBOARD_NAV`.
  *
@@ -72,9 +72,16 @@ const DashboardSidebar = ({ user, school, variant = 'fixed', className = '', onC
       aria-label="Dashboard modules"
     >
       <div className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4">
-        <span className="text-lg font-extrabold tracking-tight text-ink">
-          Sukuu<span className="text-brand-700">Pay</span>
-        </span>
+        <Link
+          to={ROUTES.ADMIN}
+          className="flex shrink-0 items-center gap-2.5 pr-1"
+          aria-label="SukuuPay platform console"
+        >
+          <LogoMark className="h-10 w-10" />
+          <span className="hidden text-lg font-extrabold tracking-tight text-ink sm:block">
+            Sukuu<span className="text-brand-700">Pay</span>
+          </span>
+        </Link>
 
         {isDrawer && (
           <button

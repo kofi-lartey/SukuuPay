@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { ROUTES, isNavItemActive, visibleAdminNav } from '../../utils/constants';
 import { useImpersonation } from '../../hooks/useImpersonation';
+import { LogoMark } from '../common/Logo';
 
 /**
  * lucide name → component, resolving the strings in `ADMIN_NAV`.
@@ -98,15 +99,21 @@ const AdminSidebar = ({ variant = 'fixed', className = '', onClose }) => {
 
   return (
     <aside
-      className={`flex-col border-slate-200 bg-white ${
-        isDrawer ? 'border-r shadow-2xl' : 'sticky top-0 h-screen border-r'
-      } ${className}`}
+      className={`flex-col border-slate-200 bg-white ${isDrawer ? 'border-r shadow-2xl' : 'sticky top-0 h-screen border-r'
+        } ${className}`}
       aria-label="Platform console modules"
     >
       <div className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4">
-        <span className="text-lg font-extrabold tracking-tight text-ink">
-          Sukuu<span className="text-brand-700">Pay</span>
-        </span>
+        <Link
+          to={ROUTES.ADMIN}
+          className="flex shrink-0 items-center gap-2.5 pr-1"
+          aria-label="SukuuPay platform console"
+        >
+          <LogoMark className="h-10 w-10" />
+          <span className="hidden text-lg font-extrabold tracking-tight text-ink sm:block">
+            Sukuu<span className="text-brand-700">Pay</span>
+          </span>
+        </Link>
 
         {isDrawer && (
           <button
@@ -148,11 +155,10 @@ const AdminSidebar = ({ variant = 'fixed', className = '', onClose }) => {
                   to={item.to}
                   aria-current={active ? 'page' : undefined}
                   title={item.description}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40 ${
-                    active
+                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40 ${active
                       ? 'bg-brand-700 text-white shadow-lift'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-ink'
-                  }`}
+                    }`}
                 >
                   <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
                   <span className="truncate">{item.label}</span>

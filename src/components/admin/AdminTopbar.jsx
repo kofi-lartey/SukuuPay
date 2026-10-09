@@ -71,7 +71,7 @@ const AdminTopbar = ({ user, onOpenNav, navOpen = false, pathname, actions }) =>
           <Menu className="h-5 w-5" />
         </button>
 
-        <Link
+        {/* <Link
           to={ROUTES.ADMIN}
           className="flex shrink-0 items-center gap-2.5 pr-1"
           aria-label="SukuuPay platform console"
@@ -80,7 +80,7 @@ const AdminTopbar = ({ user, onOpenNav, navOpen = false, pathname, actions }) =>
           <span className="hidden text-lg font-extrabold tracking-tight text-ink sm:block">
             Sukuu<span className="text-brand-700">Pay</span>
           </span>
-        </Link>
+        </Link> */}
 
         {/*
           The current module, as text.

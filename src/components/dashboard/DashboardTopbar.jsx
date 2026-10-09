@@ -89,7 +89,7 @@ const DashboardTopbar = ({ user, onOpenNav, navOpen = false, school, term, smsCr
           <Menu className="h-5 w-5" />
         </button>
 
-        <Link
+        {/* <Link
           to={ROUTES.DASHBOARD}
           className="flex shrink-0 items-center gap-2.5 pr-1"
           aria-label="SukuuPay dashboard"
@@ -98,7 +98,7 @@ const DashboardTopbar = ({ user, onOpenNav, navOpen = false, school, term, smsCr
           <span className="hidden text-lg font-extrabold tracking-tight text-ink sm:block">
             Sukuu<span className="text-brand-700">Pay</span>
           </span>
-        </Link>
+        </Link> */}
 
         {/* School and term. Hidden below xl rather than truncated: a clipped
             school name is worse than no selector, because it looks like the
