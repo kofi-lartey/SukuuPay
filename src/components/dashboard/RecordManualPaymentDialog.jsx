@@ -72,7 +72,6 @@ const RecordManualPaymentDialog = ({ open, onClose, onRecorded }) => {
 
   // Debounced lookup, and only when there is something to look up.
   useEffect(() => {
-    console.log("[FRONTEND EFFECT] term:", term, "open:", open, "student:", student);
     if (!open) return undefined;
     const q = term.trim();
     if (q.length < 2) {
@@ -82,15 +81,12 @@ const RecordManualPaymentDialog = ({ open, onClose, onRecorded }) => {
 
     const timer = setTimeout(() => {
       setSearching(true);
-      console.log("[FRONTEND SEARCH] searching for:", q);
       listStudents({ status: 'all', search: q, perPage: 8 })
         .then((r) => {
-          console.log("[FRONTEND SEARCH] results:", r.rows?.length, r.rows);
           if (r.offline) setFormError('Offline — showing cached results');
           setResults(r.rows);
         })
         .catch((err) => {
-          console.error("[FRONTEND SEARCH] error:", err);
           setFormError(err.message || 'Search failed');
           setResults([]);
         })
