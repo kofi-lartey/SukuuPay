@@ -46,7 +46,6 @@ const IdCardFront = ({
   showPhoto = true,
   showStamp = true,
 }) => {
-  // Universal neutral dark charcoal fallback if no custom brand color is set
   const brand = school?.brandColor || '#0F172A';
 
   const rows = [
@@ -58,15 +57,15 @@ const IdCardFront = ({
 
   return (
     <CardShell>
-      {/* ── Header Band ── */}
+      {/* ── Header Band (28% height) ── */}
       <div
-        className="relative flex h-[30%] items-center gap-[3%] overflow-hidden px-[4%]"
+        className="relative flex h-[28%] items-center gap-[3%] overflow-hidden px-[4.5%]"
         style={{ backgroundColor: brand }}
       >
         <HeaderPattern brand={brand} />
 
         {/* Logo Tile */}
-        <div className="relative z-10 flex h-[65%] w-[15%] shrink-0 items-center justify-center rounded bg-white p-1 shadow-sm ring-1 ring-white/20">
+        <div className="relative z-10 flex h-[62%] w-[14%] shrink-0 items-center justify-center rounded bg-white p-[1.5px] shadow-sm ring-1 ring-white/20">
           {school?.logo ? (
             <img src={school.logo} alt="" className="h-full w-full object-contain" />
           ) : (
@@ -78,32 +77,34 @@ const IdCardFront = ({
 
         {/* School Name & Motto */}
         <div className="relative z-10 min-w-0 flex-1">
-          <p className="truncate text-[10px] font-black uppercase tracking-tight text-white">
+          <p className="truncate text-[9px] font-black uppercase tracking-tight text-white">
             {school?.name || 'School Name'}
           </p>
-          <p className="mt-[1px] truncate text-[6.5px] font-medium text-white/75">
-            {school?.motto || 'Excellence & Integrity'}
-          </p>
+          {school?.motto && (
+            <p className="mt-[1.5px] truncate text-[6px] font-medium text-white/75">
+              {school.motto}
+            </p>
+          )}
         </div>
       </div>
 
       {/* ── Gold Accent Divider ── */}
-      <div className="h-[2.5px] w-full" style={{ backgroundColor: '#F2B705' }} aria-hidden="true" />
+      <div className="h-[0.7px] w-full" style={{ backgroundColor: '#F2B705' }} aria-hidden="true" />
 
       {/* ── Body Content Layout ── */}
-      <div className="flex h-[67%] items-start justify-between px-[4%] pt-[3%]">
+      <div className="flex h-[69%] items-start justify-between px-[4.5%] pt-[3%]">
         
         {/* Left Column: Details & Signature */}
-        <div className="flex h-full w-[56%] flex-col justify-between pb-[2%]">
-          <div className="space-y-[3.5%]">
+        <div className="flex h-full w-[52%] flex-col justify-between pb-[2%]">
+          <div className="space-y-[4%]">
             {rows.map((row) => (
               <div key={row.label} className="flex items-baseline gap-[4px]">
-                <span className="w-[32%] shrink-0 text-[7.5px] font-bold text-slate-700">
+                <span className="w-[38%] shrink-0 text-[7px] font-bold text-slate-700">
                   {row.label}
                 </span>
-                <span className="shrink-0 text-[7.5px] font-bold text-slate-400">:</span>
+                <span className="shrink-0 text-[7px] font-bold text-slate-400">:</span>
                 <span
-                  className={`min-w-0 flex-1 truncate text-[8px] font-extrabold text-slate-900 ${
+                  className={`min-w-0 flex-1 truncate text-[7.5px] font-extrabold text-slate-900 ${
                     row.mono ? 'font-mono' : ''
                   }`}
                 >
@@ -113,31 +114,31 @@ const IdCardFront = ({
             ))}
           </div>
 
-          {/* Signature Line */}
-          <div className="w-[80%]">
+          {/* Signature Line — above the footer mark */}
+          <div className="w-[75%]">
             <div className="border-t border-slate-300" />
-            <p className="mt-[2px] text-[5.5px] font-semibold uppercase tracking-wider text-slate-400">
-              Authorize Signature
+            <p className="mt-[2px] text-[5px] font-semibold uppercase tracking-wider text-slate-400">
+              AUTHORIZE SIGNATURE
             </p>
           </div>
         </div>
 
         {/* Right Column: Photo, Name, and QR Code */}
-        <div className="flex w-[38%] flex-col items-center justify-between">
+        <div className="flex w-[40%] flex-col items-center justify-between">
           <div className="flex w-full flex-col items-center">
             {/* Photo Container */}
-            <div className="aspect-square w-[68%] overflow-hidden rounded-md bg-slate-100 shadow-sm ring-1 ring-slate-200">
+            <div className="aspect-square w-[52%] overflow-hidden rounded-[1.5mm] bg-slate-100 shadow-sm ring-1 ring-slate-200">
               {showPhoto && values.studentImage ? (
                 <img src={values.studentImage} alt="" className="h-full w-full object-cover" />
               ) : (
-                <div className="flex h-full w-full items-center justify-center bg-slate-200 text-[6px] font-bold text-slate-400">
+                <div className="flex h-full w-full items-center justify-center bg-slate-200 text-[5.5px] font-bold text-slate-400">
                   PHOTO
                 </div>
               )}
             </div>
 
             {/* Student Name */}
-            <p className="mt-[3px] w-full truncate text-center text-[9px] font-black text-slate-900">
+            <p className="mt-[3px] w-full truncate text-center text-[8.5px] font-black text-slate-900">
               {values.studentName || 'Student Name'}
             </p>
           </div>
@@ -145,10 +146,10 @@ const IdCardFront = ({
           {/* QR Code Section */}
           <div className="flex items-center gap-2 self-end pr-1">
             <div className="flex flex-col items-end">
-              <span className="text-[5.5px] font-bold uppercase tracking-wider text-slate-400">Scan Verify</span>
-              <span className="font-mono text-[5.5px] font-semibold text-slate-500">Secure ID</span>
+              <span className="text-[5px] font-bold uppercase tracking-wider text-slate-400">SCAN VERIFY</span>
+              <span className="font-mono text-[5px] font-semibold text-slate-500">Secure ID</span>
             </div>
-            <div className="flex h-[22px] w-[22px] items-center justify-center overflow-hidden rounded bg-white p-[1px] shadow-sm ring-1 ring-slate-200">
+            <div className="flex h-[20px] w-[20px] items-center justify-center overflow-hidden rounded bg-white p-[1px] shadow-sm ring-1 ring-slate-200">
               {values.qrCodeUrl ? (
                 <img src={values.qrCodeUrl} alt="QR Code" className="h-full w-full object-contain" />
               ) : (
@@ -181,23 +182,31 @@ const IdCardBack = ({ values, school }) => {
     <CardShell>
       {/* Header band */}
       <div
-        className="flex h-[14%] items-center justify-between px-[5%]"
+        className="flex h-[13%] items-center justify-between px-[5%]"
         style={{ backgroundColor: brand }}
       >
         <span className="text-[5.5px] font-bold uppercase tracking-[0.15em] text-white/75">
           Official Credential
         </span>
-        <span className="font-mono text-[6px] font-bold tracking-[0.1em] text-white/90">
-          SUKUUPAY
-        </span>
+        {school?.logo ? (
+          <img
+            src={school.logo}
+            alt=""
+            className="h-[55%] w-auto object-contain"
+          />
+        ) : (
+          <span className="font-mono text-[6px] font-bold tracking-[0.1em] text-white/90">
+            SUKUUPAY
+          </span>
+        )}
       </div>
 
-      <div className="h-[2.5px] w-full" style={{ backgroundColor: '#F2B705' }} aria-hidden="true" />
+      <div className="h-[0.7px] w-full" style={{ backgroundColor: '#F2B705' }} aria-hidden="true" />
 
       <div className="px-[5%] pt-[3%]">
         <div>
           <p className="text-[5.5px] font-bold uppercase tracking-[0.15em] text-slate-400">
-            Institutional Terms &amp; Conditions
+            Institutional Terms & Conditions
           </p>
           <p className="mt-[2px] text-[6px] leading-tight text-slate-500">
             This credential is the exclusive legal property of {school?.name || 'the issuing school'}. 
