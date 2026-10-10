@@ -4,23 +4,56 @@ import Modal from '../common/Modal';
 import Button from '../common/Button';
 import { getReceipt } from '../../services/payments';
 import { formatCedi } from '../../utils/format';
-import { formatDate, formatDateTime } from '../../utils/dates';
+import { formatDateTime } from '../../utils/dates';
 import { PaymentDetailRow as Row } from './PaymentDetailDrawer';
 
 /**
  * A payment's receipt.
  *
- * **`GET /payments/:paymentId/receipt` returns JSON, not a PDF.** This dialog
- * was previously asking for `responseType: 'blob'` and handing the JSON body to
- * `URL.createObjectURL`, so a bursar downloaded a corrupt file named
- * `receipt-….pdf` — and nothing looked broken, because the request genuinely
- * succeeded. The receipt document is rendered here from the returned data
- * instead, and `window.print()` is the PDF.
+ * `GET /payments/:paymentId/receipt` returns JSON, not a PDF. This dialog
+ * renders the receipt document from the returned data and `window.print()` is
+ * how a bursar gets a paper copy. Calling the endpoint is also what mints the
+ * receipt number on first view, so a payment taken before receipts existed gets
+ * one the moment a bursar opens it.
  *
- * Calling the endpoint is also what *mints* the receipt number: a payment taken
- * before receipts existed gets its number on first view, so a bursar never has to
- * know whether a number exists before they can print one.
+ * The layout mirrors `Backend/src/utils/receiptService.js` section for section —
+ * brand band, school header with logo, title, amount box, RECEIVED FROM,
+ * RECEIPT, fee breakdown, footer — so the modal a bursar screenshots and the
+ * PDF a parent downloads are the same document.
  */
+
+// One date, one format. `formatDate` alone produces "09 Oct 2026"; the previous
+// version concatenated `formatDate` and `formatDateTime` on the same timestamp,
+// producing "09 Oct 2026 · 09 Oct 2026, 11:14 am" — two dates joined with a dot
+// separator, on a receipt that recorded one moment in time.
+const receiptDate = (value) => (value ? formatDateTime(value) : undefined);
+
+const SchoolLogo = ({ logo, name, brandColor = '#0A5C36' }) => {
+  const [errored, setErrored] = useState(false);
+  const initial = (String(name || 'S').trim().charAt(0) || 'S').toUpperCase();
+
+  if (logo && !errored) {
+    return (
+      <img
+        src={logo}
+        alt=""
+        onError={() => setErrored(true)}
+        className="h-12 w-12 shrink-0 rounded-md object-contain ring-1 ring-slate-200"
+      />
+    );
+  }
+
+  return (
+    <span
+      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md text-xl font-extrabold text-white"
+      style={{ backgroundColor: brandColor }}
+      aria-hidden="true"
+    >
+      {initial}
+    </span>
+  );
+};
+
 const ReceiptDialog = ({ open, paymentId, onClose }) => {
   const [receipt, setReceipt] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -55,13 +88,16 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
   const student = receipt?.student || {};
   const school = receipt?.school || {};
   const breakdown = Array.isArray(receipt?.feesBreakdown) ? receipt.feesBreakdown : [];
+  const brandColor = school.brandColor || '#0A5C36';
 
   return (
     <Modal
       open={open}
       onClose={onClose}
       title="Payment receipt"
-      description={receipt?.receiptNumber ? `Receipt ${receipt.receiptNumber}` : undefined}
+      description={
+        receipt?.receiptNumber ? `Receipt ${receipt.receiptNumber}` : undefined
+      }
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -74,7 +110,13 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
         </>
       }
     >
-      {loading && <div className="h-40 animate-pulse rounded-lg bg-slate-100" />}
+      {loading && (
+        <div className="space-y-4">
+          <div className="h-16 animate-pulse rounded-lg bg-slate-100" />
+          <div className="h-24 animate-pulse rounded-lg bg-slate-100" />
+          <div className="h-32 animate-pulse rounded-lg bg-slate-100" />
+        </div>
+      )}
 
       {!loading && error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
@@ -84,20 +126,33 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
 
       {!loading && !error && receipt && (
         <div className="space-y-5">
-          <div className="text-center">
-            <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
-              {school.name || 'School'}
-            </p>
-            {school.address && (
-              <p className="mt-0.5 text-[12px] font-semibold text-slate-500">{school.address}</p>
-            )}
-            {school.city && (
-              <p className="text-[12px] font-semibold text-slate-500">
-                {[school.city, school.region].filter(Boolean).join(', ')}
+          {/* ── School header with logo ── */}
+          <div className="flex items-start gap-3">
+            <SchoolLogo
+              logo={school.logo}
+              name={school.name}
+              brandColor={brandColor}
+            />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[14px] font-extrabold text-ink">
+                {school.name || 'School'}
               </p>
-            )}
+              {school.address && (
+                <p className="mt-0.5 truncate text-[12px] font-semibold text-slate-500">
+                  {school.address}
+                </p>
+              )}
+              {(school.city || school.region) && (
+                <p className="truncate text-[12px] font-semibold text-slate-500">
+                  {[school.city, school.region].filter(Boolean).join(', ')}
+                </p>
+              )}
+            </div>
           </div>
 
+          <div className="h-px w-full bg-slate-100" aria-hidden="true" />
+
+          {/* ── Amount box ── */}
           <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
             <p className="text-[11px] font-extrabold uppercase tracking-wide text-slate-500">
               Amount received
@@ -107,6 +162,7 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
             </p>
           </div>
 
+          {/* ── RECEIVED FROM ── */}
           <section>
             <h3 className="mb-1 text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
               Received from
@@ -118,6 +174,7 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
             </dl>
           </section>
 
+          {/* ── RECEIPT ── */}
           <section>
             <h3 className="mb-1 text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
               Receipt
@@ -125,23 +182,24 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
             <dl>
               <Row label="Receipt number" value={receipt.receiptNumber} mono />
               <Row label="Payment ref" value={receipt.paymentId} mono />
+              <Row label="Date" value={receiptDate(receipt.date)} />
               <Row
-                label="Date"
+                label="Method"
                 value={
-                  receipt.date
-                    ? `${formatDate(receipt.date)} · ${formatDateTime(receipt.date)}`
-                    : undefined
+                  receipt.paymentMethod === 'momo'
+                    ? 'Mobile Money'
+                    : receipt.paymentMethod
                 }
               />
-              <Row label="Method" value={receipt.paymentMethod} />
-              <Row label="Description" value={receipt.description} />
+              <Row label="Description" value={receipt.description || receipt.notes} />
             </dl>
           </section>
 
-          {breakdown.length > 0 && (
+          {/* ── Fee breakdown (only when it has more than one line) ── */}
+          {breakdown.length > 1 && (
             <section>
               <h3 className="mb-1 text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
-                What it paid for
+                Fee breakdown
               </h3>
               <ul className="divide-y divide-slate-100">
                 {breakdown.map((line, index) => (
@@ -161,9 +219,25 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
                   </li>
                 ))}
               </ul>
+
+              {/* Reconciliation note — matches the PDF. */}
+              {(() => {
+                const total = breakdown.reduce(
+                  (sum, line) => sum + (Number(line.amount) || 0),
+                  0
+                );
+                if (total === (Number(receipt.amount) || 0)) return null;
+                return (
+                  <p className="mt-2 text-[11px] font-semibold text-slate-500">
+                    Note: the fee lines above total {formatCedi(total)}, which
+                    differs from the amount charged.
+                  </p>
+                );
+              })()}
             </section>
           )}
 
+          {/* ── Footer ── */}
           <p className="border-t border-slate-100 pt-3 text-center text-[11px] font-semibold text-slate-400">
             Thank you. Please keep this receipt for your records.
           </p>

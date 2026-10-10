@@ -71,4 +71,20 @@ export const fetchSchoolAds = async (placement = 'advertisement_page', { perPage
   }
 };
 
+/**
+ * Records an impression for an ad creative.
+ *
+ * Called when an ad card first enters the viewport. Fire-and-forget:
+ * a failed impression is not worth surfacing to the user — the advertiser
+ * simply does not get credit for one view.
+ */
+export const trackAdImpression = async (adId) => {
+  if (!adId) return;
+  try {
+    await api.post('/public/school-ads/impression', { adId }, { timeout: 5000 });
+  } catch {
+    // Swallow errors — the impression is a nice-to-have metric, not a gate.
+  }
+};
+
 export default fetchSchoolAds;
