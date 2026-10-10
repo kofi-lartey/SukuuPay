@@ -105,7 +105,7 @@ const AdminSidebar = ({ variant = 'fixed', className = '', onClose }) => {
     >
       <div className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4">
         <Link
-          to={ROUTES.ADMIN}
+          to={ROUTES.HOME}
           className="flex shrink-0 items-center gap-2.5 pr-1"
           aria-label="SukuuPay platform console"
         >
