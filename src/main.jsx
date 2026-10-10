@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { LoadingScreenProvider } from './components/loading';
 import App from './App';
 import './index.css';
 
@@ -20,6 +21,24 @@ const useMocks = import.meta.env.VITE_USE_MOCKS === 'true';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
+const renderApp = (mockPanel) => {
+  root.render(
+    <React.StrictMode>
+      <LoadingScreenProvider
+        variant="pulse"
+        minDisplayTime={1000}
+        logoSrc="/sukuupay-logo.png"
+        logoAlt="SukuuPay"
+        size={120}
+        backgroundColor="#ffffff"
+      >
+        <App />
+        {mockPanel}
+      </LoadingScreenProvider>
+    </React.StrictMode>
+  );
+};
+
 if (useMocks) {
   // `preinstall` must run before `services/api.js` is evaluated — see the
   // comment in `mocks/preinstall.js` for why the ordering matters.
@@ -28,17 +47,8 @@ if (useMocks) {
     .then(() => import('./mocks'))
     .then(({ installMockApi, MockControlPanel }) => {
       installMockApi();
-      root.render(
-        <React.StrictMode>
-          <App />
-          <MockControlPanel />
-        </React.StrictMode>
-      );
+      renderApp(<MockControlPanel />);
     });
 } else {
-  root.render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>
-  );
+  renderApp(null);
 }
