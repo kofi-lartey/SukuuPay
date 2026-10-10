@@ -18,6 +18,16 @@ import {
 /** The fixed neutral header band. Charcoal, never a school brand colour. */
 const HEADER_FILL = '#0F172A';
 
+/**
+ * Stand-in for a blank field.
+ *
+ * An ASCII hyphen, because that is what the PDF prints: an em dash renders fine
+ * in a browser but has no safe byte in pdfkit's standard fonts, where it comes
+ * out as three mojibake characters. Keeping the two renderers on the same
+ * character is why a blank field looks blank in both reprinting and on screen.
+ */
+const PLACEHOLDER = '-';
+
 const CardShell = ({ children, className = '' }) => (
   <div
     className={`relative w-full overflow-hidden rounded-[4%] bg-white shadow-md ring-1 ring-slate-900/10 ${className}`}
@@ -41,10 +51,10 @@ const IdCardFront = ({
   // school's `brandColor`, so a school with a blue brand previewed — and
   // printed — a blue credential. It is a fixed neutral charcoal now.
   const rows = [
-    { label: 'Student ID', value: values.studentId || '—', mono: true },
-    { label: 'Class / stream', value: values.studentClass || '—', mono: false },
-    { label: 'Phone', value: values.guardianPhone || values.studentPhone || '—', mono: true },
-    { label: 'Session', value: values.academicYear || '—', mono: false },
+    { label: 'Student ID', value: values.studentId || PLACEHOLDER, mono: true },
+    { label: 'Class / stream', value: values.studentClass || PLACEHOLDER, mono: false },
+    { label: 'Phone', value: values.guardianPhone || values.studentPhone || PLACEHOLDER, mono: true },
+    { label: 'Session', value: values.academicYear || PLACEHOLDER, mono: false },
   ];
 
   return (
@@ -167,9 +177,11 @@ const IdCardFront = ({
 };
 
 const IdCardBack = ({ values, school }) => {
+  // Comma-separated, matching the PDF. The middle dot here renders fine in the
+  // browser but prints as mojibake on the card.
   const guardianText = values.guardianName
-    ? `${values.guardianName}${values.guardianPhone ? ` · ${values.guardianPhone}` : ''}`
-    : '—';
+    ? `${values.guardianName}${values.guardianPhone ? `, ${values.guardianPhone}` : ''}`
+    : '-';
 
   return (
     <CardShell>
@@ -211,7 +223,7 @@ const IdCardBack = ({ values, school }) => {
             Student ID
           </span>
           <span className="font-mono text-[9px] font-bold text-slate-900">
-            "{values.studentId || '—'}"
+            "{values.studentId || PLACEHOLDER}"
           </span>
         </div>
 
@@ -230,7 +242,7 @@ const IdCardBack = ({ values, school }) => {
                 Emergency
               </span>
               <span className="min-w-0 flex-1 truncate text-[6.5px] font-extrabold text-slate-900">
-                {values.emergencyContact || '—'}
+                {values.emergencyContact || PLACEHOLDER}
               </span>
             </div>
             <div className="flex items-baseline gap-2 border-r border-slate-200 px-2 py-[5px]">
@@ -238,7 +250,7 @@ const IdCardBack = ({ values, school }) => {
                 Holder
               </span>
               <span className="min-w-0 flex-1 truncate text-[6.5px] font-extrabold text-slate-900">
-                {values.studentName || '—'}
+                {values.studentName || PLACEHOLDER}
               </span>
             </div>
             <div className="flex items-baseline gap-2 px-2 py-[5px]">

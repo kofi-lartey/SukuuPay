@@ -30,10 +30,20 @@ import {
 } from '../../../services/idCards';
 
 const PER_PAGE = 24;
+/**
+ * Print-readiness filters.
+ *
+ * The two photo filters are deliberately paired. A missing photo does not block
+ * printing — the renderer draws a labelled placeholder tile — so "Missing photo"
+ * was never enough on its own: a school chasing up photographs needs the cards
+ * that *already have* one, and picking those out of an unfiltered grid is a
+ * scroll through every student.
+ */
 const FILTERS = [
   { value: 'all', label: 'All' },
   { value: 'ready', label: 'Printable' },
   { value: 'blocked', label: 'Needs attention' },
+  { value: 'has-photo', label: 'With photo' },
   { value: 'no-photo', label: 'Missing photo' },
 ];
 
@@ -52,13 +62,19 @@ const IdCardPrintStudio = ({ schoolId, school, classes }) => {
   const [batch, setBatch] = useState({ status: 'idle', batchId: null });
   const pollRef = useRef(null);
 
+  // Photograph presence goes to the server: it is a real column, so the filter
+  // covers the whole roster rather than the 24 rows already on screen. The
+  // readiness filters stay client-side because they are derived from the field
+  // manifest, not stored anywhere.
+  const photoParam = filter === 'has-photo' ? 'has' : filter === 'no-photo' ? 'missing' : '';
+
   const { rows: students, loading, error, meta, refresh } = usePrintRoster({
     page,
     perPage: PER_PAGE,
     className: classFilter,
     search,
+    photo: photoParam,
   });
-
   const rows = useMemo(
     () =>
       students.map((student) => ({
@@ -76,9 +92,11 @@ const IdCardPrintStudio = ({ schoolId, school, classes }) => {
     const term = search.trim().toLowerCase();
     return rows.filter(({ student, readiness }) => {
       if (term && !String(student.studentName || '').toLowerCase().includes(term)) return false;
+      // Readiness filters only. Photograph presence is already resolved on the
+      // server, so filtering again here would be right twice and wrong once the
+      // two ever disagree.
       if (filter === 'ready') return readiness.canPrint;
       if (filter === 'blocked') return !readiness.canPrint;
-      if (filter === 'no-photo') return !student.studentImage;
       return true;
     });
   }, [rows, filter, search]);
@@ -88,6 +106,7 @@ const IdCardPrintStudio = ({ schoolId, school, classes }) => {
       shown: visible.length,
       printable: visible.filter((r) => r.readiness.canPrint).length,
       blocked: visible.filter((r) => !r.readiness.canPrint).length,
+      withPhoto: visible.filter((r) => Boolean(r.student.studentImage)).length,
       noPhoto: visible.filter((r) => !r.student.studentImage).length,
       withQr: visible.filter((r) => Boolean(r.student.payLink)).length,
     }),
@@ -413,9 +432,9 @@ const IdCardPrintStudio = ({ schoolId, school, classes }) => {
             <div className="flex items-baseline justify-between gap-3">
               <dt className="font-semibold text-slate-500">Verified photos</dt>
               <dd className="font-extrabold tabular-nums text-ink">
-                {formatCount(totals.noPhoto ? visible.length - totals.noPhoto : visible.length)}
+                {formatCount(totals.withPhoto)}
                 <span className="ml-1 text-[11px] text-slate-400">
-                  / {formatCount(visible.length)}
+                  / {formatCount(totals.shown)}
                 </span>
               </dd>
             </div>
