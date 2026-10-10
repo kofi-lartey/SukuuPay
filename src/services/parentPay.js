@@ -107,18 +107,6 @@ export const verifyPayment = async (token, reference) => {
   }
 };
 
-/**
- * The URL a browser downloads a receipt from.
- *
- * A plain link rather than a fetch-and-blob. On a 3G connection with a metered
- * bundle, a blob round trip buffers the whole PDF in memory and then saves it; the
- * anchor lets the browser stream it straight to disk, and — more to the point — it
- * is the only one of the two that works when the parent has turned the phone
- * sideways to photograph the screen and the page is backgrounded.
- */
-export const receiptDownloadUrl = (token, paymentId) =>
-  `${api.defaults.baseURL}${pay(token, `/receipt/${encodeURIComponent(paymentId)}`)}?download=pdf`;
-
 // ──────────────────── Requests ────────────────────
 
 /** Asks the school to split the balance. Not auto-approved; see the backend. */

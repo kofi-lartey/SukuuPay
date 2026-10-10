@@ -207,6 +207,118 @@ export const getReceipt = async (paymentId) => {
   }
 };
 
+/**
+ * Downloads the admin receipt as a PDF.
+ *
+ * The endpoint streams binary, so the response type is `blob`. The filename
+ * comes from `Content-Disposition` when present; the fallback uses the
+ * receipt number so a bursar sees a meaningful name even when the header is
+ * missing.
+ */
+export const downloadReceiptPdf = async (paymentId, receiptNumber) => {
+  const response = await api.get(`/payments/${encodeURIComponent(paymentId)}/receipt.pdf`, {
+    responseType: 'blob',
+  });
+
+  const disposition = response.headers?.['content-disposition'] || '';
+  const match = disposition.match(/filename="?([^"]+)"?/i);
+  const filename = match?.[1] || `${receiptNumber || 'receipt'}.pdf`;
+
+  const blob = new Blob([response.data], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+
+  return filename;
+};
+
+/**
+ * Downloads the parent-portal receipt as a PDF. Same shape as
+ * `downloadReceiptPdf` but scoped by the pay token instead of a JWT.
+ */
+export const downloadParentReceiptPdf = async (token, paymentId) => {
+  const response = await api.get(`/pay/${encodeURIComponent(token)}/receipt/${encodeURIComponent(paymentId)}`, {
+    responseType: 'blob',
+  });
+
+  const disposition = response.headers?.['content-disposition'] || '';
+  const match = disposition.match(/filename="?([^"]+)"?/i);
+  const filename = match?.[1] || 'receipt.pdf';
+
+  const blob = new Blob([response.data], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+
+  return filename;
+};
+
+/**
+ * Sends the receipt to the parent by email, as a real attachment.
+ *
+ * The PDF is rendered on the server and attached to the message there. Nothing
+ * is downloaded to this device — the previous shape of this action opened a
+ * window, attached a blob, and hoped the bursar put it on the right email.
+ * An email leaving the school from a button that never touches the file is
+ * the only version of this that cannot send last term's receipt.
+ *
+ * The endpoint refuses with `PARENT_EMAIL_REQUIRED` (400) when the parent has
+ * no address on file, which is why `email` may be passed here: the caller
+ * supplies one and the server persists it for next time.
+ *
+ * @param {string} paymentId
+ * @param {string} [email] only needed when the parent has none on record
+ * @returns {Promise<{ to: string }>} the address it was sent to
+ */
+export const emailReceipt = async (paymentId, email) => {
+  try {
+    const { data } = await api.post(
+      `/payments/${encodeURIComponent(paymentId)}/receipt/email`,
+      email ? { email } : {},
+      { timeout: 30000 }
+    );
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, 'The receipt could not be emailed.');
+  }
+};
+
+/**
+ * Sends the receipt to the parent on WhatsApp as a document message.
+ *
+ * Delivered by the WhatsApp Business API on the server, which is the only way
+ * a file reaches a chat. `wa.me` can pre-fill a sentence and nothing else, so
+ * a browser-side shortcut would send the parent a message that *described* a
+ * receipt they had no way to open.
+ *
+ * @param {string} paymentId
+ * @returns {Promise<{ to: string }>} the number it was sent to
+ */
+export const whatsappReceipt = async (paymentId) => {
+  try {
+    const { data } = await api.post(
+      `/payments/${encodeURIComponent(paymentId)}/receipt/whatsapp`,
+      {},
+      { timeout: 30000 }
+    );
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, 'The receipt could not be sent on WhatsApp.');
+  }
+};
+
 export default {
   recordManualPayment,
   listPayments,
@@ -216,4 +328,8 @@ export default {
   refundPayment,
   listStudentPayments,
   getReceipt,
+  downloadReceiptPdf,
+  downloadParentReceiptPdf,
+  emailReceipt,
+  whatsappReceipt,
 };

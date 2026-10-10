@@ -8,6 +8,9 @@ const Button = ({ children, variant = 'primary', size = 'md', className = '', ..
     secondary: 'bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500',
     danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
     ghost: 'text-gray-700 hover:bg-gray-100 focus:ring-gray-500',
+    // WhatsApp's own green, so the button reads as the channel before the
+    // label is read. 25D366 is WhatsApp's brand green.
+    whatsapp: 'bg-[#25D366] text-white hover:bg-[#1DA851] focus:ring-[#25D366]',
   };
   
   const sizes = {
