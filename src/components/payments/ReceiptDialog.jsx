@@ -6,7 +6,6 @@ import {
   Mail,
   MessageCircle,
   Send,
-  X,
 } from 'lucide-react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
@@ -14,7 +13,6 @@ import {
   getReceipt,
   downloadReceiptPdf,
   emailReceipt,
-  whatsappReceipt,
 } from '../../services/payments';
 import { formatCedi } from '../../utils/format';
 import { formatDateTime } from '../../utils/dates';
@@ -36,6 +34,23 @@ const maskPhone = (value) => {
   const digits = String(value || '').replace(/\D/g, '');
   if (digits.length < 6) return value || '';
   return `${digits.slice(0, 3)} ••• ${digits.slice(-3)}`;
+};
+
+/**
+ * Normalises a Ghanaian phone number to the `wa.me` MSISDN format.
+ *
+ * `wa.me` needs digits only, no `+`, no spaces, no leading zeros — and it
+ * needs the country code. Ghanaian local numbers start with `0` followed by
+ * 9 digits (`024…`, `054…`, `020…`); the international form drops the `0`
+ * and prefixes `233`. Numbers already in international form (`233…`) pass
+ * through untouched.
+ */
+const toWhatsAppMsisdn = (value) => {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('233')) return digits;
+  if (digits.startsWith('0')) return `233${digits.slice(1)}`;
+  return digits;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -208,13 +223,26 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
     }
   };
 
-  const handleWhatsApp = async () => {
-    const outcome = await run('whatsapp', () => whatsappReceipt(paymentId), {
-      success: () => '',
-      sent: (to) => `Receipt sent on WhatsApp to ${maskPhone(to)}`,
-      failure: 'Could not send the receipt on WhatsApp.',
-    });
-    if (outcome.ok) setSentVia((s) => ({ ...s, whatsapp: true }));
+  const handleWhatsApp = () => {
+    if (anyBusy) return;
+
+    const msisdn = toWhatsAppMsisdn(student.parentPhone);
+    if (!msisdn) {
+      toast.error('No parent phone number on record for WhatsApp.');
+      return;
+    }
+
+    // Pre-filled message the parent will see. Keep it short — wa.me only
+    // supports a plain `text` query param, and long messages get truncated.
+    const receiptRef = receipt?.receiptNumber || receipt?.reference || paymentId;
+    const message = `Hello, your payment receipt ${receiptRef} from ${
+      school?.name || 'school'
+    } is ready. Please find it attached.`;
+
+    const url = `https://wa.me/${msisdn}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setSentVia((s) => ({ ...s, whatsapp: true }));
+    toast.success(`Opening WhatsApp for ${maskPhone(student.parentPhone)}`);
   };
 
   if (!open) return null;
@@ -224,6 +252,7 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
       open={open}
       onClose={onClose}
       hideTitle
+      hideClose
       size="lg"
       footer={
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -254,13 +283,15 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
               onClick={handleDownload}
               disabled={!receipt || anyBusy}
               aria-label="Download receipt as PDF"
+              title="Download receipt as PDF"
+              className="!px-3"
             >
               {busy === 'download' ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               ) : (
-                <FileDown className="mr-2 h-4 w-4" aria-hidden="true" />
+                <FileDown className="h-4 w-4" aria-hidden="true" />
               )}
-              Download
+              <span className="sr-only">Download</span>
             </Button>
 
             <Button
@@ -268,38 +299,40 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
               onClick={handleEmail}
               disabled={!receipt || anyBusy}
               aria-label="Send receipt by email"
+              title="Send receipt by email"
+              className="!px-3"
             >
               {busy === 'email' ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               ) : sentVia.email ? (
                 <CheckCircle2
-                  className="mr-2 h-4 w-4 text-emerald-600"
+                  className="h-4 w-4 text-emerald-600"
                   aria-hidden="true"
                 />
               ) : (
-                <Send className="mr-2 h-4 w-4" aria-hidden="true" />
+                <Send className="h-4 w-4" aria-hidden="true" />
               )}
-              {busy === 'email' ? 'Sending…' : sentVia.email ? 'Sent' : 'Email'}
+              <span className="sr-only">
+                {busy === 'email' ? 'Sending…' : sentVia.email ? 'Sent' : 'Email'}
+              </span>
             </Button>
 
             <Button
               variant="whatsapp"
               onClick={handleWhatsApp}
-              disabled={!receipt || anyBusy}
+              disabled={!receipt || anyBusy || !hasParentPhone}
               aria-label="Send receipt on WhatsApp"
+              title="Send receipt on WhatsApp"
+              className="!px-3"
             >
-              {busy === 'whatsapp' ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : sentVia.whatsapp ? (
-                <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden="true" />
+              {sentVia.whatsapp ? (
+                <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
               ) : (
-                <MessageCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+                <MessageCircle className="h-4 w-4" aria-hidden="true" />
               )}
-              {busy === 'whatsapp'
-                ? 'Sending…'
-                : sentVia.whatsapp
-                  ? 'Sent'
-                  : 'WhatsApp'}
+              <span className="sr-only">
+                {sentVia.whatsapp ? 'Sent' : 'WhatsApp'}
+              </span>
             </Button>
           </div>
         </div>
@@ -323,189 +356,177 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
 
       {!loading && !error && receipt && (
         <div className="relative font-sans text-slate-800">
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="absolute right-0 top-0 z-30 inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-          </button>
+          {/* NO INNER SCROLL — the Modal itself owns the scroll. */}
 
-          {/* VIEWPORT SCROLL WRAPPER */}
-          <div className="max-h-[calc(82vh-90px)] overflow-y-auto p-1">
+          {/* RECEIPT PAPER CONTAINER */}
+          <div className="relative mx-auto my-2 max-w-[600px] overflow-hidden bg-white shadow-md border border-slate-200 rounded-sm text-[12px]">
             
-            {/* RECEIPT PAPER CONTAINER */}
-            <div className="relative mx-auto my-2 max-w-[600px] overflow-hidden bg-white shadow-md border border-slate-200 rounded-sm text-[12px]">
+            {/* ACCENT SHAPES (SYSTEM COLOURS) */}
+            <div className="absolute top-0 right-0 w-24 h-24 bg-brand-500 [clip-path:polygon(100%_0,0_0,100%_100%)] z-0" />
+            <div className="absolute bottom-0 left-0 w-20 h-20 bg-brand-500 [clip-path:polygon(0_100%,0_0,100%_100%)] z-0" />
+            <div className="absolute top-0 left-0 w-3 h-full bg-slate-900 z-10" />
+
+            {/* DOCUMENT CONTENT */}
+            <div className="relative z-20 pl-8 pr-6 py-8 flex flex-col justify-between min-h-[640px]">
               
-              {/* ACCENT SHAPES (SYSTEM COLOURS) */}
-              <div className="absolute top-0 right-0 w-24 h-24 bg-brand-500 [clip-path:polygon(100%_0,0_0,100%_100%)] z-0" />
-              <div className="absolute bottom-0 left-0 w-20 h-20 bg-brand-500 [clip-path:polygon(0_100%,0_0,100%_100%)] z-0" />
-              <div className="absolute top-0 left-0 w-3 h-full bg-slate-900 z-10" />
-
-              {/* DOCUMENT CONTENT */}
-              <div className="relative z-20 pl-8 pr-6 py-8 flex flex-col justify-between min-h-[640px]">
-                
-                <div>
-                  {/* 1. TOP HEADER */}
-                  <div className="flex justify-between items-start mb-8">
-                    {/* School Brand/Logo */}
-                    <div className="flex items-center gap-3">
-                      {school.logo ? (
-                        <img src={school.logo} alt="" className="h-12 w-12 object-contain" />
-                      ) : (
-                        <div className="h-10 w-10 rounded bg-slate-900 text-white flex items-center justify-center font-bold text-lg">
-                          {(school.name || 'S').charAt(0)}
-                        </div>
-                      )}
-                      <div>
-                        <h1 className="font-extrabold text-[16px] leading-tight text-slate-900 tracking-tight">
-                          {school.name || 'School Name'}
-                        </h1>
-                        <p className="text-[10px] text-slate-500">
-                          {[school.address, school.city].filter(Boolean).join(', ')}
-                        </p>
+              <div>
+                {/* 1. TOP HEADER */}
+                <div className="flex justify-between items-start mb-8">
+                  {/* School Brand/Logo */}
+                  <div className="flex items-center gap-3">
+                    {school.logo ? (
+                      <img src={school.logo} alt="" className="h-12 w-12 object-contain" />
+                    ) : (
+                      <div className="h-10 w-10 rounded bg-slate-900 text-white flex items-center justify-center font-bold text-lg">
+                        {(school.name || 'S').charAt(0)}
                       </div>
-                    </div>
-
-                    {/* Receipt Title & Date */}
-                    <div className="text-right pr-6">
-                      <h2 className="text-[26px] font-black uppercase tracking-wider text-brand-600 leading-none">
-                        RECEIPT
-                      </h2>
-                      <p className="text-[11px] font-medium text-slate-600 mt-1">
-                        {receiptDate(receipt.date)?.split(',')[0] || '—'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* 2. RECIPIENT & RECEIPT METADATA BLOCK */}
-                  <div className="flex justify-between items-end mb-8 text-[11px]">
+                    )}
                     <div>
-                      <p className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                        NO / RECEIPT REF.
-                      </p>
-                      <p className="font-mono font-extrabold text-slate-900 text-[12px]">
-                        {receipt.receiptNumber || receipt.reference || '—'}
-                      </p>
-                    </div>
-
-                    <div className="text-right">
-                      <p className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                        PAID TO
-                      </p>
-                      <p className="font-extrabold text-[13px] text-slate-900 leading-snug">
-                        {student.studentName || '—'}
-                      </p>
-                      <p className="text-slate-500 text-[10.5px]">
-                        ID: <span className="font-mono font-semibold">{student.studentId || '—'}</span>
-                        {student.studentClass ? ` • ${student.studentClass}` : ''}
+                      <h1 className="font-extrabold text-[16px] leading-tight text-slate-900 tracking-tight">
+                        {school.name || 'School Name'}
+                      </h1>
+                      <p className="text-[10px] text-slate-500">
+                        {[school.address, school.city].filter(Boolean).join(', ')}
                       </p>
                     </div>
                   </div>
 
-                  {/* 3. ITEM / BREAKDOWN TABLE */}
-                  <div className="mb-8">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="border-y-2 border-slate-900 text-[10px] uppercase font-black tracking-wider text-slate-900">
-                          <th className="py-2 px-1">DESCRIPTION</th>
-                          <th className="py-2 px-1 text-center w-16">QTY</th>
-                          <th className="py-2 px-1 text-right w-24">PRICE</th>
-                          <th className="py-2 px-1 text-right w-28">TOTAL</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 text-[11.5px]">
-                        {breakdown.length > 0 ? (
-                          breakdown.map((line, index) => (
-                            <tr key={index}>
-                              <td className="py-3 px-1 font-semibold text-slate-800">
-                                {line.description || line.label || 'Fee Item'}
-                              </td>
-                              <td className="py-3 px-1 text-center font-medium text-slate-600">1</td>
-                              <td className="py-3 px-1 text-right font-mono text-slate-600">
-                                {formatCedi(line.amount)}
-                              </td>
-                              <td className="py-3 px-1 text-right font-mono font-bold text-slate-900">
-                                {formatCedi(line.amount)}
-                              </td>
-                            </tr>
-                          ))
-                        ) : (
-                          <tr>
+                  {/* Receipt Title & Date */}
+                  <div className="text-right pr-6">
+                    <h2 className="text-[26px] font-black uppercase tracking-wider text-brand-600 leading-none">
+                      RECEIPT
+                    </h2>
+                    <p className="text-[11px] font-medium text-slate-600 mt-1">
+                      {receiptDate(receipt.date)?.split(',')[0] || '—'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 2. RECIPIENT & RECEIPT METADATA BLOCK */}
+                <div className="flex justify-between items-end mb-8 text-[11px]">
+                  <div>
+                    <p className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                      NO / RECEIPT REF.
+                    </p>
+                    <p className="font-mono font-extrabold text-slate-900 text-[12px]">
+                      {receipt.receiptNumber || receipt.reference || '—'}
+                    </p>
+                  </div>
+
+                  <div className="text-right">
+                    <p className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                      PAID TO
+                    </p>
+                    <p className="font-extrabold text-[13px] text-slate-900 leading-snug">
+                      {student.studentName || '—'}
+                    </p>
+                    <p className="text-slate-500 text-[10.5px]">
+                      ID: <span className="font-mono font-semibold">{student.studentId || '—'}</span>
+                      {student.studentClass ? ` • ${student.studentClass}` : ''}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 3. ITEM / BREAKDOWN TABLE */}
+                <div className="mb-8">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-y-2 border-slate-900 text-[10px] uppercase font-black tracking-wider text-slate-900">
+                        <th className="py-2 px-1">DESCRIPTION</th>
+                        <th className="py-2 px-1 text-center w-16">QTY</th>
+                        <th className="py-2 px-1 text-right w-24">PRICE</th>
+                        <th className="py-2 px-1 text-right w-28">TOTAL</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 text-[11.5px]">
+                      {breakdown.length > 0 ? (
+                        breakdown.map((line, index) => (
+                          <tr key={index}>
                             <td className="py-3 px-1 font-semibold text-slate-800">
-                              {receipt.description || receipt.notes || 'School Fee Payment'}
+                              {line.description || line.label || 'Fee Item'}
                             </td>
                             <td className="py-3 px-1 text-center font-medium text-slate-600">1</td>
                             <td className="py-3 px-1 text-right font-mono text-slate-600">
-                              {formatCedi(receipt.amount)}
+                              {formatCedi(line.amount)}
                             </td>
                             <td className="py-3 px-1 text-right font-mono font-bold text-slate-900">
-                              {formatCedi(receipt.amount)}
+                              {formatCedi(line.amount)}
                             </td>
                           </tr>
-                        )}
-                      </tbody>
-                    </table>
-                    <div className="border-b border-slate-900 w-full mt-1" />
+                        ))
+                      ) : (
+                        <tr>
+                          <td className="py-3 px-1 font-semibold text-slate-800">
+                            {receipt.description || receipt.notes || 'School Fee Payment'}
+                          </td>
+                          <td className="py-3 px-1 text-center font-medium text-slate-600">1</td>
+                          <td className="py-3 px-1 text-right font-mono text-slate-600">
+                            {formatCedi(receipt.amount)}
+                          </td>
+                          <td className="py-3 px-1 text-right font-mono font-bold text-slate-900">
+                            {formatCedi(receipt.amount)}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                  <div className="border-b border-slate-900 w-full mt-1" />
+                </div>
+
+                {/* 4. TOTALS & PAYMENT DETAILS */}
+                <div className="flex justify-between items-start gap-4 mb-6">
+                  {/* Payment Method & Notes */}
+                  <div className="max-w-[240px] space-y-3">
+                    <div>
+                      <h4 className="font-bold text-[11px] text-slate-900 uppercase">Payment Method</h4>
+                      <p className="text-[10.5px] text-slate-600 mt-0.5 uppercase font-medium">
+                        {receipt.paymentMethod === 'momo'
+                          ? 'Mobile Money'
+                          : receipt.paymentMethod || 'Standard'}
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-[11px] text-slate-900 uppercase">Notes</h4>
+                      <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+                        Thank you for your payment. This receipt confirms full settlement for the fees listed above.
+                      </p>
+                    </div>
                   </div>
 
-                  {/* 4. TOTALS & PAYMENT DETAILS */}
-                  <div className="flex justify-between items-start gap-4 mb-6">
-                    {/* Payment Method & Notes */}
-                    <div className="max-w-[240px] space-y-3">
-                      <div>
-                        <h4 className="font-bold text-[11px] text-slate-900 uppercase">Payment Method</h4>
-                        <p className="text-[10.5px] text-slate-600 mt-0.5 uppercase font-medium">
-                          {receipt.paymentMethod === 'momo'
-                            ? 'Mobile Money'
-                            : receipt.paymentMethod || 'Standard'}
-                        </p>
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-[11px] text-slate-900 uppercase">Notes</h4>
-                        <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
-                          Thank you for your payment. This receipt confirms full settlement for the fees listed above.
-                        </p>
-                      </div>
+                  {/* Calculation Summary */}
+                  <div className="w-56 space-y-2 text-right">
+                    <div className="flex justify-between text-[11px]">
+                      <span className="font-medium text-slate-600">Sub Total</span>
+                      <span className="font-mono font-bold text-slate-800">{formatCedi(receipt.amount)}</span>
+                    </div>
+                    <div className="flex justify-between text-[11px]">
+                      <span className="font-medium text-slate-600">Tax / Discount</span>
+                      <span className="font-mono text-slate-500">{formatCedi(0)}</span>
                     </div>
 
-                    {/* Calculation Summary */}
-                    <div className="w-56 space-y-2 text-right">
-                      <div className="flex justify-between text-[11px]">
-                        <span className="font-medium text-slate-600">Sub Total</span>
-                        <span className="font-mono font-bold text-slate-800">{formatCedi(receipt.amount)}</span>
-                      </div>
-                      <div className="flex justify-between text-[11px]">
-                        <span className="font-medium text-slate-600">Tax / Discount</span>
-                        <span className="font-mono text-slate-500">{formatCedi(0)}</span>
-                      </div>
-
-                      {/* GRAND TOTAL BADGE */}
-                      <div className="mt-3 bg-brand-600 text-white rounded-md px-3 py-2 flex justify-between items-center shadow-sm">
-                        <span className="text-[10.5px] font-extrabold uppercase tracking-wider">
-                          GRAND TOTAL
-                        </span>
-                        <span className="text-[15px] font-black font-mono tracking-tight">
-                          {formatCedi(receipt.amount)}
-                        </span>
-                      </div>
+                    {/* GRAND TOTAL BADGE */}
+                    <div className="mt-3 bg-brand-600 text-white rounded-md px-3 py-2 flex justify-between items-center shadow-sm">
+                      <span className="text-[10.5px] font-extrabold uppercase tracking-wider">
+                        GRAND TOTAL
+                      </span>
+                      <span className="text-[15px] font-black font-mono tracking-tight">
+                        {formatCedi(receipt.amount)}
+                      </span>
                     </div>
                   </div>
                 </div>
-
-                {/* 5. BRAND FOOTER */}
-                <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
-                  <div className="flex items-center gap-1.5">
-                    <LogoMark className="h-3.5 w-3.5" />
-                    <span className="font-bold tracking-tight text-slate-700">SukuuPay</span>
-                  </div>
-                  <span className="italic">Sukuu Sika Mu Nti</span>
-                </div>
-
               </div>
-            </div>
 
+              {/* 5. BRAND FOOTER */}
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
+                <div className="flex items-center gap-1.5">
+                  <LogoMark className="h-3.5 w-3.5" />
+                  <span className="font-bold tracking-tight text-slate-700">SukuuPay</span>
+                </div>
+                <span className="italic">Sukuu Sika Mu Nti</span>
+              </div>
+
+            </div>
           </div>
 
           {/* INLINE EMAIL PROMPT */}
