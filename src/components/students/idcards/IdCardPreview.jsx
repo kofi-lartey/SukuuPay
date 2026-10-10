@@ -9,8 +9,14 @@ import {
 
 /**
  * Clean, modern React preview of a CR80 landscape card.
- * Uses a universal dark charcoal & gold theme that matches any school badge.
+ *
+ * The card is monochrome — charcoal and slate greys. The header band used to
+ * carry the school's `brandColor` and a gold accent rule ran under it; both
+ * were removed so the preview matches the printed PDF exactly.
  */
+
+/** The fixed neutral header band. Charcoal, never a school brand colour. */
+const HEADER_FILL = '#0F172A';
 
 const CardShell = ({ children, className = '' }) => (
   <div
@@ -25,29 +31,15 @@ const CardShell = ({ children, className = '' }) => (
   </div>
 );
 
-const HeaderPattern = ({ brand }) => (
-  <div
-    aria-hidden="true"
-    className="absolute inset-0 opacity-20"
-    style={{
-      backgroundImage: `
-        linear-gradient(135deg, transparent 40%, ${brand}33 40%, ${brand}33 50%, transparent 50%),
-        linear-gradient(135deg, transparent 55%, ${brand}22 55%, ${brand}22 65%, transparent 65%),
-        linear-gradient(135deg, transparent 70%, ${brand}11 70%, ${brand}11 80%, transparent 80%)
-      `,
-      backgroundSize: '20px 20px',
-    }}
-  />
-);
-
 const IdCardFront = ({
   values,
   school,
   showPhoto = true,
   showStamp = true,
 }) => {
-  const brand = school?.brandColor || '#0F172A';
-
+  // Monochrome header, matching the printed PDF. The band used to be the
+  // school's `brandColor`, so a school with a blue brand previewed — and
+  // printed — a blue credential. It is a fixed neutral charcoal now.
   const rows = [
     { label: 'Student ID', value: values.studentId || '—', mono: true },
     { label: 'Class / stream', value: values.studentClass || '—', mono: false },
@@ -60,10 +52,8 @@ const IdCardFront = ({
       {/* ── Header Band (28% height) ── */}
       <div
         className="relative flex h-[28%] items-center gap-[3%] overflow-hidden px-[4.5%]"
-        style={{ backgroundColor: brand }}
+        style={{ backgroundColor: HEADER_FILL }}
       >
-        <HeaderPattern brand={brand} />
-
         {/* Logo Tile */}
         <div className="relative z-10 flex h-[62%] w-[14%] shrink-0 items-center justify-center rounded bg-white p-[1.5px] shadow-sm ring-1 ring-white/20">
           {school?.logo ? (
@@ -88,11 +78,13 @@ const IdCardFront = ({
         </div>
       </div>
 
-      {/* ── Gold Accent Divider ── */}
-      <div className="h-[0.7px] w-full" style={{ backgroundColor: '#F2B705' }} aria-hidden="true" />
+      {/* No accent rule under the band — the charcoal band against the white
+          body separates the header on its own, which is what keeps the card
+          monochrome. The body's own top padding is the only gap below it. */}
 
       {/* ── Body Content Layout ── */}
       <div className="flex h-[69%] items-start justify-between px-[4.5%] pt-[3%]">
+
         
         {/* Left Column: Details & Signature */}
         <div className="flex h-full w-[52%] flex-col justify-between pb-[2%]">
@@ -124,7 +116,7 @@ const IdCardFront = ({
         </div>
 
         {/* Right Column: Photo, Name, and QR Code */}
-        <div className="flex w-[40%] flex-col items-center justify-between">
+        <div className="flex w-[40%] flex-col items-center">
           <div className="flex w-full flex-col items-center">
             {/* Photo Container */}
             <div className="aspect-square w-[52%] overflow-hidden rounded-[1.5mm] bg-slate-100 shadow-sm ring-1 ring-slate-200">
@@ -138,13 +130,15 @@ const IdCardFront = ({
             </div>
 
             {/* Student Name */}
-            <p className="mt-[3px] w-full truncate text-center text-[8.5px] font-black text-slate-900">
+            <p className="mt-[1.5mm] w-full truncate text-center text-[8.5px] font-black text-slate-900">
               {values.studentName || 'Student Name'}
             </p>
           </div>
 
-          {/* QR Code Section */}
-          <div className="flex items-center gap-2 self-end pr-1">
+          {/* QR Code Section — `mt-auto` pushes it to the bottom of the column,
+              leaving the deliberate gap under the name that balances the right
+              side (the PDF anchors the same way). */}
+          <div className="mt-auto flex items-center gap-2 self-end pb-[2mm] pr-1">
             <div className="flex flex-col items-end">
               <span className="text-[5px] font-bold uppercase tracking-wider text-slate-400">SCAN VERIFY</span>
               <span className="font-mono text-[5px] font-semibold text-slate-500">Secure ID</span>
@@ -173,7 +167,6 @@ const IdCardFront = ({
 };
 
 const IdCardBack = ({ values, school }) => {
-  const brand = school?.brandColor || '#0F172A';
   const guardianText = values.guardianName
     ? `${values.guardianName}${values.guardianPhone ? ` · ${values.guardianPhone}` : ''}`
     : '—';
@@ -183,7 +176,7 @@ const IdCardBack = ({ values, school }) => {
       {/* Header band */}
       <div
         className="flex h-[13%] items-center justify-between px-[5%]"
-        style={{ backgroundColor: brand }}
+        style={{ backgroundColor: HEADER_FILL }}
       >
         <span className="text-[5.5px] font-bold uppercase tracking-[0.15em] text-white/75">
           Official Credential
@@ -201,8 +194,7 @@ const IdCardBack = ({ values, school }) => {
         )}
       </div>
 
-      <div className="h-[0.7px] w-full" style={{ backgroundColor: '#F2B705' }} aria-hidden="true" />
-
+      {/* No accent rule under the band, same as the front face. */}
       <div className="px-[5%] pt-[3%]">
         <div>
           <p className="text-[5.5px] font-bold uppercase tracking-[0.15em] text-slate-400">
@@ -253,7 +245,7 @@ const IdCardBack = ({ values, school }) => {
               <span className="shrink-0 text-[5.5px] font-bold uppercase tracking-wider text-slate-400">
                 Expires
               </span>
-              <span className="min-w-0 flex-1 truncate text-[6.5px] font-extrabold text-amber-600">
+              <span className="min-w-0 flex-1 truncate text-[6.5px] font-extrabold text-slate-900">
                 Active Session
               </span>
             </div>
