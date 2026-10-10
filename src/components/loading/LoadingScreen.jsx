@@ -67,7 +67,7 @@ export function LoadingScreen({
             className="loading-logo"
             style={{ width: size, height: size }}
             loading="eager"
-            fetchPriority="high"
+            fetchpriority="high"
           />
           {variant === 'orbit' && (
             <div className="loading-orbit-ring" aria-hidden="true">

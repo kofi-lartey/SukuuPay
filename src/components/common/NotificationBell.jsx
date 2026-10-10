@@ -59,10 +59,14 @@ const NotificationBell = ({ className = '' }) => {
       if (event.key === 'Escape') close();
     };
 
-    document.addEventListener('mousedown', onPointerDown);
+    // `pointerdown`, not `mousedown`: on a touch device the browser synthesizes
+    // `mousedown` *after* `touchend`, so a tap is only acknowledged late and a
+    // tap that navigates (a row link) races the close. `pointerdown` fires at
+    // touch start and covers mouse, touch, and pen with one listener.
+    document.addEventListener('pointerdown', onPointerDown);
     document.addEventListener('keydown', onKeyDown);
     return () => {
-      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [open, close]);
@@ -93,10 +97,25 @@ const NotificationBell = ({ className = '' }) => {
       </button>
 
       {open ? (
+        /*
+          Mobile: `fixed`, not `absolute`. The bell lives inside the `sticky`
+          topbar, and a sticky ancestor drags its absolutely-positioned
+          children along as the page scrolls — the panel never moves relative
+          to the viewport, so anything below the fold stayed below the fold
+          forever and the last notifications were unreachable. pinning to the
+          viewport makes the panel's on-screen position independent of the
+          header and of any scroll. The height cap leaves room for the 4rem
+          header plus its margin, and `100dvh` (not `100vh`) measures the
+          *visual* viewport, which is what shrinks when mobile browser chrome
+          appears.
+
+          `lg:` restores the absolute dropdown anchored to the bell, where the
+          page is wide enough that the panel never approaches the fold.
+        */
         <div
           role="dialog"
           aria-label="Notifications"
-          className="absolute right-0 z-50 mt-2 flex w-[min(24rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft"
+          className="fixed right-3 top-[4.5rem] z-50 flex max-h-[min(26rem,calc(100dvh-5.5rem))] w-[min(24rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft lg:absolute lg:right-0 lg:top-auto lg:mt-2"
         >
           <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
             <p className="text-[13px] font-extrabold text-ink">Notifications</p>
@@ -112,7 +131,23 @@ const NotificationBell = ({ className = '' }) => {
             ) : null}
           </div>
 
-          <div className="max-h-[26rem] overflow-y-auto">
+          {/*
+            The flexible scroller. The panel owns the height cap, so this div
+            fills what is left of it and scrolls: `min-h-0` releases the flex
+            item's automatic minimum size, without which `overflow-y-auto`
+            never engages and the list overflows the panel instead — the
+            mid-row cut in the bug report. `max-h-[26rem]` stays as the
+            fallback cap for browsers without `dvh`.
+
+            `overscroll-contain` stops the touch scroll chaining to the page
+            behind the panel. `touch-pan-y` and `-webkit-overflow-scrolling`
+            keep the list swipeable on touch, where this inner scroller was
+            the part that silently failed.
+          */}
+          <div
+            className="min-h-0 max-h-[26rem] flex-1 touch-pan-y overflow-y-auto overscroll-contain"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+          >
             {loading && rows.length === 0 ? (
               <div className="flex items-center justify-center gap-2 px-4 py-10 text-slate-400">
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
