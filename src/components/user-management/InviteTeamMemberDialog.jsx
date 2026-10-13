@@ -1,105 +1,111 @@
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { AtSign, Info, KeyRound, UserPlus, UserRound } from 'lucide-react';
 import Modal from '../common/Modal';
 import { Field, SelectField, FormAlert } from '../common/FormField';
 import { POSITIONS, OTHER_POSITION, SIGNUP_ROLES } from '../../utils/constants';
 
-/**
- * The invitation form.
- *
- * Two required fields, and the sizing follows from that: a school admin inviting
- * a colleague knows their name and their work email and, often, not much else
- * reliable. The fields that used to be mandatory — phone in particular — are
- * optional and tucked below the two that matter, because a form that leads with
- * a phone number tells the user this is a significant act with a lot to get
- * wrong. It is not: it is typing two things and pressing a button.
- *
- * The panel states what is about to happen, in the order it happens. SukuuPay
- * will create the account, mint a temporary password, and email both to that
- * address. An admin handing this to a colleague should not have to open the
- * documentation to know what is on its way — and, more importantly, the person
- * who *receives* the mail should not be surprised by a password arriving.
- *
- * There is no password field, and its absence is deliberate. The credential is
- * generated server-side from the School ID (see `utils/defaultPassword.js`);
- * offering a field here would invite a client to believe it gets to choose, and
- * the only client that could act on that belief is one that stores a plaintext
- * password it received.
- *
- * Submit is disabled until the two required fields are valid, and the reason is
- * stated next to the button rather than left to be discovered — a disabled
- * control with no explanation is the most common dead end in an admin form.
- */
-const InviteTeamMemberDialog = ({ open, onClose, onInvite, busy = false, schoolName }) => {
-  const [form, setForm] = useState({ name: '', email: '', role: 'teacher', position: '', phone: '' });
-  // The free text behind the `OTHER_POSITION` sentinel, held separately from
-  // `position`. Sharing one field would mean choosing "Other" silently overwrote
-  // whatever the user had typed into the phone box, and clearing it again wiped
-  // the job title — two unrelated fields fighting over one string.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const InviteTeamMemberDialog = ({
+  open,
+  onClose,
+  onInvite,
+  busy = false,
+  schoolName,
+}) => {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState('teacher');
+  const [position, setPosition] = useState('');
   const [customPosition, setCustomPosition] = useState('');
+  const [phone, setPhone] = useState('');
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState(null);
 
-  /**
-   * `SIGNUP_ROLES` reused as the role list, because it is the same ladder a
-   * person picks from when creating their own account — `school_admin`,
-   * `accountant`, `teacher`, `viewer` — and `super_admin` is absent from it for
-   * the same reason it is absent there: self-service signup must not be able to
-   * mint a platform operator. The server refuses that grant independently;
-   * matching it here means the dropdown never offers a choice the API rejects.
-   */
-  const roleOptions = SIGNUP_ROLES;
+  const handleName = useCallback((e) => {
+    setName(e.target.value);
+    setErrors((c) => (c.name ? { ...c, name: undefined } : c));
+  }, []);
 
-  const update = (field) => (event) => {
-    const { value } = event.target;
-    setForm((current) => ({ ...current, [field]: value }));
-    setErrors((current) => ({ ...current, [field]: undefined }));
-  };
+  const handleEmail = useCallback((e) => {
+    setEmail(e.target.value);
+    setErrors((c) => (c.email ? { ...c, email: undefined } : c));
+  }, []);
 
-  const validate = () => {
+  const handleRole = useCallback((e) => setRole(e.target.value), []);
+
+  const handlePosition = useCallback((e) => setPosition(e.target.value), []);
+
+  const handleCustomPosition = useCallback(
+    (e) => setCustomPosition(e.target.value),
+    []
+  );
+
+  const handlePhone = useCallback((e) => setPhone(e.target.value), []);
+
+  const isOtherPosition = position === OTHER_POSITION;
+
+  const validate = useCallback(() => {
     const next = {};
-    if (form.name.trim().length < 2) next.name = 'Enter their full name.';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) next.email = 'Enter a valid email address.';
+    if (name.trim().length < 2) next.name = 'Enter their full name.';
+    if (!EMAIL_RE.test(email.trim())) next.email = 'Enter a valid email address.';
     setErrors(next);
     return Object.keys(next).length === 0;
-  };
+  }, [name, email]);
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setServerError(null);
-    if (!validate()) return;
+  const handleSubmit = useCallback(
+    async (event) => {
+      event.preventDefault();
+      setServerError(null);
+      if (!validate()) return;
 
-    const result = await onInvite({
-      name: form.name.trim(),
-      email: form.email.trim().toLowerCase(),
-      role: form.role,
-      // `OTHER_POSITION` is a sentinel that is never stored; the free text beside
-      // it is what gets persisted, matching `User.position`'s unconstrained shape.
-      position: form.position === OTHER_POSITION ? customPosition.trim() : form.position,
-      phone: form.phone.trim() || undefined,
-    });
+      const result = await onInvite({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        role,
+        position: isOtherPosition ? customPosition.trim() : position,
+        phone: phone.trim() || undefined,
+      });
 
-    if (!result?.ok) {
-      setServerError(result?.error?.message || 'Could not send that invitation.');
-      return;
-    }
+      if (!result?.ok) {
+        setServerError(
+          result?.error?.message || 'Could not send that invitation.'
+        );
+        return;
+      }
 
-    // Closed on success whether or not the email went out. The account exists in
-    // both cases, and the caller reports `emailSent: false` as a warning on the
-    // row with a resend button — which is a better place to resolve it than
-    // inside a dialog the user has already dismissed.
-    onClose();
-  };
+      onClose();
+    },
+    [
+      validate,
+      onInvite,
+      name,
+      email,
+      role,
+      position,
+      isOtherPosition,
+      customPosition,
+      phone,
+      onClose,
+    ]
+  );
 
-  const handleClose = () => {
-    setForm({ name: '', email: '', role: 'teacher', position: '', phone: '' });
+  const handleClose = useCallback(() => {
+    setName('');
+    setEmail('');
+    setRole('teacher');
+    setPosition('');
     setCustomPosition('');
+    setPhone('');
     setErrors({});
     setServerError(null);
     onClose();
-  };
+  }, [onClose]);
 
-  const ready = form.name.trim().length >= 2 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
+  const ready = useMemo(
+    () => name.trim().length >= 2 && EMAIL_RE.test(email.trim()),
+    [name, email]
+  );
 
   return (
     <Modal
@@ -133,7 +139,12 @@ const InviteTeamMemberDialog = ({ open, onClose, onInvite, busy = false, schoolN
         </>
       }
     >
-      <form id="invite-team-member-form" onSubmit={handleSubmit} noValidate className="space-y-4">
+      <form
+        id="invite-team-member-form"
+        onSubmit={handleSubmit}
+        noValidate
+        className="space-y-4"
+      >
         {serverError && <FormAlert tone="error">{serverError}</FormAlert>}
 
         <Field
@@ -142,8 +153,8 @@ const InviteTeamMemberDialog = ({ open, onClose, onInvite, busy = false, schoolN
           icon={UserRound}
           autoComplete="off"
           placeholder="e.g. Rev. B. Quaye"
-          value={form.name}
-          onChange={update('name')}
+          value={name}
+          onChange={handleName}
           error={errors.name}
         />
 
@@ -155,14 +166,14 @@ const InviteTeamMemberDialog = ({ open, onClose, onInvite, busy = false, schoolN
           autoComplete="off"
           placeholder="e.g. b.quaye@prampramschool.edu.gh"
           hint="Where the credentials are sent"
-          value={form.email}
-          onChange={update('email')}
+          value={email}
+          onChange={handleEmail}
           error={errors.email}
         />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <SelectField label="Role" value={form.role} onChange={update('role')}>
-            {roleOptions.map((option) => (
+          <SelectField label="Role" value={role} onChange={handleRole}>
+            {SIGNUP_ROLES.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -171,8 +182,8 @@ const InviteTeamMemberDialog = ({ open, onClose, onInvite, busy = false, schoolN
 
           <SelectField
             label="Position"
-            value={form.position}
-            onChange={update('position')}
+            value={position}
+            onChange={handlePosition}
             hint="Optional"
           >
             <option value="">Not specified</option>
@@ -184,42 +195,50 @@ const InviteTeamMemberDialog = ({ open, onClose, onInvite, busy = false, schoolN
           </SelectField>
         </div>
 
-        {form.position === OTHER_POSITION ? (
+        {/*
+          Both of these blocks stay mounted at all times. Only their
+          visibility flips via the `hidden` class. If we used
+          `{isOtherPosition && <Field ... />}`, React would insert or
+          remove an element in the middle of the tree, and the sibling
+          below it would be remounted on every toggle. That is exactly
+          what caused the phone field to lose focus.
+        */}
+        <div className={isOtherPosition ? 'block' : 'hidden'}>
           <Field
             label="Job title"
             autoComplete="off"
             placeholder="e.g. Assistant Bursar"
             value={customPosition}
-            onChange={(event) => setCustomPosition(event.target.value)}
+            onChange={handleCustomPosition}
           />
-        ) : (
+        </div>
+
+        <div className={isOtherPosition ? 'hidden' : 'block'}>
           <Field
             label="Phone number"
             type="tel"
             autoComplete="off"
             placeholder="+233 24 000 0000"
             hint="Optional"
-            value={form.phone}
-            onChange={update('phone')}
+            value={phone}
+            onChange={handlePhone}
           />
-        )}
+        </div>
 
-        {/*
-          What the recipient gets. Stated before the button is pressed, not
-          after, because once the mail is out the admin's only remedy is a
-          resend — and a surprise at that point is an incident.
-        */}
         <div className="rounded-xl border border-brand-200 bg-brand-50/60 p-4">
           <div className="flex items-start gap-3">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-brand-700">
               <KeyRound className="h-4 w-4" aria-hidden="true" />
             </span>
             <div className="min-w-0">
-              <p className="text-[13px] font-extrabold text-brand-900">What happens next</p>
+              <p className="text-[13px] font-extrabold text-brand-900">
+                What happens next
+              </p>
               <p className="mt-1 text-[12px]/[17px] font-medium leading-relaxed text-brand-800">
-                We create their account and generate a temporary password from your school ID, then
-                email both to the address above — along with your name, so they know who invited
-                them. They change the password after signing in.
+                We create their account and generate a temporary password from
+                your school ID, then email both to the address above — along
+                with your name, so they know who invited them. They change the
+                password after signing in.
               </p>
             </div>
           </div>
@@ -228,8 +247,9 @@ const InviteTeamMemberDialog = ({ open, onClose, onInvite, busy = false, schoolN
         <p className="flex items-start gap-2 text-[11px]/[16px] font-medium text-slate-500">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>
-            Only you and the recipient will ever see the temporary password. If the email does not
-            arrive, re-send it from the team list — re-sending replaces the password.
+            Only you and the recipient will ever see the temporary password. If
+            the email does not arrive, re-send it from the team list —
+            re-sending replaces the password.
           </span>
         </p>
       </form>
