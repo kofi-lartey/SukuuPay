@@ -1,6 +1,6 @@
 import React from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import AppChrome from './components/layout/AppChrome';
 import OnboardingGuard from './routes/OnboardingGuard';
@@ -21,10 +21,17 @@ import VerifyEmail from './pages/auth/VerifyEmail';
 import ResetPassword from './pages/auth/ResetPassword';
 import NewPassword from './pages/auth/NewPassword';
 import ParentLayout from './layouts/ParentLayout';
-import ParentPayPortal from './pages/parent/ParentPayPortal';
-import PaymentHistory from './pages/parent/PaymentHistory';
-import RequestPlan from './pages/parent/RequestPlan';
-import ContactSchool from './pages/parent/ContactSchool';
+import ParentHome from './pages/parent/Home';
+import ParentFees from './pages/parent/Fees';
+import ParentAttendance from './pages/parent/Attendance';
+import ParentRecords from './pages/parent/Records';
+import ParentTimetable from './pages/parent/Timetable';
+import ParentNotifications from './pages/parent/Notifications';
+import ParentInbox from './pages/parent/Messages';
+import ParentThread from './pages/parent/MessageThread';import ParentPaymentHistory from './pages/parent/PaymentHistory';
+import ParentPaymentPlan from './pages/parent/PaymentPlan';
+import ParentProfile from './pages/parent/Profile';
+import ParentMessageSchool from './pages/parent/MessageSchool';
 import InvalidLink from './pages/parent/InvalidLink';
 import DashboardLayout from './components/dashboard/DashboardLayout';
 import Overview from './pages/dashboard/Overview';
@@ -39,6 +46,11 @@ import Reports from './pages/dashboard/Reports';
 import ActivityLog from './pages/dashboard/ActivityLog';
 import UserManagement from './pages/dashboard/UserManagement';
 import Settings from './pages/dashboard/Settings';
+import AcademicsOverview from './pages/dashboard/academics/AcademicsOverview';
+import GradeApproval from './pages/dashboard/academics/GradeApproval';
+import AcademicClasses from './pages/dashboard/academics/Classes';
+import AcademicsClassDetail from './pages/dashboard/academics/ClassDetail';
+import ReportCards from './pages/dashboard/academics/ReportCards';
 import IdCardBulkPrint from './pages/idCards/IdCardBulkPrint';
 import IdCardBatchPrint from './pages/idCards/IdCardBatchPrint';
 import IdCardSettings from './pages/settings/IdCardSettings';
@@ -85,8 +97,61 @@ import PlatformSettings from './pages/admin/settings/PlatformSettings';
 import ImpersonationHistory, {
   ImpersonationSessionDetail,
 } from './pages/admin/impersonation/ImpersonationHistory';
+import TeacherLayout from './layouts/TeacherLayout';
+import TeacherDashboard from './pages/teacher/TeacherDashboard';
+import MyClasses from './pages/teacher/MyClasses';
+import ClassDetail from './pages/teacher/ClassDetail';
+import TakeAttendance from './pages/teacher/TakeAttendance';
+import EnterGrades from './pages/teacher/EnterGrades';
+import CompileReports from './pages/teacher/CompileReports';
+import TeacherNotifications from './pages/teacher/TeacherNotifications';
+import TeacherSchedule from './pages/teacher/TeacherSchedule';
+import TeacherProfile from './pages/teacher/TeacherProfile';
 import { Terms, Privacy } from './pages/Legal';
 import NotFound from './pages/NotFound';
+
+const TeacherSpinner = () => (
+  <div className="flex min-h-screen items-center justify-center">
+    <span className="text-[13px] font-semibold text-slate-400">Loading…</span>
+  </div>
+);
+
+/**
+ * Gate for the teacher portal.
+ *
+ * The only role check in the app besides `AdminGuard`, and the same division of
+ * labour: the server's `authorize("teacher")` on `teacher.routes.js` is the real
+ * boundary — this is the version that says so before the first request, rather
+ * than after a 403 the teacher has to interpret.
+ *
+ * **Kept here rather than in `routes/` as a fourth guard file.** The teacher
+ * rule is one line — right role, otherwise back to the console — where
+ * `OnboardingGuard` decides a three-way onboarding/dashboard/tab dance and
+ * `AdminGuard` additionally has to police an open impersonation. Three
+ * genuinely different rules is why those are separate files; one simple one does
+ * not need the ceremony, and a fourth near-identical guard is how the four drift.
+ *
+ * A teacher who has not finished onboarding is still let through: their classes
+ * are assigned by an admin regardless, and locking them out of the records they
+ * are responsible for until a wizard they have no power to complete is finished
+ * would be its own bug.
+ */
+const TeacherGuard = () => {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) return <TeacherSpinner />;
+
+  if (!user) {
+    return <Navigate to={ROUTES.LOGIN} state={{ from: location }} replace />;
+  }
+
+  if (user.role !== 'teacher') {
+    return <Navigate to={ROUTES.DASHBOARD} replace />;
+  }
+
+  return <Outlet />;
+};
 
 function App() {
   return (
@@ -202,7 +267,16 @@ function App() {
                 <Route path="id-cards/settings" element={<IdCardSettings />} />
                 <Route path="id-cards/templates" element={<IdCardTemplates />} />
                 <Route path="id-cards/bulk" element={<IdCardBulkPrint />} />
-                <Route path="id-cards/batch/:batchId/print" element={<IdCardBatchPrint />} />
+                 <Route path="id-cards/batch/:batchId/print" element={<IdCardBatchPrint />} />
+                  <Route path="academics">
+                    <Route index element={<AcademicsOverview />} />
+                    <Route path="grades" element={<GradeApproval />} />
+                    <Route path="classes">
+                      <Route index element={<AcademicClasses />} />
+                      <Route path=":className" element={<AcademicsClassDetail />} />
+                    </Route>
+                    <Route path="reports" element={<ReportCards />} />
+                  </Route>
                 <Route path="*" element={<NotFound variant="app" />} />
               </Route>
             </Route>
@@ -302,34 +376,120 @@ function App() {
             </Route>
 
             {/*
+              The teacher portal — a fourth sibling shell, and the first one that
+              is not a copy of the others in any way but its layout.
+
+              Where `/dashboard` and `/admin` are consoles over a school's money
+              and `/pay` is a parent's one-token surface, this is a working
+              tool: a register, a marks sheet and a timetable. That is why its
+              accent is `sky-600` and not the platform's green — a teacher who
+              also holds an admin account has to be able to tell at a glance
+              which of the two they are in, and a green teacher rail would make
+              that a reading exercise.
+
+              Gated by `TeacherGuard` above, which admits `teacher` and nothing
+              else. The server's `authorize("teacher")` is the boundary; this is
+              the version that says so first.
+
+              `TeacherLayout` owns no data, so moving between register, marks and
+              timetable is a client-side route change with no re-fetch — which on
+              the connection a teacher in a classroom is on is the difference
+              between a tool and a series of pages.
+
+              Two placement rules, both about React Router's declaration-order
+              matching:
+                - **`classes/attendance/grades/records` list routes come before
+                  their `:className` siblings**, so `/teacher/classes` is the
+                  index and `/teacher/classes/JHS 2A` is the detail. Reversed,
+                  `classes` is read as a class name and the list page disappears.
+                - **`schedule`, `notifications` and `profile` are static segments
+                  ranked ahead of any `:className` sibling regardless of order**,
+                  so their position here is for the reader, not the matcher.
+            */}
+            <Route element={<TeacherGuard />}>
+              <Route path="/teacher" element={<TeacherLayout />}>
+                <Route index element={<TeacherDashboard />} />
+                <Route path="classes" element={<MyClasses />} />
+                <Route path="classes/:className" element={<ClassDetail />} />
+                <Route path="attendance" element={<TakeAttendance />} />
+                <Route path="attendance/:className" element={<TakeAttendance />} />
+                <Route path="grades" element={<EnterGrades />} />
+                <Route path="grades/:className" element={<EnterGrades />} />
+                <Route path="records" element={<CompileReports />} />
+                <Route path="records/:className" element={<CompileReports />} />
+                <Route path="schedule" element={<TeacherSchedule />} />
+                <Route path="notifications" element={<TeacherNotifications />} />
+                <Route path="profile" element={<TeacherProfile />} />
+              </Route>
+            </Route>
+
+            {/*
               The parent pay portal — a sibling of AppChrome like the wizard.
 
               It has to be: a parent opening an SMS link has no account, so the
               marketing navbar would offer them "Sign in" and a footer of links to
               products they are not shopping for, and the pay token in the URL is
-              the only credential involved. The portal carries its own minimal
-              header and nothing else.
+              the only credential involved. The portal carries its own shell — a
+              rail on desktop, a top bar, a five-item bottom bar on mobile — and
+              nothing else; it is still not the authenticated app's chrome,
+              because there is still no session behind any of it.
 
               `ParentLayout` owns the read model for the whole subtree, so moving
-              between the fee page, the history, the plan request and the support
-              form is a client-side route change with no re-fetch — which on the
-              3G connection this is built for is the difference between a site and
-              a series of pages.
+              between home, the fees page, the timetable, the messages and the
+              profile is a client-side route change with no re-fetch — which on
+              the 3G connection this is built for is the difference between a site
+              and a series of pages.
             */}
             <Route path="/pay" element={<ParentLayout />}>
               {/*
-                Declared before `/pay/:token` for readability only — React Router
-                ranks the static segment above the dynamic one, so `/pay/invalid`
-                can never be read as a token. Saying so, because the two being
-                adjacent is exactly the shape that *does* break in a router that
-                matches in declaration order.
+                Declared with the token's static siblings ranked first by React
+                Router regardless of order — a reader scanning the file should
+                still meet the named pages before the ones that exist only for
+                links sent before them.
               */}
-              <Route path="invalid" element={<InvalidLink />} />
-              <Route path=":token" element={<ParentPayPortal />} />
-              <Route path=":token/history" element={<PaymentHistory />} />
-              <Route path=":token/plan/request" element={<RequestPlan />} />
-              <Route path=":token/support" element={<ContactSchool />} />
+              <Route path=":token" element={<ParentHome />} />
+              <Route path=":token/fees" element={<ParentFees />} />
+              <Route path=":token/attendance" element={<ParentAttendance />} />
+              <Route path=":token/records" element={<ParentRecords />} />
+              <Route path=":token/timetable" element={<ParentTimetable />} />
+              {/*
+                The inbox is the parent of its threads, not their sibling.
+
+                That nesting is what makes master–detail possible: the list
+                stays mounted in the rail column while a thread renders into
+                the outlet beside it, so a parent reading a message can still
+                see — and reach — every other conversation. As two sibling
+                routes the list would unmount the moment a thread opened.
+              */}
+              <Route path=":token/messages" element={<ParentInbox />}>
+                <Route path=":threadId" element={<ParentThread />} />
+              </Route>
+              <Route path=":token/notifications" element={<ParentNotifications />} />
+              <Route path=":token/profile" element={<ParentProfile />} />
+              {/*
+                Kept last among the token's static children: the routes above
+                are more specific, and React Router ranks them ahead of this
+                one regardless of order — but a reader scanning the file should
+                meet the named pages before the one that exists only for links
+                sent before them.
+              */}
+              <Route path=":token/history" element={<ParentPaymentHistory />} />
+              <Route path=":token/plan" element={<ParentPaymentPlan />} />
+              <Route path=":token/support" element={<ParentMessageSchool />} />
             </Route>
+
+            {/*
+              A dead link — expired, rotated, archived — rendered standalone.
+
+              Outside `ParentLayout` on purpose. The expired-link page is the one
+              portal screen that belongs to nobody: there is no student to name
+              and no token to hang navigation on, so a top bar and a tab bar whose
+              links resolve through a token that does not exist would be five
+              broken destinations above a page whose whole job is to say the link
+              is finished. It kept its own centred card layout before the portal
+              grew a shell, and it keeps it now.
+            */}
+            <Route path="/pay/invalid" element={<InvalidLink />} />
 
             {/*
               A malformed pay path — `/pay/` on its own, with no token.

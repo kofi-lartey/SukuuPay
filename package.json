@@ -21,6 +21,7 @@
     "check:admin": "vite build --config .mockcheck/vite.config.js --ssr .mockcheck/admin-render.jsx --outDir .mockcheck/out-admin --emptyOutDir --logLevel error && node .mockcheck/run-admin-render.mjs"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.104.2",
     "axios": "^1.6.0",
     "lucide-react": "^1.48.0",
     "papaparse": "^5.7.0",

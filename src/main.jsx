@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LoadingScreenProvider } from './components/loading';
 import App from './App';
 import './index.css';
@@ -21,20 +22,42 @@ const useMocks = import.meta.env.VITE_USE_MOCKS === 'true';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
+/**
+ * The parent portal's cache.
+ *
+ * `refetchOnWindowFocus: false` because a parent who switches tabs to their
+ * banking app and back must not watch every fee figure reload under them —
+ * a balance that moves on its own while they are reading it is worse than one
+ * that is one payment stale. `retry: 1` rather than the default three: on the
+ * 3G connections this portal is built for, a retried request is usually the
+ * same dead connection, and three of them triples the wait before the error
+ * screen the parent actually needs.
+ */
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
+
 const renderApp = (mockPanel) => {
   root.render(
     <React.StrictMode>
-      <LoadingScreenProvider
-        variant="pulse"
-        minDisplayTime={1000}
-        logoSrc="/sukuupay-logo.png"
-        logoAlt="SukuuPay"
-        size={120}
-        backgroundColor="#ffffff"
-      >
-        <App />
-        {mockPanel}
-      </LoadingScreenProvider>
+      <QueryClientProvider client={queryClient}>
+        <LoadingScreenProvider
+          variant="pulse"
+          minDisplayTime={1000}
+          logoSrc="/sukuupay-logo.png"
+          logoAlt="SukuuPay"
+          size={120}
+          backgroundColor="#ffffff"
+        >
+          <App />
+          {mockPanel}
+        </LoadingScreenProvider>
+      </QueryClientProvider>
     </React.StrictMode>
   );
 };

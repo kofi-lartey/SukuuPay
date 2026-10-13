@@ -25,8 +25,12 @@ export const ROUTES = {
   DASHBOARD_MESSAGES: '/dashboard/messages',
   DASHBOARD_ACTIVITY: '/dashboard/activity-log',
   DASHBOARD_USERS: '/dashboard/user-management',
-  DASHBOARD_SETTINGS: '/dashboard/settings',
-  DASHBOARD_ADVERTISEMENTS: '/dashboard/advertisements',
+   DASHBOARD_SETTINGS: '/dashboard/settings',
+   DASHBOARD_ACADEMICS: '/dashboard/academics',
+   DASHBOARD_ACADEMICS_GRADES: '/dashboard/academics/grades',
+   DASHBOARD_ACADEMICS_CLASSES: '/dashboard/academics/classes',
+   DASHBOARD_ACADEMICS_REPORTS: '/dashboard/academics/reports',
+   DASHBOARD_ADVERTISEMENTS: '/dashboard/advertisements',
   ONBOARDING: '/onboarding',
 
   // The platform console. A sibling of DASHBOARD, not a child of it, and the
@@ -58,8 +62,15 @@ export const ROUTES = {
   ADMIN_ANALYTICS: '/admin/analytics',
   ADMIN_HEALTH: '/admin/health',
   ADMIN_REPORTS: '/admin/reports',
-  ADMIN_IMPERSONATION: '/admin/impersonation',
+   ADMIN_IMPERSONATION: '/admin/impersonation',
 };
+
+/**
+ * The three terms the report-card pipeline is keyed by, shared between the
+ * overview's term picker and the approval/grade scopes. Mirrors the server's
+ * `ACADEMIC_TERMS` so a term sent in the query is one the backend accepts.
+ */
+export const ACADEMIC_TERMS = ['Term 1', 'Term 2', 'Term 3'];
 
 /**
  * Every platform-console path in one object.
@@ -136,9 +147,75 @@ export const PARENT_ROUTES = {
   /** Factory, for the `to` prop of a `Link`. The token is always encoded. */
   portal: (token) => `/pay/${encodeURIComponent(token ?? '')}`,
   history: (token) => `/pay/${encodeURIComponent(token ?? '')}/history`,
-  requestPlan: (token) => `/pay/${encodeURIComponent(token ?? '')}/plan/request`,
+  plan: (token) => `/pay/${encodeURIComponent(token ?? '')}/plan`,
   support: (token) => `/pay/${encodeURIComponent(token ?? '')}/support`,
   INVALID: '/pay/invalid',
+
+  // ── The portal's full surface ──
+  //
+  // The portal began as one page with a task and grew into the whole parent
+  // experience, and every new surface stays under the same token: the token is
+  // still the only credential, and a link shared into a family group resolves
+  // to the same child's pages no matter which one is opened.
+  fees: (token) => `/pay/${encodeURIComponent(token ?? '')}/fees`,
+  attendance: (token) => `/pay/${encodeURIComponent(token ?? '')}/attendance`,
+  records: (token) => `/pay/${encodeURIComponent(token ?? '')}/records`,
+  timetable: (token) => `/pay/${encodeURIComponent(token ?? '')}/timetable`,
+  messages: (token) => `/pay/${encodeURIComponent(token ?? '')}/messages`,
+  messageThread: (token, threadId) =>
+    `/pay/${encodeURIComponent(token ?? '')}/messages/${encodeURIComponent(threadId ?? '')}`,
+  notifications: (token) => `/pay/${encodeURIComponent(token ?? '')}/notifications`,
+  profile: (token) => `/pay/${encodeURIComponent(token ?? '')}/profile`,
+};
+
+/**
+ * The teacher portal.
+ *
+ * A third shell beside the parent portal and the two consoles, and unlike all
+ * three of them it is keyed by **class name, not id** — `JHS 2A` rather than an
+ * ObjectId. That is a product decision with a routing consequence: a class name
+ * is written by hand, contains spaces, and can contain a slash (a stream is
+ * routinely "JHS 2/A"), so every factory below encodes it. Without that, React
+ * Router reads `JHS 2/A` as two path segments, the detail page loses its own
+ * subject, and the roster query asks for a class that does not exist.
+ *
+ * The teacher arrives here from a `teacher` session in `AuthContext`; the
+ * subtree itself is gated in `App.jsx`, because a guard is a routing rule and
+ * not a property of a component.
+ *
+ * The detail factories (`classDetail`, `attendanceFor`, `gradesFor`,
+ * `recordsFor`) exist so a class name's position in a path is written once —
+ * the same contract `PARENT_ROUTES` uses for its token, for the same reason: a
+ * link built by hand in one place and by a factory in another is two paths that
+ * will eventually disagree.
+ */
+export const TEACHER_ROUTES = {
+  dashboard: '/teacher',
+  classes: '/teacher/classes',
+  classDetail: (className) => `/teacher/classes/${encodeURIComponent(className ?? '')}`,
+  attendance: '/teacher/attendance',
+  attendanceFor: (className) => `/teacher/attendance/${encodeURIComponent(className ?? '')}`,
+  grades: '/teacher/grades',
+  gradesFor: (className) => `/teacher/grades/${encodeURIComponent(className ?? '')}`,
+  records: '/teacher/records',
+  recordsFor: (className) => `/teacher/records/${encodeURIComponent(className ?? '')}`,
+  schedule: '/teacher/schedule',
+  notifications: '/teacher/notifications',
+  profile: '/teacher/profile',
+};
+
+/**
+ * Headmaster console routes, with a `classesDetail` factory for the same reason
+ * `TEACHER_ROUTES.classDetail` exists: a class name is a URL segment and must be
+ * `encodeURIComponent`-ed at every call site, or a slash in the name splits the
+ * route. This front-encodes the one place that varies so the pages cannot drift.
+ */
+export const ACADEMICS_ROUTES = {
+  overview: '/dashboard/academics',
+  grades: '/dashboard/academics/grades',
+  classes: '/dashboard/academics/classes',
+  classesDetail: (className) => `/dashboard/academics/classes/${encodeURIComponent(className ?? '')}`,
+  reports: '/dashboard/academics/reports',
 };
 
 export const APP_NAME = 'SukuuPay';
@@ -345,6 +422,54 @@ export const DASHBOARD_NAV = [
         label: 'Activity Log',
         icon: 'ScrollText',
         description: 'Who changed what, and when.',
+      },
+    ],
+  },
+  {
+    /**
+     * The headmaster's academic console.
+     *
+     * A `school_admin`-only group, deliberately not shown to `teacher` or
+     * `accountant`: every endpoint behind it is `requireSchoolAdmin` on the
+     * server (`adminAcademicRoute`), and a teacher reaching these screens would
+     * only hit the 403s the design already hides. The teacher-facing surfaces —
+     * entering marks, compiling reports and editing timetables — stay in the
+     * teacher portal, where the `requireTeacher` gates match the rail.
+     *
+     * `className` is a name, addressed as a URL-encoded segment, exactly like
+     * the teacher portal's `TEACHER_ROUTES` factories.
+     */
+    id: 'academics',
+    label: 'Academics',
+    items: [
+      {
+        to: ROUTES.DASHBOARD_ACADEMICS,
+        label: 'Overview',
+        icon: 'GraduationCap',
+        exact: true,
+        roles: ['school_admin'],
+        description: 'Class averages, grade approval state and top pupils.',
+      },
+      {
+        to: ROUTES.DASHBOARD_ACADEMICS_GRADES,
+        label: 'Grade Approval',
+        icon: 'ClipboardCheck',
+        roles: ['school_admin'],
+        description: 'Review submitted marks and approve or reject them.',
+      },
+      {
+        to: ROUTES.DASHBOARD_ACADEMICS_CLASSES,
+        label: 'Classes',
+        icon: 'School',
+        roles: ['school_admin'],
+        description: 'Class list and class-teacher / subject-teacher assignments.',
+      },
+      {
+        to: ROUTES.DASHBOARD_ACADEMICS_REPORTS,
+        label: 'Report Cards',
+        icon: 'FileText',
+        roles: ['school_admin'],
+        description: 'Write the head remark, and publish or unpublish reports.',
       },
     ],
   },

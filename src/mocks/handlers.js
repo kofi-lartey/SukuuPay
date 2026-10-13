@@ -27,6 +27,7 @@ import {
 import { getScenario } from './scenarios';
 import { buildStudents, CITY_BY_REGION, ghanaPhone, makeRng, objectId, slugify, token } from './fixtures';
 import { getScenarioId } from './db';
+import { parentPortalHandlers as portal } from './parentPortalSurface';
 
 // The schedule maths, imported rather than reimplemented. This is the *fourth*
 // place the split-and-step logic could live (the server's `planHelpers`, the
@@ -1605,35 +1606,15 @@ const escapeHtml = (value) =>
 
 const payTokenOf = (student) => String(student.payLink || '').split('/').pop();
 
-// A deliberately narrow projection, mirroring the real `getStudentByPayToken`:
-// a name, a class, three figures, a deadline and the school. No guardian phone
-// numbers cross this boundary, so the mock must not invent any.
-const publicStudent = (student, school) => ({
-  id: student._id,
-  studentId: student.studentId,
-  studentName: student.studentName,
-  studentClass: student.studentClass,
-  totalOwed: student.totalOwed,
-  totalPaid: student.totalPaid,
-  balance: student.balance,
-  deadline: student.deadline,
-  school: school
-    ? { _id: school._id, schoolCode: school.schoolCode, name: school.name }
-    : null,
-});
-
-const getPayView = ({ params }) => {
-  const db = getDb();
-  const student = db.students.find((s) => payTokenOf(s) === params.token);
-  if (!student) {
-    throw new MockError(404, 'Invalid or expired payment link', 'INVALID_TOKEN');
-  }
-  const school = db.schools.find((s) => s._id === student.schoolId);
-  return {
-    student: publicStudent(student, school),
-    payLink: student.payLink,
-  };
-};
+/*
+ * The portal's landing read, `GET /pay/:token`, moved to
+ * `parentPortalSurface.js` with the rest of the portal surface: it now serves
+ * `getPortalView`'s shape — student, school, plan, recent payments, unread
+ * count — because the portal's rail and bell read the school and the counters
+ * from the same response as the student. The narrow `getStudentByPayToken`
+ * projection this used to mirror is what `getPortalView` returns *inside*,
+ * and it is reproduced there.
+ */
 
 const initiatePay = ({ params, body }) => {
   const db = getDb();
@@ -5984,20 +5965,36 @@ export const ROUTES = [
   // a pay token looks like any other single segment.
   ['POST', /^\/pay\/(?<token>[^/]+)\/initiate$/, initiatePay],
   ['POST', /^\/pay\/(?<token>[^/]+)\/verify$/, verifyPay],
-  ['GET', /^\/pay\/(?<token>[^/]+)\/receipt\/(?<paymentId>[^/]+)$/, () => ({
-    // A deliberate stub, and the message now says so. The real `getReceipt`
-    // returns the same receipt document as the admin route — JSON, not a file —
-    // and this handler no longer claims otherwise: "receipts are a PDF in
-    // production" was false in both modes, and a reader who believed it had no
-    // way to tell a scoped-out stub from a wrong assumption about the endpoint.
-    // The admin receipt, `GET /payments/:paymentId/receipt`, is fully mocked.
-    __raw: {
-      receipt: null,
-      message:
-        'The public receipt route is not mocked. The admin receipt at GET /payments/:paymentId/receipt is.',
-    },
-  })],
-  ['GET', /^\/pay\/(?<token>[^/]+)$/, getPayView],
+
+  // The parent portal's academic surfaces — attendance, records, timetable,
+  // notifications, messages, payments, plan — from
+  // `parentPortalSurface.js`, where they are explained. Longest-first within
+  // each family, the same ordering dependency `payment.routes.js` has:
+  // `records.pdf` ahead of nothing (it cannot collide), but
+  // `notifications/read-all` and `notifications/:id/read` both sit ahead of the
+  // bare `notifications` list, or they would read as filter values.
+  ['GET', /^\/pay\/(?<token>[^/]+)\/attendance$/, portal.attendance],
+  ['GET', /^\/pay\/(?<token>[^/]+)\/records\.pdf$/, portal.recordsPdf],
+  ['GET', /^\/pay\/(?<token>[^/]+)\/records$/, portal.records],
+  ['GET', /^\/pay\/(?<token>[^/]+)\/timetable$/, portal.timetable],
+  ['PUT', /^\/pay\/(?<token>[^/]+)\/notifications\/read-all$/, portal.markAllNotificationsRead],
+  ['PUT', /^\/pay\/(?<token>[^/]+)\/notifications\/(?<id>[^/]+)\/read$/, portal.markNotificationRead],
+  ['GET', /^\/pay\/(?<token>[^/]+)\/notifications$/, portal.notifications],
+  ['PUT', /^\/pay\/(?<token>[^/]+)\/messages\/(?<threadId>[^/]+)\/read$/, portal.markConversationRead],
+  ['GET', /^\/pay\/(?<token>[^/]+)\/messages\/(?<threadId>[^/]+)$/, portal.conversation],
+  ['POST', /^\/pay\/(?<token>[^/]+)\/messages$/, portal.sendMessage],
+  ['GET', /^\/pay\/(?<token>[^/]+)\/messages$/, portal.conversations],
+  ['GET', /^\/pay\/(?<token>[^/]+)\/payments$/, portal.paymentHistory],
+  ['GET', /^\/pay\/(?<token>[^/]+)\/receipt\/(?<paymentId>[^/]+)$/, portal.receiptPdf],
+  ['POST', /^\/pay\/(?<token>[^/]+)\/plan\/cancel$/, portal.cancelPlan],
+  ['POST', /^\/pay\/(?<token>[^/]+)\/plan\/request$/, portal.requestPlan],
+  ['GET', /^\/pay\/(?<token>[^/]+)\/plan$/, portal.paymentPlan],
+
+  // The portal's landing read. Reaches `getPortalView`'s shape rather than the
+  // narrower `getStudentByPayToken` projection, because the portal's shell —
+  // rail, top bar, bell — needs the school and the unread count in the same
+  // response as the student, and the real `getPortalView` serves exactly that.
+  ['GET', /^\/pay\/(?<token>[^/]+)$/, portal.portalView],
 
   // Before `/payments`, whose id segment is `:paymentId`. Both use a named group
   // because the adapter's positional fallback would call the first segment
