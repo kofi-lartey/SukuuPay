@@ -19,7 +19,19 @@ const SectionTitle = ({ children }) => (
 );
 
 const OverviewKpiRow = ({ summary }) => {
-  const { totals, pendingApprovals, publishReady, gradeApprovalCounts, reportCardCounts } = summary;
+  // Every nested key defaulted, not just `totals`. A summary that arrives
+  // without `gradeApprovalCounts` — an older shape, or a partial response —
+  // leaves the destructured binding undefined, and line 55's
+  // `gradeApprovalCounts.approved` then throws exactly as the parent's did. A
+  // default of `{}` turns that into a zero count, which is what "no data yet"
+  // should look like.
+  const {
+    totals = {},
+    pendingApprovals,
+    publishReady,
+    gradeApprovalCounts = {},
+    reportCardCounts = {},
+  } = summary || {};
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <Tile
@@ -160,6 +172,34 @@ const ScopeControls = ({ scope, setScope }) => {
 const AcademicsOverview = () => {
   const { summary, scope, setScope, loading, error } = useAcademicOverview();
 
+  /**
+   * One normalised summary, read once, used everywhere below.
+   *
+   * Two crashes, one cause. `gradeApprovalCounts` was destructured *only* inside
+   * `OverviewKpiRow` — a sibling that receives `summary` as a prop — so the
+   * second-level panels referenced an identifier that did not exist in this
+   * scope, and the page threw `gradeApprovalCounts is not defined` on every
+   * render that got past the skeleton: a blank module with a console error, in
+   * the one console a headteacher opens first. `classAverages` and `topStudents`
+   * were then read straight off `summary`, which throws the same way the moment
+   * `summary` is null.
+   *
+   * So the fix is one normalisation rather than six optional chains: `?? {}`
+   * gives every key a default, and the nested reads below are already guarded
+   * inside `ClassAverages` (`items?.length`) and `TopStudents`. A summary that
+   * arrives missing a key — an older shape, a partial response — renders an
+   * empty panel instead of a white screen.
+   *
+   * `OverviewKpiRow` still receives `summary` as a prop and destructures its
+   * own; that is deliberate, and it is why the two drifted.
+   */
+  const {
+    gradeApprovalCounts = {},
+    reportCardCounts = {},
+    classAverages = [],
+    topStudents = [],
+  } = summary || {};
+
   if (error && !summary) {
     return (
       <EmptyState
@@ -218,12 +258,12 @@ const AcademicsOverview = () => {
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
             <Card padding="p-5" className="shadow-none">
               <SectionTitle>Class averages</SectionTitle>
-              <ClassAverages items={summary.classAverages} />
+              <ClassAverages items={classAverages} />
             </Card>
 
             <Card padding="p-5" className="shadow-none">
               <SectionTitle>Top pupils</SectionTitle>
-              <TopStudents items={summary.topStudents} />
+              <TopStudents items={topStudents} />
             </Card>
           </div>
         </>

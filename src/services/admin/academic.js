@@ -225,3 +225,95 @@ export const listTeachers = async () => {
     throw toApiError(error, 'The teacher list could not be loaded.');
   }
 };
+
+// ── Teacher assignment (student → teacher) ───────────────────────────────────
+//
+// A different link from the class assignments above: `User.assignedClasses` says
+// *who teaches JHS 2 Mathematics*, these endpoints say *which children this
+// teacher is responsible for*. See `Backend/src/models/TeacherAssignment.js` for
+// why that is a collection and not another array on the user.
+//
+// All four are `requireSchoolAdmin` — the school scope is the token's, never the
+// caller's, so there is no `schoolId` to pass and nothing here a caller could
+// point at another school's roster.
+
+/** `GET /admin/users/teacher-assignment-counts` — the picker's live tally. */
+export const getTeacherAssignmentCounts = async () => {
+  try {
+    const { data } = await api.get('/admin/users/teacher-assignment-counts');
+    const counts = data?.data?.counts || [];
+    return counts.reduce((map, row) => {
+      map[row.teacherId] = { count: row.count || 0, classMediated: row.classMediated || 0 };
+      return map;
+    }, {});
+  } catch (error) {
+    throw toApiError(error, 'The assignment counts could not be loaded.');
+  }
+};
+
+/**
+ * `GET /admin/users/:teacherId/students` — one teacher's students, with the
+ * roster's filters applied.
+ *
+ * The `assignedToTeacher` flag on every row is what the checkbox column renders,
+ * and it is the point of returning the roster rather than only the assigned
+ * subset: the admin's question is "who else can I add?" as much as "who is
+ * already there?", and a list of only the assigned shows nothing to add.
+ */
+export const listTeacherStudents = async (teacherId, filters = {}) => {
+  try {
+    const params = Object.fromEntries(
+      Object.entries(filters).filter(([, value]) => value !== '' && value !== null && value !== undefined)
+    );
+    const { data } = await api.get(`/admin/users/${teacherId}/students`, { params });
+    return {
+      teacher: data?.data?.teacher || null,
+      rows: data?.data?.rows || [],
+      pagination: data?.data?.pagination || { page: 1, perPage: 20, total: 0, pages: 1 },
+    };
+  } catch (error) {
+    throw toApiError(error, "That teacher's students could not be loaded.");
+  }
+};
+
+/**
+ * `POST /admin/users/:teacherId/students` — assign, by list or by class.
+ *
+ * One endpoint for both selectors, exactly as the route is written: the request
+ * names either `studentIds` or `className`, and the server resolves a class
+ * roster itself. A body naming both is a 422 — which is why this function takes
+ * one shape or the other and never both.
+ *
+ * `assigned` in the response is the count it *actually* wrote, not the count the
+ * caller asked for, so a row archived mid-session is reported truthfully rather
+ * than silently.
+ */
+export const assignTeacherStudents = async (teacherId, { studentIds, className }) => {
+  try {
+    const payload = className ? { className } : { studentIds };
+    const { data } = await api.post(`/admin/users/${teacherId}/students`, payload);
+    return data?.data || { assigned: 0 };
+  } catch (error) {
+    throw toApiError(error, 'Those students could not be assigned.');
+  }
+};
+
+/**
+ * `DELETE /admin/users/:teacherId/students` — withdraw the assignment.
+ *
+ * `force` is the explicit override for rows a class assignment created, and it is
+ * a parameter rather than a second endpoint so the audit row records which
+ * branch ran. Without it the server removes only the individual picks and says
+ * how many class rows it left alone — which is the answer the panel shows as
+ * "2 skipped".
+ */
+export const unassignTeacherStudents = async (teacherId, studentIds, { force = false } = {}) => {
+  try {
+    const { data } = await api.delete(`/admin/users/${teacherId}/students`, {
+      data: { studentIds, force },
+    });
+    return data?.data || { removed: 0, skipped: 0 };
+  } catch (error) {
+    throw toApiError(error, 'Those students could not be removed.');
+  }
+};

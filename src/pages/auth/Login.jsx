@@ -24,6 +24,7 @@ import {
 import GoogleSignInButton from '../../components/auth/GoogleSignInButton';
 import { Field } from '../../components/common/FormField';
 import { signInWithGoogle } from '../../services/auth';
+import { resolveLandingRoute } from '../../utils/landing';
 
 // Sliding Carousel Data for the Login Aside panel
 //
@@ -161,7 +162,21 @@ const Login = () => {
   const location = useLocation();
   const [params] = useSearchParams();
 
-  const redirectTo = params.get('next') || location.state?.from?.pathname || '/dashboard';
+  /**
+   * Where the browser was heading before the sign-in form got in the way.
+   *
+   * Null when nothing asked for anywhere in particular, and that distinction is
+   * the whole fix: this used to end in `|| '/dashboard'`, which meant the login
+   * form *always* claimed `/dashboard` as an explicit destination. The landing
+   * resolver could not tell "somebody sent me to /dashboard/students" from
+   * "there was no deep link at all", so it honoured the value every time — and a
+   * teacher was dumped on the finance console on every ordinary sign-in, which
+   * is the bug `resolveLandingRoute` exists to fix.
+   *
+   * The `/dashboard` fallback lives in the resolver instead, where it is applied
+   * only after the role landing has had its say.
+   */
+  const requested = params.get('next') || location.state?.from?.pathname || null;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -178,8 +193,15 @@ const Login = () => {
     setLoading(true);
 
     try {
-      await login(email.trim().toLowerCase(), password);
-      navigate(redirectTo, { replace: true });
+      const session = await login(email.trim().toLowerCase(), password);
+      navigate(
+        resolveLandingRoute({
+          onboarding: session.onboarding,
+          role: session.user?.role,
+          requested,
+        }),
+        { replace: true }
+      );
     } catch (err) {
       if (err.code === 'EMAIL_NOT_VERIFIED') {
         setNeedsVerification(true);
@@ -220,7 +242,18 @@ const Login = () => {
 
     try {
       const result = await signInWithGoogle(idToken);
-      navigate(result.onboarding?.nextRoute || redirectTo, { replace: true });
+      // The same resolver the password path uses, so a teacher who presses the
+      // Google button ends up exactly where they would have ended up by typing
+      // their password. Before this, the Google handler read `nextRoute` on its
+      // own and ignored a deep link, while the password handler did the opposite.
+      navigate(
+        resolveLandingRoute({
+          onboarding: result.onboarding,
+          role: result.user?.role,
+          requested,
+        }),
+        { replace: true }
+      );
     } catch (err) {
       switch (err.code) {
         case 'ACCOUNT_EXISTS_PASSWORD':

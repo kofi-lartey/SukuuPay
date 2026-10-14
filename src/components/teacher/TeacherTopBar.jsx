@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Bell } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { LogoMark } from '../common/Logo';
 import { TEACHER_ROUTES } from '../../utils/constants';
 
 /**
@@ -55,12 +56,23 @@ const TeacherTopBar = () => {
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
+        {/*
+          The mark, and only on mobile.
+
+          At `lg` the rail beside this header carries the brand, so a second one
+          up here would be a competing logo; below it this tile is the only place
+          a teacher sees what product they are in. It used to be a green square
+          with an "S" — a placeholder that read as an unfinished app, in a colour
+          borrowed from a *different* portal. It is now the real mark, the same
+          file the marketing navbar, the school console and the email templates
+          all use.
+        */}
         <Link
           to={TEACHER_ROUTES.dashboard}
           aria-label="Home"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#0A5C36] text-[15px] font-extrabold text-white lg:hidden"
+          className="shrink-0 rounded-xl lg:hidden"
         >
-          S
+          <LogoMark className="h-9 w-9" />
         </Link>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-[16.5px] font-extrabold tracking-tight text-slate-900">

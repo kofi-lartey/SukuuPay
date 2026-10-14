@@ -29,9 +29,16 @@ export const ROUTES = {
    DASHBOARD_ACADEMICS: '/dashboard/academics',
    DASHBOARD_ACADEMICS_GRADES: '/dashboard/academics/grades',
    DASHBOARD_ACADEMICS_CLASSES: '/dashboard/academics/classes',
+   DASHBOARD_ACADEMICS_TEACHER_ASSIGNMENT: '/dashboard/academics/teacher-assignment',
    DASHBOARD_ACADEMICS_REPORTS: '/dashboard/academics/reports',
    DASHBOARD_ADVERTISEMENTS: '/dashboard/advertisements',
   ONBOARDING: '/onboarding',
+  // The one onboarding screen for roles that join a school instead of creating
+  // one: a school-code field and a waiting room. The server names it as
+  // `nextRoute` for `accountant`, `teacher` and `viewer` (see `SCHOOL_JOIN_ROLES`
+  // in `Backend/src/config/constants.js`); the wizard's five steps are not
+  // reachable for those roles at all.
+  ONBOARDING_JOIN_SCHOOL: '/onboarding/join-school',
 
   // The platform console. A sibling of DASHBOARD, not a child of it, and the
   // path matches the API's base path (`/api/admin`) exactly — so the service
@@ -215,6 +222,10 @@ export const ACADEMICS_ROUTES = {
   grades: '/dashboard/academics/grades',
   classes: '/dashboard/academics/classes',
   classesDetail: (className) => `/dashboard/academics/classes/${encodeURIComponent(className ?? '')}`,
+  // Which students each teacher looks after — a different question from which
+  // classes they teach, and one no class list can answer. See
+  // `Backend/src/models/TeacherAssignment.js`.
+  teacherAssignment: '/dashboard/academics/teacher-assignment',
   reports: '/dashboard/academics/reports',
 };
 
@@ -463,6 +474,17 @@ export const DASHBOARD_NAV = [
         icon: 'School',
         roles: ['school_admin'],
         description: 'Class list and class-teacher / subject-teacher assignments.',
+      },
+      {
+        to: ROUTES.DASHBOARD_ACADEMICS_TEACHER_ASSIGNMENT,
+        label: 'Teacher Assignment',
+        icon: 'UserCheck',
+        roles: ['school_admin'],
+        // Same `requireSchoolAdmin` boundary as its neighbours — a `teacher` is
+        // refused by the server on all four endpoints behind it — so the entry is
+        // hidden from them rather than left to 403. Which is also why it is not
+        // inside Classes: this is per *teacher*, and the class flow is per class.
+        description: 'See which students each teacher looks after, and assign new ones.',
       },
       {
         to: ROUTES.DASHBOARD_ACADEMICS_REPORTS,
@@ -934,6 +956,23 @@ export const roleLabel = (role) => ROLE_LABELS[role] || 'Signed in';
  * instead.
  */
 export const canCreateSchool = (role) => SIGNUP_ROLES.some((r) => r.value === role && r.canCreateSchool);
+
+/**
+ * The complement of `canCreateSchool`: roles that join a school by code rather
+ * than provisioning one.
+ *
+ * These roles never walk the setup wizard — there is nothing in it for them to
+ * configure, and every step would end in a 403 on a school they do not own. They
+ * are asked for one thing (the school code), parked as `pending`, and released
+ * into the dashboard by the school's admin. The server is the authority: it
+ * reports `flow: 'join'` and `nextRoute` on `/auth/me`, and this helper only
+ * mirrors the rule so components can label themselves without a round trip.
+ *
+ * A role that is absent from `SIGNUP_ROLES` (`super_admin`, `parent`) answers
+ * false, which is the safe answer: unknown roles stay on the wizard's side of
+ * the fence rather than being quietly let into a join screen.
+ */
+export const joinsSchoolByCode = (role) => SIGNUP_ROLES.some((r) => r.value === role && !r.canCreateSchool);
 
 // ── Position (job title) ────────────────────────────────────────────────────
 

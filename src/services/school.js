@@ -157,12 +157,55 @@ export const joinSchoolByCode = async ({ schoolCode, applicantName, applicantPos
     throw toApiError(error, 'We could not send your request. Please try again.');
   }
 };
+
+/**
+ * `GET /schools/join-requests` — the approval queue for the signed-in school
+ * admin's own school.
+ *
+ * The server scopes it to the caller's `schoolId` and refuses every role except
+ * `school_admin` (and the platform owner), so there is no school id to pass and
+ * no way to ask about another school's applicants. `userId` is populated by the
+ * server — name, email, position, role — because the deciding admin needs to
+ * know *who* applied before granting them full access.
+ */
+export const listJoinRequests = async () => {
+  try {
+    const { data } = await api.get('/schools/join-requests');
+    return data.data || [];
+  } catch (error) {
+    throw toApiError(error, 'We could not load the access requests for your school.');
+  }
+};
+
+/**
+ * `PUT /schools/join-requests/:requestId` — the decision.
+ *
+ * `'approved'` links the applicant to the school in the same server-side
+ * transaction that flips the request, so an approval is never recorded without
+ * the access it promises. `409 ALREADY_DECIDED` means somebody else handled it
+ * first — expected on a shared admin desk, and the caller only has to re-read
+ * the queue.
+ */
+export const decideJoinRequest = async (requestId, decision, note) => {
+  try {
+    const { data } = await api.put(`/schools/join-requests/${requestId}`, {
+      decision,
+      note,
+    });
+    return data.data || data;
+  } catch (error) {
+    throw toApiError(error, 'We could not record that decision. Please try again.');
+  }
+};
+
 export default {
   getSchool,
   updateSchool,
   updateSchoolClasses,
   provisionMySchool,
   joinSchoolByCode,
+  listJoinRequests,
+  decideJoinRequest,
   updatePayoutAccount,
   verifyHubtel,
 };

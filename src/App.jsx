@@ -6,7 +6,7 @@ import AppChrome from './components/layout/AppChrome';
 import OnboardingGuard from './routes/OnboardingGuard';
 import AdminGuard from './routes/AdminGuard';
 import RoleLanding from './routes/RoleLanding';
-import { ROUTES } from './utils/constants';
+import { ROUTES, TEACHER_ROUTES } from './utils/constants';
 
 import Home from './pages/Home';
 import Features from './pages/Features';
@@ -51,6 +51,7 @@ import GradeApproval from './pages/dashboard/academics/GradeApproval';
 import AcademicClasses from './pages/dashboard/academics/Classes';
 import AcademicsClassDetail from './pages/dashboard/academics/ClassDetail';
 import ReportCards from './pages/dashboard/academics/ReportCards';
+import TeacherAssignment from './pages/dashboard/academics/TeacherAssignment';
 import IdCardBulkPrint from './pages/idCards/IdCardBulkPrint';
 import IdCardBatchPrint from './pages/idCards/IdCardBatchPrint';
 import IdCardSettings from './pages/settings/IdCardSettings';
@@ -61,6 +62,7 @@ import Step2PaymentSetup from './pages/onboarding/Step2PaymentSetup';
 import Step3ImportStudents from './pages/onboarding/Step3ImportStudents';
 import StepPricing from './pages/onboarding/StepPricing';
 import Step4SendReminder from './pages/onboarding/Step4SendReminder';
+import JoinSchool from './pages/onboarding/JoinSchool';
 import AdminLayout from './components/admin/AdminLayout';
 import AdminOverview from './pages/admin/AdminOverview';
 import AdminContent from './pages/admin/AdminContent';
@@ -215,6 +217,22 @@ function App() {
                 <Route path="send-reminder" element={<Step4SendReminder />} />
                 <Route path="*" element={<NotFound variant="app" />} />
               </Route>
+
+              {/*
+                The join flow, and deliberately *outside* the wizard shell.
+
+                An accountant, teacher or viewer joining an existing school has
+                no steps to walk: `OnboardingLayout` renders the Stepper and the
+                Back/Continue bar, both of which describe a five-step process
+                this role is not in. So this screen mounts as a sibling of the
+                layout rather than as another step inside it — still under
+                `/onboarding`, so the guard's onboarding checks cover it, but
+                with its own header and no progress rail.
+
+                `OnboardingGuard` is what sends each role to its own side of
+                this split, using the `flow` and `nextRoute` the server reports.
+              */}
+              <Route path={ROUTES.ONBOARDING_JOIN_SCHOOL} element={<JoinSchool />} />
             </Route>
 
             {/* The management system, and the same decision as the wizard
@@ -249,7 +267,9 @@ function App() {
                   index
                   element={
                     <RoleLanding role="super_admin" to={ROUTES.ADMIN}>
-                      <Overview />
+                      <RoleLanding role="teacher" to={TEACHER_ROUTES.dashboard}>
+                        <Overview />
+                      </RoleLanding>
                     </RoleLanding>
                   }
                 />
@@ -276,6 +296,15 @@ function App() {
                       <Route path=":className" element={<AcademicsClassDetail />} />
                     </Route>
                     <Route path="reports" element={<ReportCards />} />
+                    {/*
+                      A sibling of classes and grades rather than another tab
+                      inside Classes: assignment is per *teacher*, and the
+                      class flow is per class. See the page's own notes.
+                    */}
+                    <Route
+                      path="teacher-assignment"
+                      element={<TeacherAssignment />}
+                    />
                   </Route>
                 <Route path="*" element={<NotFound variant="app" />} />
               </Route>
