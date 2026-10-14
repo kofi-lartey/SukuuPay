@@ -48,6 +48,20 @@ const TeacherAssignmentPanel = ({
 }) => {
   const rows = useMemo(() => page || [], [page]);
 
+  /**
+   * How many of the ticked rows came from a class assignment.
+   *
+   * The server refuses to remove those without `force`, so the confirmation has
+   * to be able to say "14 of these 14 were assigned with a class" rather than
+   * pressing Remove and being told nothing happened. On this page that is the
+   * common case: a class assignment produces twenty class-mediated rows and the
+   * admin's next instinct is to remove one of them.
+   */
+  const classMediatedSelected = useMemo(
+    () => [...selected].filter((id) => rows.find((row) => String(row._id) === id)?.classMediated).length,
+    [selected, rows]
+  );
+
   if (error) {
     return (
       <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-6 text-center">
@@ -245,8 +259,7 @@ const TeacherAssignmentPanel = ({
                   selected={selected.has(String(student._id))}
                   disabled={busy !== null}
                   onToggle={onToggleStudent}
-                  onRemove={(id) => onUnassign([id], { force: false })}
-                />
+                  onRemove={(id) => onUnassign([id], { force: false })}                />
               ))
             )}
           </tbody>
@@ -290,6 +303,7 @@ const TeacherAssignmentPanel = ({
         busy={busy}
         teacherName={teacher?.name || 'this teacher'}
         assignedCount={assignedCount}
+        classMediatedCount={classMediatedSelected}
         onAssign={onAssign}
         onRemove={onUnassign}
       />

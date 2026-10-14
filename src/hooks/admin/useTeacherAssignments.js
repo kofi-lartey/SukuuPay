@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   getTeacherAssignmentCounts,
+  repairAssignmentDrift,
   listTeachers,
   listTeacherStudents,
   assignTeacherStudents,
@@ -50,6 +51,7 @@ export const useTeacherAssignments = (filters = {}, reloadKey = 0) => {
   const [teachersLoading, setTeachersLoading] = useState(true);
   const [rosterError, setRosterError] = useState(null);
   const [counts, setCounts] = useState({});
+  const [drift, setDrift] = useState([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
 
   const [page, setPage] = useState(EMPTY_PAGE);
@@ -73,9 +75,10 @@ export const useTeacherAssignments = (filters = {}, reloadKey = 0) => {
     setTeachersLoading(true);
     setRosterError(null);
     try {
-      const [items, countMap] = await Promise.all([listTeachers(), getTeacherAssignmentCounts()]);
+      const [items, tally] = await Promise.all([listTeachers(), getTeacherAssignmentCounts()]);
       setTeachers(items);
-      setCounts(countMap);
+      setCounts(tally.counts);
+      setDrift(tally.drift);
       // The first teacher, selected by default. An empty right panel reads as a
       // broken page, and an admin landing here has a teacher in mind within a
       // second — picking for them costs nothing and saves a click.
@@ -91,7 +94,9 @@ export const useTeacherAssignments = (filters = {}, reloadKey = 0) => {
   /** Refresh only the counts, after either write. */
   const loadCounts = useCallback(async () => {
     try {
-      setCounts(await getTeacherAssignmentCounts());
+      const tally = await getTeacherAssignmentCounts();
+      setCounts(tally.counts);
+      setDrift(tally.drift);
     } catch {
       // A failed count refresh is not worth an error banner: the page's own rows
       // are still correct, and the tally is decoration around them.
@@ -194,9 +199,23 @@ export const useTeacherAssignments = (filters = {}, reloadKey = 0) => {
   );
 
   const unassign = useCallback(
-    async ({ force = false } = {}) => {
+    /**
+     * @param {object}  options
+     * @param {string[]} [options.studentIds] the exact students to remove. Omit
+     *   to use the current selection, which is what the bulk bar does.
+     * @param {boolean} [options.force] also remove rows a class assignment
+     *   created. Without it the server removes only the individual picks and
+     *   reports how many class rows it left alone.
+     *
+     * `studentIds` used to be ignored: the bar and the per-row Remove both
+     * passed a list and the hook silently used its own `selected` state
+     * instead. Per-row Remove therefore removed *whatever happened to be
+     * selected* — nothing, in the common case, which answered "pick at least
+     * one student" — and the row the admin actually clicked was discarded.
+     */
+    async ({ studentIds, force = false } = {}) => {
       if (!selectedTeacherId) return { ok: false, error: new Error('Pick a teacher first.') };
-      const ids = [...selected];
+      const ids = (studentIds && studentIds.length ? studentIds : [...selected]).map(String);
       if (!ids.length) return { ok: false, error: new Error('Pick at least one student.') };
 
       setBusy('unassign');
@@ -220,7 +239,40 @@ export const useTeacherAssignments = (filters = {}, reloadKey = 0) => {
         setBusy(null);
       }
     },
+    // `selected` was a dependency only because the callback read it directly. It
+    // still does, as the *default* when no ids are passed, so it stays — but the
+    // list argument is honoured first, which is what makes per-row Remove work.
     [selectedTeacherId, selected, loadCounts, loadPage, filters]
+  );
+
+  /**
+   * Sync the assignments this console shows to the slots the portal reads.
+   *
+   * The repair for the reported bug: "20 of 20 students shown are assigned" here,
+   * nothing on the teacher's dashboard. It writes the `assignedClasses` rows
+   * their class-mediated assignments imply, which is what `teacherScope` reads
+   * — so after it, the portal shows the class without anybody re-clicking
+   * "Select all in JHS 1A" twenty times.
+   */
+  const repair = useCallback(
+    async (teacherId) => {
+      setBusy('repair');
+      setLastResult(null);
+      try {
+        const result = await repairAssignmentDrift(teacherId);
+        // Re-read everything: the counts, the drift (which should now be empty),
+        // and the page, whose Assigned pills are unchanged but whose counts are.
+        await Promise.all([loadCounts(), loadPage(selectedTeacherId, filters)]);
+        setLastResult({ action: 'repair', ...result });
+        return { ok: true, result };
+      } catch (error) {
+        setLastResult({ action: 'repair', error });
+        return { ok: false, error };
+      } finally {
+        setBusy(null);
+      }
+    },
+    [loadCounts, loadPage, selectedTeacherId, filters]
   );
 
   const teachersWithCounts = useMemo(
@@ -242,6 +294,7 @@ export const useTeacherAssignments = (filters = {}, reloadKey = 0) => {
     teachers: teachersWithCounts,
     teachersLoading,
     rosterError,
+    drift,
 
     selectedTeacher,
     selectedTeacherId,
@@ -259,6 +312,7 @@ export const useTeacherAssignments = (filters = {}, reloadKey = 0) => {
 
     assign,
     unassign,
+    repair,
     busy,
     lastResult,
   };

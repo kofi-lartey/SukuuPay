@@ -237,17 +237,48 @@ export const listTeachers = async () => {
 // caller's, so there is no `schoolId` to pass and nothing here a caller could
 // point at another school's roster.
 
-/** `GET /admin/users/teacher-assignment-counts` — the picker's live tally. */
+/**
+ * `GET /admin/users/teacher-assignment-counts` — the picker's live tally.
+ *
+ * The response carries `drift` alongside the counts: teachers who have
+ * class-mediated rows but no matching `assignedClasses` slot, which is the exact
+ * state a teacher's portal is empty in while this console says they have children.
+ * It is read on the same load as the counts because the two views of one
+ * assignment are the only place the contradiction is visible.
+ */
 export const getTeacherAssignmentCounts = async () => {
   try {
     const { data } = await api.get('/admin/users/teacher-assignment-counts');
     const counts = data?.data?.counts || [];
-    return counts.reduce((map, row) => {
-      map[row.teacherId] = { count: row.count || 0, classMediated: row.classMediated || 0 };
-      return map;
-    }, {});
+    const drift = data?.data?.drift || [];
+    return {
+      counts: counts.reduce((map, row) => {
+        map[row.teacherId] = { count: row.count || 0, classMediated: row.classMediated || 0 };
+        return map;
+      }, {}),
+      drift,
+    };
   } catch (error) {
     throw toApiError(error, 'The assignment counts could not be loaded.');
+  }
+};
+
+/**
+ * `POST /admin/users/teacher-assignment-drift/repair` — write the missing
+ * `assignedClasses` slots.
+ *
+ * The fix for rows committed by an earlier version of this module, or against
+ * service code from before `syncClassTeacher` shipped. Idempotent: a school with
+ * no drift gets `repaired: 0` and a message that says so, rather than an error.
+ */
+export const repairAssignmentDrift = async (teacherId) => {
+  try {
+    const { data } = await api.post('/admin/users/teacher-assignment-drift/repair', {
+      ...(teacherId ? { teacherId } : {}),
+    });
+    return data?.data || { repaired: 0, classes: 0, teachers: [] };
+  } catch (error) {
+    throw toApiError(error, 'We could not sync those assignments.');
   }
 };
 
@@ -316,4 +347,28 @@ export const unassignTeacherStudents = async (teacherId, studentIds, { force = f
   } catch (error) {
     throw toApiError(error, 'Those students could not be removed.');
   }
+};
+
+export default {
+  getAcademicOverview,
+  getGradeApprovalQueue,
+  approveGrades,
+  rejectGrades,
+  setHeadRemark,
+  publishReports,
+  unpublishReports,
+  listClasses,
+  createClass,
+  archiveClass,
+  getClassAssignments,
+  assignClassTeacher,
+  assignSubjectTeacher,
+  unassignSubjectTeacher,
+  publishTimetable,
+  listTeachers,
+  getTeacherAssignmentCounts,
+  repairAssignmentDrift,
+  listTeacherStudents,
+  assignTeacherStudents,
+  unassignTeacherStudents,
 };

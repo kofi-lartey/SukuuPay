@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { UserCheck } from 'lucide-react';
+import { UserCheck, LoaderCircle } from 'lucide-react';
 import PageHeader from '../../../components/dashboard/PageHeader';
 import TeacherPicker from '../../../components/dashboard/academics/TeacherPicker';
 import TeacherAssignmentPanel from '../../../components/dashboard/academics/TeacherAssignmentPanel';
@@ -127,6 +127,13 @@ const TeacherAssignment = () => {
           : `Removed ${result.removed} student${result.removed === 1 ? '' : 's'}.`
       );
     }
+    if (result.action === 'repair') {
+      toast.success(
+        result.repaired > 0
+          ? `Synced ${result.classes} class${result.classes === 1 ? '' : 'es'} to the teacher portal — those teachers will see them on their next sign-in.`
+          : 'Everything is already in sync.'
+      );
+    }
     return undefined;
   }, [assignments.lastResult, toast, assignments.selectedTeacher]);
 
@@ -158,6 +165,40 @@ const TeacherAssignment = () => {
           </span>
         }
       />
+
+      {/*
+        The repair, shown only when drift exists.
+
+        A teacher whose rows live only in `TeacherAssignment` — written before
+        `syncClassTeacher` existed, or against service code from before it was
+        deployed — shows children here and nothing on the portal, because the
+        portal reads `User.assignedClasses` and this console reads the rows.
+        Neither screen can see the mismatch on its own, so it is detected and
+        offered rather than left for the admin to infer from a phone call.
+      */}
+      {assignments.drift.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+          <p className="text-[13px] font-semibold text-amber-900">
+            <span className="font-extrabold">
+              {assignments.drift.length} teacher
+              {assignments.drift.length === 1 ? '' : 's'}
+            </span>{' '}
+            {assignments.drift.length === 1 ? 'has' : 'have'} students assigned here but no class on
+            the teacher portal — their dashboard is empty.
+          </p>
+          <button
+            type="button"
+            onClick={() => assignments.repair()}
+            disabled={assignments.busy !== null}
+            className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-3.5 py-2 text-[13px] font-extrabold text-white shadow-lift transition-colors hover:bg-amber-700 disabled:opacity-50"
+          >
+            {assignments.busy === 'repair' && (
+              <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+            )}
+            Sync to the teacher portal
+          </button>
+        </div>
+      )}
 
       {assignments.rosterError && (
         <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-bold text-red-700">
@@ -208,10 +249,7 @@ const TeacherAssignment = () => {
           onSelectPage={assignments.selectPage}
           onAssign={assignSelected}
           onAssignClass={assignClass}
-          onUnassign={async (ids) => {
-            await assignments.unassign({ force: false });
-            return ids;
-          }}
+          onUnassign={async (ids, options = {}) => assignments.unassign({ studentIds: ids, ...options })}
           onFilterChange={setFilters}
           onPageChange={(page) => setFilters({ page })}
           busy={assignments.busy}

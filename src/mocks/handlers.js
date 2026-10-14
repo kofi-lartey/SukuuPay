@@ -648,12 +648,73 @@ const teacherAssignmentCounts = ({ user }) => {
     byTeacher.set(row.teacherId, entry);
   }
 
+  // `drift` mirrors `detectAssignmentDrift`: a teacher with class-mediated rows
+  // whose `assignedClasses` has no matching slot, which is the state where the
+  // console says "20 assigned" and the portal says "no classes". The fixtures
+  // start with one so the repair affordance is visible in mock mode.
+  const drifted = [];
+  for (const [teacherId, entry] of byTeacher) {
+    if (!entry.classMediated) continue;
+    const account = getDb().users.find((u) => u._id === teacherId);
+    if (!account) continue;
+
+    const slots = new Set((account.assignedClasses || []).map((row) => String(row.className)));
+    const linkedClasses = [...new Set(liveLinks().filter((r) => r.teacherId === teacherId && r.classMediated).map((r) => r.className))];
+    const missing = linkedClasses.filter((name) => !slots.has(String(name)));
+
+    if (missing.length) {
+      drifted.push({
+        teacherId,
+        teacherName: account.name,
+        classes: missing.sort(),
+        students: entry.classMediated,
+      });
+    }
+  }
+
   return {
     counts: [...byTeacher.entries()].map(([teacherId, entry]) => ({
       teacherId,
       count: entry.count,
       classMediated: entry.classMediated,
     })),
+    drift: drifted,
+  };
+};
+
+const teacherAssignmentRepairDrift = ({ user, body }) => {
+  if (!user) throw new MockError(401, 'Not authenticated', 'UNAUTHENTICATED');
+  if (user.role !== 'school_admin' && user.role !== 'super_admin') {
+    throw new MockError(403, 'Only school admins can review access requests', 'FORBIDDEN');
+  }
+
+  const wanted = body?.teacherId ? String(body.teacherId) : null;
+  let classes = 0;
+  const repaired = [];
+
+  for (const row of teacherAssignmentCounts({ user }).drift) {
+    if (wanted && String(row.teacherId) !== wanted) continue;
+    const account = getDb().users.find((u) => u._id === row.teacherId);
+    if (!account) continue;
+
+    for (const className of row.classes) {
+      // Same shape `moveClassSlot` writes: the class-teacher slot is an empty
+      // subject. `syncClassTeacher` is what the real repair runs, so this
+      // reproduces its effect exactly.
+      const slots = account.assignedClasses || [];
+      if (!slots.some((entry) => String(entry.className) === String(className) && !entry.subject)) {
+        slots.push({ className, subject: '' });
+        account.assignedClasses = slots;
+        classes += 1;
+      }
+    }
+    repaired.push(row.teacherId);
+  }
+
+  return {
+    repaired: repaired.length,
+    classes,
+    teachers: repaired,
   };
 };
 
@@ -6566,6 +6627,7 @@ export const ROUTES = [
   // must beat `/users/:teacherId/students`, or `teacher-assignment-counts` is read
   // as a teacher id and every lookup 404s.
   ['GET', /^\/admin\/users\/teacher-assignment-counts$/, teacherAssignmentCounts],
+  ['POST', /^\/admin\/users\/teacher-assignment-drift\/repair$/, teacherAssignmentRepairDrift],
   ['GET', /^\/admin\/users\/(?<teacherId>[^/]+)\/students$/, teacherAssignmentStudents],
   ['POST', /^\/admin\/users\/(?<teacherId>[^/]+)\/students$/, teacherAssignmentAssign],
   ['DELETE', /^\/admin\/users\/(?<teacherId>[^/]+)\/students$/, teacherAssignmentUnassign],

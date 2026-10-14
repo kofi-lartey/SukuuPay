@@ -32,9 +32,10 @@ import {
  *
  * What each card shows is decided by the caller's props rather than by variants:
  * `showActions` drops the "Change picture / Remove" row for a dense host such as
- * the teacher rail, which wants the avatar and the camera badge only, and
- * `size` moves between `sm` (rail), `md` (a settings card) and `lg` (a profile
- * screen's hero block).
+ * the teacher rail, which wants the avatar and the camera badge only; `size`
+ * moves between `sm` (rail), `md` (a settings card) and `lg` (a profile screen's
+ * hero block); and `onBranded` inverts the chip for a filled brand card, the
+ * one place the avatar sits on dark green rather than on white.
  *
  * ## Deleting is confirmed, uploading is not
  *
@@ -49,6 +50,7 @@ const AvatarUpload = ({
   editable = true,
   showActions = true,
   showRemove = true,
+  onBranded = false,
   onUpdated,
   className = '',
 }) => {
@@ -63,6 +65,21 @@ const AvatarUpload = ({
 
   const initials = initialsFor(user?.name);
   const hasAvatar = Boolean(user?.avatar);
+
+  /**
+   * `onBranded` inverts the chip for a filled card.
+   *
+   * The teacher rail fires its identity card in `bg-brand-700`, exactly as the
+   * school console fires its school card — so the initials chip and the camera
+   * badge have to be white-on-brand rather than the default light tint, or the
+   * avatar is the one element on that card that reads as a different product.
+   */
+  const fallbackTint = onBranded
+    ? 'bg-white/15 text-white'
+    : 'bg-sky-100 text-sky-700';
+  const fabTint = onBranded
+    ? 'bg-white text-brand-700 hover:bg-white/90'
+    : 'bg-sky-600 text-white hover:bg-sky-700';
 
   const dimensions = {
     sm: { box: 'h-9 w-9', text: 'text-[12px]', fab: 'h-4 w-4', radius: 'rounded-full' },
@@ -133,7 +150,7 @@ const AvatarUpload = ({
         ) : (
           <span
             aria-hidden="true"
-            className={`flex ${dimensions.box} items-center justify-center ${dimensions.radius} bg-sky-100 ${dimensions.text} font-extrabold text-sky-700`}
+            className={`flex ${dimensions.box} items-center justify-center ${dimensions.radius} ${fallbackTint} ${dimensions.text} font-extrabold`}
           >
             {initials}
           </span>
@@ -155,7 +172,7 @@ const AvatarUpload = ({
               onClick={choose}
               disabled={busy !== null}
               aria-label={hasAvatar ? 'Change your picture' : 'Add a picture'}
-              className="pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-sky-600 text-white shadow-lift transition-colors hover:bg-sky-700 disabled:opacity-60"
+              className={`pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full border-2 border-white ${fabTint} shadow-lift transition-colors disabled:opacity-60`}
             >
               {busy === 'upload' ? (
                 <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
