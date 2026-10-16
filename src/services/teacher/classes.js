@@ -40,3 +40,7 @@ export const fetchMySchedule = () =>
  */
 export const fetchDashboard = () =>
   apiClient.get('/teacher/dashboard');
+
+/** Every class the school runs — for the timetable create picker. */
+export const fetchAvailableClasses = () =>
+  apiClient.get('/teacher/classes/available');

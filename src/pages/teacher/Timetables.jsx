@@ -12,7 +12,10 @@ import {
   submitTimetable,
   withdrawTimetable,
 } from '../../services/teacher/timetable';
-import { fetchMyClasses } from '../../services/teacher/classes';
+import {
+  fetchMyClasses,
+  fetchAvailableClasses,
+} from '../../services/teacher/classes';
 import { ACADEMIC_TERMS } from '../../utils/constants';
 import TimetableGridEditor from '../../components/dashboard/TimetableGridEditor';
 
@@ -50,6 +53,7 @@ const Timetables = () => {
   const toast = useToast();
   const [timetables, setTimetables] = useState([]);
   const [classes, setClasses] = useState([]);
+  const [availableClasses, setAvailableClasses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editingClass, setEditingClass] = useState('');
   const [editorDays, setEditorDays] = useState(emptyDays());
@@ -79,6 +83,12 @@ const Timetables = () => {
       .then((result) => {
         if (!active) return;
         setClasses(result?.data?.classes || []);
+      })
+      .catch(() => {});
+    fetchAvailableClasses()
+      .then((result) => {
+        if (!active) return;
+        setAvailableClasses(result?.data?.classes || []);
       })
       .catch(() => {});
     return () => {
@@ -185,7 +195,7 @@ const Timetables = () => {
               onChange={(e) => setEditingClass(e.target.value)}
             >
               <option value="">Select a class</option>
-              {classes.map((c) => {
+              {availableClasses.map((c) => {
                 const label = c.className || c.name || c._id;
                 return <option key={label} value={label}>{label}</option>;
               })}
