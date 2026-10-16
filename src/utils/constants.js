@@ -859,6 +859,38 @@ export const HELPDESK_PHONE = '';
  * case: one person registering their own school. It is also the only role
  * permitted to create a school — see `canCreateSchool`.
  */
+// ── Subjects ─────────────────────────────────────────────────────────────
+
+/**
+ * Pre-populated subjects from the Ghanaian basic-school curriculum, shared
+ * between the timetable grid and any surface that needs a subject list.
+ *
+ * `OTHER` is a real option rather than a free-text box: picking it reveals a
+ * text field so the teacher can name a subject this list never anticipated.
+ * `value: OTHER_SUBJECT` is a sentinel, never stored. The manual text is
+ * persisted to `customSubjects` (localStorage) and surfaced in every subject
+ * select, so a subject added once is available to every timetable after it.
+ */
+export const OTHER_SUBJECT = 'OTHER';
+
+export const SUBJECTS = [
+  { value: 'Mathematics', label: 'Mathematics' },
+  { value: 'English Language', label: 'English Language' },
+  { value: 'Integrated Science', label: 'Integrated Science' },
+  { value: 'Social Studies', label: 'Social Studies' },
+  { value: 'ICT', label: 'ICT (Computing)' },
+  { value: 'French', label: 'French' },
+  { value: 'Career Technology', label: 'Career Technology' },
+  { value: 'R.M.E.', label: 'R.M.E.' },
+  { value: 'Ghanaian Language', label: 'Ghanaian Language' },
+  { value: 'Creative Arts', label: 'Creative Arts' },
+  { value: 'Physical Education', label: 'Physical Education' },
+  { value: OTHER_SUBJECT, label: 'Other…' },
+];
+
+/** localStorage key holding the school's custom subject names. */
+export const CUSTOM_SUBJECTS_KEY = 'sukuupay_custom_subjects';
+
 export const SIGNUP_ROLES = [
   {
     value: 'school_admin',

@@ -2,9 +2,16 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Calendar, Plus, Trash2 } from 'lucide-react';
 import Card from '../dashboard/ui/Card';
 import Button from '../common/Button';
+import TimeField from '../common/TimeField';
 import { Field, SelectField } from '../common/FormField';
+import Modal from '../common/Modal';
 import { useToast } from '../../hooks/useToast';
-import { ACADEMIC_TERMS } from '../../utils/constants';
+import {
+  ACADEMIC_TERMS,
+  SUBJECTS,
+  OTHER_SUBJECT,
+  CUSTOM_SUBJECTS_KEY,
+} from '../../utils/constants';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
@@ -46,6 +53,87 @@ export default function TimetableGridEditor({
 }) {
   const toast = useToast();
   const [days, setDays] = useState(initialDays);
+
+  const loadCustomSubjects = () => {
+    try {
+      const raw = localStorage.getItem(CUSTOM_SUBJECTS_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const [customSubjects, setCustomSubjects] = useState(loadCustomSubjects);
+  const [subjectManagerOpen, setSubjectManagerOpen] = useState(false);
+  const [editingCustomSubject, setEditingCustomSubject] = useState(null);
+  const [customSubjectName, setCustomSubjectName] = useState('');
+
+  const saveCustomSubjects = (next) => {
+    setCustomSubjects(next);
+    try {
+      localStorage.setItem(CUSTOM_SUBJECTS_KEY, JSON.stringify(next));
+    } catch {}
+  };
+
+  const allSubjectOptions = useMemo(
+    () =>
+      SUBJECTS.filter((s) => s.value !== OTHER_SUBJECT).concat(
+        customSubjects.map((name) => ({ value: name, label: name }))
+      ),
+    [customSubjects]
+  );
+
+  const handleAddCustomSubject = () => {
+    const trimmed = customSubjectName.trim();
+    if (!trimmed) return;
+    if (customSubjects.includes(trimmed)) {
+      setCustomSubjectName('');
+      return;
+    }
+    const next = [...customSubjects, trimmed];
+    saveCustomSubjects(next);
+    setCustomSubjectName('');
+    setEditingCustomSubject(null);
+  };
+
+  const handleEditCustomSubject = (original, nextName) => {
+    const trimmed = nextName.trim();
+    if (!trimmed || trimmed === original) return;
+    const next = customSubjects.map((name) =>
+      name === original ? trimmed : name
+    );
+    saveCustomSubjects(next);
+    // Re-point any periods using the old name at the new one.
+    setDays((current) => {
+      const updated = { ...current };
+      for (const day of DAYS) {
+        updated[day] = (updated[day] || []).map((period) =>
+          period.subject === original
+            ? { ...period, subject: trimmed }
+            : period
+        );
+      }
+      return updated;
+    });
+    setEditingCustomSubject(null);
+    setCustomSubjectName('');
+  };
+
+  const handleDeleteCustomSubject = (name) => {
+    if (!window.confirm(`Remove “${name}” from the subject list?`)) return;
+    const next = customSubjects.filter((n) => n !== name);
+    saveCustomSubjects(next);
+    setDays((current) => {
+      const updated = { ...current };
+      for (const day of DAYS) {
+        updated[day] = (updated[day] || []).map((period) =>
+          period.subject === name ? { ...period, subject: '' } : period
+        );
+      }
+      return updated;
+    });
+    if (editingCustomSubject === name) setEditingCustomSubject(null);
+  };
 
   const updatePeriod = (day, index, field, value) => {
     setDays((current) => {
@@ -127,24 +215,54 @@ export default function TimetableGridEditor({
                       updatePeriod(day, index, 'period', Number(e.target.value))
                     }
                   />
-                  <Field
+                  <TimeField
                     label="Start"
                     value={period.startTime}
                     disabled={!canEdit}
-                    onChange={(e) => updatePeriod(day, index, 'startTime', e.target.value)}
+                    onChange={(e) =>
+                      updatePeriod(day, index, 'startTime', e.target.value)
+                    }
                   />
-                  <Field
+                  <TimeField
                     label="End"
                     value={period.endTime}
                     disabled={!canEdit}
-                    onChange={(e) => updatePeriod(day, index, 'endTime', e.target.value)}
+                    onChange={(e) =>
+                      updatePeriod(day, index, 'endTime', e.target.value)
+                    }
                   />
-                  <Field
-                    label="Subject"
-                    value={period.subject}
-                    disabled={!canEdit}
-                    onChange={(e) => updatePeriod(day, index, 'subject', e.target.value)}
-                  />
+                  <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+                    <SelectField
+                      label="Subject"
+                      value={period.subject}
+                      disabled={!canEdit}
+                      onChange={(e) =>
+                        updatePeriod(day, index, 'subject', e.target.value)
+                      }
+                    >
+                      {allSubjectOptions.map((subject) => (
+                        <option
+                          key={subject.value}
+                          value={subject.value}
+                        >
+                          {subject.label}
+                        </option>
+                      ))}
+                    </SelectField>
+                    {canEdit && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSubjectManagerOpen(true);
+                          setEditingCustomSubject(null);
+                          setCustomSubjectName('');
+                        }}
+                      >
+                        Manage subjects
+                      </Button>
+                    )}
+                  </div>
                   <Field
                     label="Teacher"
                     value={period.teacher || teacherName}
@@ -197,6 +315,98 @@ export default function TimetableGridEditor({
           </Button>
         )}
       </div>
+
+      <Modal
+        open={subjectManagerOpen}
+        onClose={() => setSubjectManagerOpen(false)}
+        title="Manage subjects"
+        description="Add, rename or remove custom subjects. Pre-populated subjects cannot be removed."
+      >
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <Field
+              label="New subject"
+              value={customSubjectName}
+              onChange={(e) => setCustomSubjectName(e.target.value)}
+              placeholder="e.g. Mandarin"
+            />
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={!customSubjectName.trim()}
+              onClick={handleAddCustomSubject}
+            >
+              Add
+            </Button>
+          </div>
+          {customSubjects.length === 0 ? (
+            <p className="text-[12.5px] italic text-slate-400">
+              No custom subjects yet.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {customSubjects.map((name) => (
+                <div
+                  key={name}
+                  className="flex items-center gap-2 rounded-lg border border-slate-200 p-2"
+                >
+                  {editingCustomSubject === name ? (
+                    <div className="flex items-center gap-2 flex-1">
+                      <Field
+                        label=""
+                        value={customSubjectName}
+                        onChange={(e) => setCustomSubjectName(e.target.value)}
+                        placeholder="Subject name"
+                      />
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        disabled={!customSubjectName.trim()}
+                        onClick={() =>
+                          handleEditCustomSubject(name, customSubjectName)
+                        }
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          setEditingCustomSubject(null);
+                          setCustomSubjectName('');
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="flex-1 text-[13px] text-ink">{name}</span>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          setEditingCustomSubject(name);
+                          setCustomSubjectName(name);
+                        }}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => handleDeleteCustomSubject(name)}
+                      >
+                        Delete
+                      </Button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }
