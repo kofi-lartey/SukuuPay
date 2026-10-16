@@ -23,9 +23,21 @@ const TABS = [
  * either a squashed icon or a truncated word, and a bar whose labels move is
  * one people stop trusting. Everything else — schedule, reports,
  * notifications, sign-out — lives behind "More", which is Profile.
+ *
+ * ## Brand, not sky
+ *
+ * The active tab is `text-brand-700` and the accent bar `bg-brand-700`, the
+ * same green the rest of the product uses. It was `sky-600`/`sky-700` —
+ * Tailwind's built-in palette, which appears nowhere else in SukuuPay — which
+ * is what made the teacher portal read as a separate app to a bursar who also
+ * holds an admin account.
+ *
+ * The bar itself stays: colour alone would not carry the state. A colour-blind
+ * teacher, or a washed-out screen in daylight, reads the weight of the icon and
+ * the label as the change, and the bar is what makes it legible at a glance.
  */
 const TeacherBottomNav = () => (
-  <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200/80 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">
+  <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden">
     <div className="mx-auto flex max-w-md">
       {TABS.map((item) => (
         <NavLink
@@ -34,22 +46,19 @@ const TeacherBottomNav = () => (
           end={item.key === 'dashboard'}
           className={({ isActive }) =>
             `relative flex min-h-[58px] flex-1 flex-col items-center justify-center gap-1 pt-1.5 text-[10.5px] font-bold ${
-              isActive ? 'text-sky-700' : 'text-slate-500 hover:text-slate-700'
+              isActive ? 'text-brand-700' : 'text-slate-500 hover:text-slate-700'
             }`
           }
         >
           {({ isActive }) => (
             <>
               {/*
-                The sky-600 accent on the current tab — a bar along the top edge,
-                where a thumb does not cover it. Colour alone would not do: a
-                colour-blind teacher, or a washed-out screen in daylight, reads
-                the weight of the icon and the label as the change, and the bar
-                is what makes the state legible at a glance.
+                The brand accent on the current tab — a bar along the top edge,
+                where a thumb does not cover it.
               */}
               <span
                 aria-hidden="true"
-                className={`absolute left-1/2 top-0 h-1 -translate-x-1/2 rounded-full bg-sky-600 transition-all ${
+                className={`absolute left-1/2 top-0 h-1 -translate-x-1/2 rounded-full bg-brand-700 transition-all ${
                   isActive ? 'w-8 opacity-100' : 'w-0 opacity-0'
                 }`}
               />

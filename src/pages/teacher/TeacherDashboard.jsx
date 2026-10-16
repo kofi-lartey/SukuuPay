@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CalendarCheck, ClipboardList, FileText, Users, ArrowRight, Clock, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -6,6 +7,8 @@ import { useMyClasses } from '../../hooks/teacher/useMyClasses';
 import { TEACHER_ROUTES } from '../../utils/constants';
 import { SkeletonCard } from '../../components/parent/shared/Skeleton';
 import EmptyState from '../../components/parent/shared/EmptyState';
+import { greetingForHour, greetingNow, msUntilNextBoundary } from '../../utils/greeting';
+import { firstNameOf } from '../../utils/names';
 
 const QUICK_ACTIONS = [
   { key: 'attendance', label: 'Take Attendance', to: TEACHER_ROUTES.attendance, icon: CalendarCheck },
@@ -32,30 +35,97 @@ const periodStatusTone = (status) => {
  * Three queries, all sharing the cache with the pages they lead to, so tapping
  * "Take Attendance" does not refetch anything the dashboard already holds.
  */
+/**
+ * The greeting, and the reason it is state.
+ *
+ * Three things were wrong with the one-line `new Date().getHours()` version this
+ * replaces:
+ *
+ *   1. **It read the browser's clock.** A laptop set to US Eastern greated
+ *      "Good morning" at a 12:30 Accra lunchtime, because 03:00 is morning. The
+ *      server computes the same sentence in `Africa/Accra`
+ *      (`dashboard.service.js`), so its answer is used when it arrives.
+ *   2. **It never updated.** An IIFE freezes the words at render: a teacher who
+ *      opened the portal at 08:00 still read "Good morning" at 15:00 until they
+ *      navigated away and back.
+ *   3. **It fell back to the wrong words while loading**, showing "Good morning"
+ *      under the skeleton before the server had said anything.
+ *
+ * `useState(initialiser)` runs once per mount and deliberately seeds from Ghana
+ * time, so the first paint is already the right greeting even before the payload
+ * lands. The interval is scheduled to the *next boundary* rather than a second,
+ * so a dashboard open from 07:00 to 19:00 re-renders twice.
+ */
+const useGreeting = (serverGreeting, serverHour) => {
+  const [greeting, setGreeting] = useState(() =>
+    serverGreeting || greetingForHour(serverHour) || greetingNow()
+  );
+
+  // The server's answer wins when it arrives — one authority for the words.
+  useEffect(() => {
+    if (serverGreeting) setGreeting(serverGreeting);
+  }, [serverGreeting]);
+
+  useEffect(() => {
+    if (serverGreeting) return undefined;
+
+    // The fallback only ticks while there is no server answer; once there is, it
+    // stops, because two sources of "what time is it" is how they disagree.
+    let active = true;
+
+    const schedule = () => {
+      if (!active) return undefined;
+      return setTimeout(() => {
+        if (!active) return;
+        setGreeting(greetingNow());
+        schedule();
+      }, msUntilNextBoundary());
+    };
+
+    const timer = schedule();
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [serverGreeting]);
+
+  return greeting;
+};
+
 const TeacherDashboard = () => {
   const { user } = useAuth();
   const { data, isLoading } = useTeacherDashboard();
   const { data: schedule, isLoading: scheduleLoading } = useMySchedule();
   const { data: classes, isLoading: classesLoading } = useMyClasses();
 
-  const greeting = (() => {
-    const h = new Date().getHours();
-    if (h < 12) return 'Good morning';
-    if (h < 17) return 'Good afternoon';
-    return 'Good evening';
-  })();
+  const greeting = useGreeting(data?.greeting, data?.greetingHour);
 
   const classCount = data?.classCount || classes?.length || 0;
   const pendingAttendance = data?.pendingAttendance || 0;
 
   return (
     <div className="space-y-6">
-      {/* Greeting */}
-      <div className="rounded-2xl border border-sky-200/60 bg-sky-50 p-4">
-        <p className="text-[17px] font-extrabold tracking-tight text-sky-900">
-          {greeting}, {user?.name?.split(' ')[0] || 'Teacher'}
+      {/*
+        The greeting panel, in brand rather than sky.
+
+        The sky tint was the last one in the portal: the shell refactor moved the
+        rail, top bar and bottom bar to `brand-700`, and this card was the one
+        surface a teacher sees *first* on the dashboard still in the old palette.
+      */}
+      <div className="rounded-2xl border border-brand-200/60 bg-brand-50 p-4">
+        <p className="text-[17px] font-extrabold tracking-tight text-brand-900">
+          {/*
+            `firstNameOf`, not `name.split(' ')[0]`.
+
+            A Ghanaian teacher's name on a register is routinely written "Sir
+            Ciblah" or "Madam Ama" — an honorific and a name in one field. Taking
+            the first token greated "Good afternoon, Sir", which is the product
+            addressing the title rather than the person, in the one place it is
+            speaking *to* somebody rather than listing them.
+          */}
+          {greeting}, {firstNameOf(user?.name) || 'Teacher'}
         </p>
-        <p className="mt-1 text-[13px] font-semibold text-sky-800/80">
+        <p className="mt-1 text-[13px] font-semibold text-brand-800/80">
           {classCount} classes today · {pendingAttendance} attendance pending
         </p>
       </div>

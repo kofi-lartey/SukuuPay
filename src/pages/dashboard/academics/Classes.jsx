@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Users } from 'lucide-react';
+import { Plus, Trash2, UserCheck, Users } from 'lucide-react';
 import PageHeader from '../../../components/dashboard/PageHeader';
 import Card from '../../../components/dashboard/ui/Card';
 import Badge from '../../../components/dashboard/ui/Badge';
@@ -106,13 +106,33 @@ const Classes = () => {
         title="Classes"
         description="Class names on this school's list, with their student and teacher counts."
         actions={
-          <button
-            type="button"
-            onClick={() => setCreating(true)}
-            className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2 text-sm font-extrabold text-white hover:bg-brand-800"
+          <>
+            {/*
+              The way into Teacher Assignment from the sibling that most often
+              gets confused with it.
+
+              Both screens answer "who teaches whom", and the difference is the
+              unit: this one is per *class* (`User.assignedClasses`), that one is
+              per *student*. An admin standing here looking for a student
+              assignment should not have to guess which rail entry it is — one
+              link, and the two surfaces stop competing for the same question.
+            */}
+            <button
+              type="button"
+              onClick={() => navigate(ACADEMICS_ROUTES.teacherAssignment)}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-700 transition-colors hover:bg-slate-50"
+            >
+              <UserCheck className="h-4 w-4" aria-hidden="true" />
+              Assign students
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2 text-sm font-extrabold text-white hover:bg-brand-800"
           >
             <Plus className="h-4 w-4" /> New class
           </button>
+          </>
         }
       />
 

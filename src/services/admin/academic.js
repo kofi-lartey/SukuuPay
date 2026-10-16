@@ -225,3 +225,150 @@ export const listTeachers = async () => {
     throw toApiError(error, 'The teacher list could not be loaded.');
   }
 };
+
+// ── Teacher assignment (student → teacher) ───────────────────────────────────
+//
+// A different link from the class assignments above: `User.assignedClasses` says
+// *who teaches JHS 2 Mathematics*, these endpoints say *which children this
+// teacher is responsible for*. See `Backend/src/models/TeacherAssignment.js` for
+// why that is a collection and not another array on the user.
+//
+// All four are `requireSchoolAdmin` — the school scope is the token's, never the
+// caller's, so there is no `schoolId` to pass and nothing here a caller could
+// point at another school's roster.
+
+/**
+ * `GET /admin/users/teacher-assignment-counts` — the picker's live tally.
+ *
+ * The response carries `drift` alongside the counts: teachers who have
+ * class-mediated rows but no matching `assignedClasses` slot, which is the exact
+ * state a teacher's portal is empty in while this console says they have children.
+ * It is read on the same load as the counts because the two views of one
+ * assignment are the only place the contradiction is visible.
+ */
+export const getTeacherAssignmentCounts = async () => {
+  try {
+    const { data } = await api.get('/admin/users/teacher-assignment-counts');
+    const counts = data?.data?.counts || [];
+    const drift = data?.data?.drift || [];
+    return {
+      counts: counts.reduce((map, row) => {
+        map[row.teacherId] = { count: row.count || 0, classMediated: row.classMediated || 0 };
+        return map;
+      }, {}),
+      drift,
+    };
+  } catch (error) {
+    throw toApiError(error, 'The assignment counts could not be loaded.');
+  }
+};
+
+/**
+ * `POST /admin/users/teacher-assignment-drift/repair` — write the missing
+ * `assignedClasses` slots.
+ *
+ * The fix for rows committed by an earlier version of this module, or against
+ * service code from before `syncClassTeacher` shipped. Idempotent: a school with
+ * no drift gets `repaired: 0` and a message that says so, rather than an error.
+ */
+export const repairAssignmentDrift = async (teacherId) => {
+  try {
+    const { data } = await api.post('/admin/users/teacher-assignment-drift/repair', {
+      ...(teacherId ? { teacherId } : {}),
+    });
+    return data?.data || { repaired: 0, classes: 0, teachers: [] };
+  } catch (error) {
+    throw toApiError(error, 'We could not sync those assignments.');
+  }
+};
+
+/**
+ * `GET /admin/users/:teacherId/students` — one teacher's students, with the
+ * roster's filters applied.
+ *
+ * The `assignedToTeacher` flag on every row is what the checkbox column renders,
+ * and it is the point of returning the roster rather than only the assigned
+ * subset: the admin's question is "who else can I add?" as much as "who is
+ * already there?", and a list of only the assigned shows nothing to add.
+ */
+export const listTeacherStudents = async (teacherId, filters = {}) => {
+  try {
+    const params = Object.fromEntries(
+      Object.entries(filters).filter(([, value]) => value !== '' && value !== null && value !== undefined)
+    );
+    const { data } = await api.get(`/admin/users/${teacherId}/students`, { params });
+    return {
+      teacher: data?.data?.teacher || null,
+      rows: data?.data?.rows || [],
+      pagination: data?.data?.pagination || { page: 1, perPage: 20, total: 0, pages: 1 },
+    };
+  } catch (error) {
+    throw toApiError(error, "That teacher's students could not be loaded.");
+  }
+};
+
+/**
+ * `POST /admin/users/:teacherId/students` — assign, by list or by class.
+ *
+ * One endpoint for both selectors, exactly as the route is written: the request
+ * names either `studentIds` or `className`, and the server resolves a class
+ * roster itself. A body naming both is a 422 — which is why this function takes
+ * one shape or the other and never both.
+ *
+ * `assigned` in the response is the count it *actually* wrote, not the count the
+ * caller asked for, so a row archived mid-session is reported truthfully rather
+ * than silently.
+ */
+export const assignTeacherStudents = async (teacherId, { studentIds, className }) => {
+  try {
+    const payload = className ? { className } : { studentIds };
+    const { data } = await api.post(`/admin/users/${teacherId}/students`, payload);
+    return data?.data || { assigned: 0 };
+  } catch (error) {
+    throw toApiError(error, 'Those students could not be assigned.');
+  }
+};
+
+/**
+ * `DELETE /admin/users/:teacherId/students` — withdraw the assignment.
+ *
+ * `force` is the explicit override for rows a class assignment created, and it is
+ * a parameter rather than a second endpoint so the audit row records which
+ * branch ran. Without it the server removes only the individual picks and says
+ * how many class rows it left alone — which is the answer the panel shows as
+ * "2 skipped".
+ */
+export const unassignTeacherStudents = async (teacherId, studentIds, { force = false } = {}) => {
+  try {
+    const { data } = await api.delete(`/admin/users/${teacherId}/students`, {
+      data: { studentIds, force },
+    });
+    return data?.data || { removed: 0, skipped: 0 };
+  } catch (error) {
+    throw toApiError(error, 'Those students could not be removed.');
+  }
+};
+
+export default {
+  getAcademicOverview,
+  getGradeApprovalQueue,
+  approveGrades,
+  rejectGrades,
+  setHeadRemark,
+  publishReports,
+  unpublishReports,
+  listClasses,
+  createClass,
+  archiveClass,
+  getClassAssignments,
+  assignClassTeacher,
+  assignSubjectTeacher,
+  unassignSubjectTeacher,
+  publishTimetable,
+  listTeachers,
+  getTeacherAssignmentCounts,
+  repairAssignmentDrift,
+  listTeacherStudents,
+  assignTeacherStudents,
+  unassignTeacherStudents,
+};

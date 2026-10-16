@@ -28,6 +28,11 @@ import { getScenario } from './scenarios';
 import { buildStudents, CITY_BY_REGION, ghanaPhone, makeRng, objectId, slugify, token } from './fixtures';
 import { getScenarioId } from './db';
 import { parentPortalHandlers as portal } from './parentPortalSurface';
+// The role list is imported rather than reimplemented, for the same reason the
+// schedule maths is: the mock decides which accounts join a school by code and
+// which provision one, and a private copy of that list would drift from the one
+// the real `onboardingBlock` reads on the server.
+import { SIGNUP_ROLES, TEACHER_ROUTES } from '../utils/constants';
 
 // The schedule maths, imported rather than reimplemented. This is the *fourth*
 // place the split-and-step logic could live (the server's `planHelpers`, the
@@ -87,8 +92,14 @@ const toSchoolType = (value) => {
  * Mirrors `onboardingBlock` in Backend/src/controllers/authController.js.
  *
  * The client used to infer link state from `schoolId === null`, which is exactly
- * why an unlinked account could only be shown an error. Producing the same block
- * here is what lets the whole CREATE-mode path be demonstrated offline.
+ * why an unlinked account could only ever shown an error. Producing the same
+ * block here is what lets the whole CREATE-mode path be demonstrated offline.
+ *
+ * `flow` and `joinRequest` mirror the two onboarding flows the real controller
+ * reports: accountants, teachers and viewers join a school by code and wait for
+ * approval instead of walking the wizard, and their `completed` is true the
+ * moment they are linked. This mock has to agree with that or the join flow
+ * would only work against the live API.
  */
 const onboardingBlock = (user) => {
   if (!user) {
@@ -99,6 +110,9 @@ const onboardingBlock = (user) => {
       completed: false,
       highestStep: 0,
       nextRoute: null,
+      flow: null,
+      joinRequested: false,
+      joinRequest: null,
     };
   }
 
@@ -110,6 +124,9 @@ const onboardingBlock = (user) => {
       completed: user.onboardingCompleted === true,
       highestStep: user.onboardingHighestStep ?? 0,
       nextRoute: user.onboardingCompleted ? '/dashboard' : '/onboarding/school-profile',
+      flow: 'wizard',
+      joinRequested: false,
+      joinRequest: null,
     };
   }
 
@@ -118,6 +135,55 @@ const onboardingBlock = (user) => {
   // The real controller checks `deletedAt: null`; the mock world only marks
   // schools 'suspended', so this stays simple without faking the branch.
   const linked = Boolean(school && school.status !== 'archived');
+
+  // Join flow: no wizard to complete, so being linked *is* being finished.
+  if (SIGNUP_ROLES.some((role) => role.value === user.role && !role.canCreateSchool)) {
+    if (linked) {
+      return {
+        linked,
+        reason: 'LINKED',
+        schoolId: user.schoolId,
+        completed: true,
+        highestStep: 0,
+        // A teacher is sent to the teacher portal, everyone else to the school
+        // console — the rule the real `landingRouteFor` implements. Without
+        // this, mock mode reproduces the bug the whole rule exists to fix.
+        nextRoute: user.role === 'teacher' ? TEACHER_ROUTES.dashboard : '/dashboard',
+        flow: 'join',
+        joinRequested: false,
+        joinRequest: null,
+      };
+    }
+
+    // Newest first, the way the real one reads it: a declined applicant who
+    // re-applied leaves the old row behind.
+    const mine = (getDb().joinRequests || [])
+      .filter((request) => request.userId === user._id)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const latest = mine[0] || null;
+    const mineSchool = latest ? getDb().schools.find((s) => s._id === latest.schoolId) : null;
+
+    return {
+      linked: false,
+      reason: 'UNLINKED',
+      schoolId: null,
+      completed: false,
+      highestStep: 0,
+      nextRoute: '/onboarding/join-school',
+      flow: 'join',
+      joinRequested: latest?.status === 'pending',
+      joinRequest: latest
+        ? {
+            status: latest.status,
+            schoolName: mineSchool?.name || null,
+            schoolCode: mineSchool?.schoolCode || null,
+            requestedAt: latest.createdAt,
+            decidedAt: latest.decidedAt || null,
+            decidedNote: latest.decidedNote || null,
+          }
+        : null,
+    };
+  }
 
   const completed = linked && user.onboardingCompleted === true;
 
@@ -132,6 +198,9 @@ const onboardingBlock = (user) => {
         ? '/dashboard'
         : '/onboarding/school-profile'
       : '/onboarding/school-profile',
+    flow: 'wizard',
+    joinRequested: false,
+    joinRequest: null,
   };
 };
 
@@ -543,6 +612,294 @@ function makeSchoolCode(name, schools) {
 const findSchoolByEmail = (email) =>
   getDb().schools.find((s) => String(s.email || '').toLowerCase() === email);
 
+// ── Teacher assignment (student → teacher) ──────────────────────────────────
+//
+// A self-service feature of the mock, kept in the same shape the API answers
+// with: `rows[]` carrying `assignedToTeacher`, a `counts[]` tally, and both
+// writes returning what they actually changed.
+//
+// The rows and the tallies are stored on the db so they survive a reload the way
+// the real assignment collection does. `classMediated` is recorded on write,
+// because the unassign handler has to refuse those rows without `force` — and a
+// mock that happily deletes them would demonstrate the opposite of the server's
+// rule, which is the failure mode this whole surface is about.
+
+/** The mock's own teacher→student link store, created on first use. */
+const assignmentStore = () => {
+  const db = getDb();
+  if (!db.teacherAssignments) db.teacherAssignments = [];
+  return db.teacherAssignments;
+};
+
+/** Live links only, the way `TeacherAssignment.query.live()` reads. */
+const liveLinks = () => assignmentStore().filter((row) => !row.removedAt);
+
+const teacherAssignmentCounts = ({ user }) => {
+  if (!user) throw new MockError(401, 'Not authenticated', 'UNAUTHENTICATED');
+  if (user.role !== 'school_admin' && user.role !== 'super_admin') {
+    throw new MockError(403, 'Only school admins can review access requests', 'FORBIDDEN');
+  }
+
+  const byTeacher = new Map();
+  for (const row of liveLinks()) {
+    const entry = byTeacher.get(row.teacherId) || { count: 0, classMediated: 0 };
+    entry.count += 1;
+    if (row.classMediated) entry.classMediated += 1;
+    byTeacher.set(row.teacherId, entry);
+  }
+
+  // `drift` mirrors `detectAssignmentDrift`: a teacher with class-mediated rows
+  // whose `assignedClasses` has no matching slot, which is the state where the
+  // console says "20 assigned" and the portal says "no classes". The fixtures
+  // start with one so the repair affordance is visible in mock mode.
+  const drifted = [];
+  for (const [teacherId, entry] of byTeacher) {
+    if (!entry.classMediated) continue;
+    const account = getDb().users.find((u) => u._id === teacherId);
+    if (!account) continue;
+
+    const slots = new Set((account.assignedClasses || []).map((row) => String(row.className)));
+    const linkedClasses = [...new Set(liveLinks().filter((r) => r.teacherId === teacherId && r.classMediated).map((r) => r.className))];
+    const missing = linkedClasses.filter((name) => !slots.has(String(name)));
+
+    if (missing.length) {
+      drifted.push({
+        teacherId,
+        teacherName: account.name,
+        classes: missing.sort(),
+        students: entry.classMediated,
+      });
+    }
+  }
+
+  return {
+    counts: [...byTeacher.entries()].map(([teacherId, entry]) => ({
+      teacherId,
+      count: entry.count,
+      classMediated: entry.classMediated,
+    })),
+    drift: drifted,
+  };
+};
+
+const teacherAssignmentRepairDrift = ({ user, body }) => {
+  if (!user) throw new MockError(401, 'Not authenticated', 'UNAUTHENTICATED');
+  if (user.role !== 'school_admin' && user.role !== 'super_admin') {
+    throw new MockError(403, 'Only school admins can review access requests', 'FORBIDDEN');
+  }
+
+  const wanted = body?.teacherId ? String(body.teacherId) : null;
+  let classes = 0;
+  const repaired = [];
+
+  for (const row of teacherAssignmentCounts({ user }).drift) {
+    if (wanted && String(row.teacherId) !== wanted) continue;
+    const account = getDb().users.find((u) => u._id === row.teacherId);
+    if (!account) continue;
+
+    for (const className of row.classes) {
+      // Same shape `moveClassSlot` writes: the class-teacher slot is an empty
+      // subject. `syncClassTeacher` is what the real repair runs, so this
+      // reproduces its effect exactly.
+      const slots = account.assignedClasses || [];
+      if (!slots.some((entry) => String(entry.className) === String(className) && !entry.subject)) {
+        slots.push({ className, subject: '' });
+        account.assignedClasses = slots;
+        classes += 1;
+      }
+    }
+    repaired.push(row.teacherId);
+  }
+
+  return {
+    repaired: repaired.length,
+    classes,
+    teachers: repaired,
+  };
+};
+
+const teacherAssignmentStudents = ({ params, query, user }) => {
+  if (!user) throw new MockError(401, 'Not authenticated', 'UNAUTHENTICATED');
+  if (user.role !== 'school_admin' && user.role !== 'super_admin') {
+    throw new MockError(403, 'Only school admins can review access requests', 'FORBIDDEN');
+  }
+
+  const teacher = getDb().users.find((u) => u._id === params.teacherId);
+  if (!teacher) throw new MockError(404, 'Teacher not found in this school', 'TEACHER_NOT_FOUND');
+
+  const roster = getDb().students.filter((s) => !s.deletedAt);
+  const classFilter = query?.class;
+  const search = String(query?.search || '').toLowerCase();
+  const status = query?.status || 'active';
+
+  const filtered = roster.filter((student) => {
+    if (classFilter && student.studentClass !== classFilter) return false;
+    if (status !== 'all' && student.status !== status) return false;
+    if (query?.gender && student.gender !== query.gender) return false;
+    if (search) {
+      const haystack = `${student.studentName} ${student.studentId} ${student.parents?.[0]?.phone || ''}`.toLowerCase();
+      if (!haystack.includes(search)) return false;
+    }
+    return true;
+  });
+
+  const page = Number(query?.page) || 1;
+  const perPage = Number(query?.perPage) || 20;
+  const total = filtered.length;
+  const rows = filtered.slice((page - 1) * perPage, page * perPage);
+
+  const mine = liveLinks().filter((row) => row.teacherId === params.teacherId);
+
+  return {
+    teacher: { _id: teacher._id, name: teacher.name, role: teacher.role, position: teacher.position },
+    pagination: { page, perPage, total, pages: Math.max(1, Math.ceil(total / perPage)) },
+    rows: rows.map((student) => {
+      const link = mine.find((row) => String(row.studentId) === String(student._id));
+      return {
+        _id: student._id,
+        studentId: student.studentId,
+        name: student.studentName,
+        studentClass: student.studentClass,
+        gender: student.gender,
+        status: student.status,
+        parentPhone: student.parents?.[0]?.phone || null,
+        assignedToTeacher: Boolean(link),
+        classMediated: Boolean(link?.classMediated),
+        assignedAt: link?.assignedAt || null,
+      };
+    }),
+  };
+};
+
+const teacherAssignmentAssign = ({ params, body, user }) => {
+  if (!user) throw new MockError(401, 'Not authenticated', 'UNAUTHENTICATED');
+  if (user.role !== 'school_admin' && user.role !== 'super_admin') {
+    throw new MockError(403, 'Only school admins can review access requests', 'FORBIDDEN');
+  }
+
+  const teacher = getDb().users.find((u) => u._id === params.teacherId);
+  if (!teacher) throw new MockError(404, 'Teacher not found in this school', 'TEACHER_NOT_FOUND');
+
+  const { studentIds, className } = body || {};
+
+  // Exactly one selector, `.xor` on the server.
+  if ((!studentIds && !className) || (studentIds && className)) {
+    throw new MockError(
+      422,
+      'Name either a list of studentIds or a className, not both',
+      'VALIDATION_ERROR'
+    );
+  }
+
+  // A class roster is resolved here rather than taken from the client, which is
+  // what makes the count on the confirmation the count that gets written.
+  const targetIds = className
+    ? getDb()
+        .students.filter((s) => s.studentClass === className && s.status === 'active' && !s.deletedAt)
+        .map((s) => s._id)
+    : studentIds;
+
+  if (!targetIds?.length) {
+    throw new MockError(409, `Class "${className}" has no active students yet`, 'CLASS_EMPTY');
+  }
+  if (targetIds.length > 500) {
+    throw new MockError(422, 'Select at most 500 students at a time', 'VALIDATION_ERROR');
+  }
+
+  const store = assignmentStore();
+  const now = new Date().toISOString();
+  const students = getDb().students;
+  let assigned = 0;
+
+  for (const id of targetIds) {
+    const student = students.find((s) => String(s._id) === String(id));
+    if (!student || student.deletedAt) continue;
+
+    const existing = store.find(
+      (row) => row.teacherId === params.teacherId && String(row.studentId) === String(id) && !row.removedAt
+    );
+    if (existing) {
+      // Idempotent, exactly as the unique partial index makes it on the server:
+      // a re-click changes nothing and is not an error.
+      existing.classMediated = Boolean(className);
+      continue;
+    }
+
+    const tombstone = store.find(
+      (row) => row.teacherId === params.teacherId && String(row.studentId) === String(id) && row.removedAt
+    );
+    if (tombstone) {
+      // Revive rather than insert, so re-assigning after an un-assignment is
+      // legal and the history is not overwritten.
+      tombstone.removedAt = null;
+      tombstone.classMediated = Boolean(className);
+      tombstone.assignedAt = now;
+      assigned += 1;
+      continue;
+    }
+
+    store.push({
+      teacherId: params.teacherId,
+      studentId: String(id),
+      className: student.studentClass || '',
+      classMediated: Boolean(className),
+      assignedAt: now,
+      assignedBy: user._id,
+      removedAt: null,
+    });
+    assigned += 1;
+  }
+
+  return {
+    assigned,
+    updated: assigned,
+    className: className || null,
+    teacher: { _id: teacher._id, name: teacher.name, role: teacher.role },
+    assignedIds: targetIds.map(String),
+  };
+};
+
+const teacherAssignmentUnassign = ({ params, body, user }) => {
+  if (!user) throw new MockError(401, 'Not authenticated', 'UNAUTHENTICATED');
+  if (user.role !== 'school_admin' && user.role !== 'super_admin') {
+    throw new MockError(403, 'Only school admins can review access requests', 'FORBIDDEN');
+  }
+
+  const teacher = getDb().users.find((u) => u._id === params.teacherId);
+  if (!teacher) throw new MockError(404, 'Teacher not found in this school', 'TEACHER_NOT_FOUND');
+
+  const { studentIds, force = false } = body || {};
+  if (!Array.isArray(studentIds) || !studentIds.length) {
+    throw new MockError(422, 'Select at least one student', 'VALIDATION_ERROR');
+  }
+
+  const store = assignmentStore();
+  const wanted = new Set(studentIds.map(String));
+  const mine = store.filter(
+    (row) => row.teacherId === params.teacherId && wanted.has(String(row.studentId)) && !row.removedAt
+  );
+
+  const removable = force ? mine : mine.filter((row) => !row.classMediated);
+  const skipped = mine.length - removable.length;
+
+  let removed = 0;
+  const removedIds = [];
+  for (const row of removable) {
+    row.removedAt = new Date().toISOString();
+    removed += 1;
+    removedIds.push(String(row.studentId));
+  }
+
+  return {
+    removed,
+    requested: studentIds.length,
+    skipped,
+    skippedReason: skipped ? 'assigned with a class' : null,
+    removedIds,
+    teacher: { _id: teacher._id, name: teacher.name, role: teacher.role },
+  };
+};
+
 /**
  * `POST /schools/join` — request to join a school that already exists.
  *
@@ -585,6 +942,162 @@ const joinSchool = ({ body, user }) => {
   db.joinRequests.push(request);
 
   return { requestId: request._id, status: 'pending', schoolName: school.name };
+};
+
+/** The populated `userId` subdocument the real `listJoinRequests` returns. */
+const populateApplicant = (request) => {
+  const applicant = getDb().users.find((u) => u._id === request.userId);
+  if (!applicant) return { ...request, userId: null };
+  return {
+    ...request,
+    userId: {
+      _id: applicant._id,
+      name: applicant.name,
+      email: applicant.email,
+      phone: applicant.phone ?? null,
+      position: applicant.position ?? null,
+      // The real query selects `role` alongside the rest, because "a teacher
+      // applied" and "a second bursar applied" are different decisions and the
+      // email address says neither.
+      role: applicant.role,
+      status: applicant.status,
+    },
+  };
+};
+
+/**
+ * The guard both approval routes share, mirroring `listJoinRequests` /
+ * `decideJoinRequest` in Backend/src/services/school.service.js and the
+ * `authorize("super_admin", "school_admin")` on the route.
+ */
+const assertCanDecideJoins = (user) => {
+  if (!user) throw new MockError(401, 'Not authenticated', 'UNAUTHENTICATED');
+  if (!user.schoolId) throw new MockError(403, 'No school in scope', 'NO_SCHOOL_SCOPE');
+  if (user.role !== 'super_admin' && user.role !== 'school_admin') {
+    throw new MockError(403, 'Only school admins can review access requests', 'FORBIDDEN');
+  }
+};
+
+/**
+ * `GET /schools/join-requests` — the approval queue for the caller's school.
+ *
+ * Scoped to the signed-in user's `schoolId`, exactly as the real service is:
+ * the route carries no school id anywhere, so there is nothing a caller could
+ * substitute to read another school's applicants.
+ */
+const listJoinRequests = ({ user }) => {
+  assertCanDecideJoins(user);
+
+  return (getDb().joinRequests || [])
+    .filter((request) => request.schoolId === user.schoolId)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .map(populateApplicant);
+};
+
+/**
+ * `PUT /schools/join-requests/:requestId` — approve or decline.
+ *
+ * Approval links the applicant to the deciding admin's school, which is the
+ * whole point: it is what turns a pending account into one with full access.
+ * The real service does it inside a transaction; the mock is single-threaded,
+ * so two writes are enough to keep the promise that an approval is never
+ * recorded without the access it grants.
+ */
+const decideJoinRequest = ({ params, body, user }) => {
+  assertCanDecideJoins(user);
+
+  const decision = String(body?.decision || '');
+  if (!['approved', 'rejected'].includes(decision)) {
+    throw new MockError(422, '"decision" must be approved or rejected', 'VALIDATION_ERROR');
+  }
+
+  const request = (getDb().joinRequests || []).find(
+    (row) => row._id === params.requestId && row.schoolId === user.schoolId
+  );
+  if (!request) throw new MockError(404, 'Join request not found', 'NOT_FOUND');
+  if (request.status !== 'pending') {
+    throw new MockError(409, `This request was already ${request.status}`, 'ALREADY_DECIDED');
+  }
+
+  const applicant = getDb().users.find((u) => u._id === request.userId);
+  if (!applicant) throw new MockError(404, 'That account no longer exists', 'USER_NOT_FOUND');
+  if (decision === 'approved' && applicant.schoolId) {
+    throw new MockError(409, 'That account already belongs to a school', 'APPLICANT_ALREADY_LINKED');
+  }
+
+  request.status = decision;
+  request.decidedBy = user._id;
+  request.decidedAt = new Date().toISOString();
+  request.decidedNote = String(body?.note || '');
+
+  if (decision === 'approved') {
+    applicant.schoolId = user.schoolId;
+  }
+
+  return populateApplicant(request);
+};
+
+// ─────────────────────────────────────────────
+// AVATAR UPLOAD
+// The one `/upload/*` route that is not school-admin gated: the subject is the
+// caller, whoever they are. Mirrors `POST /upload/avatar` and
+// `DELETE /upload/avatar`, and the shape both controllers answer with —
+// `{ avatar, user }`, so the client can put the user straight into
+// `AuthContext` rather than re-reading `/auth/me`.
+// ─────────────────────────────────────────────
+
+/**
+ * The Cloudinary URL the mock hands back for an accepted picture.
+ *
+ * A real URL with a real `version/prod/cloudinary`-style path, because
+ * `extractPublicId` parses it. Deriving the public id from this URL is what the
+ * *next* upload uses to destroy the *previous* asset, so a path of the right
+ * shape is what makes the replace-removes-the-old-asset chain exercisable here.
+ */
+const AVATAR_CLOUDINARY_URL =
+  'https://res.cloudinary.com/sukuupay/image/upload/v1700000000/sukuupay/users/avatars/sukuupay-avatar-1.png';
+
+/**
+ * `POST /upload/avatar`.
+ *
+ * Multipart, so the adapter hands the raw `FormData` through as `data` — the
+ * same shape `/upload/student-photo` reads, for the same reason.
+ */
+const uploadAvatar = ({ data, user }) => {
+  if (!user) throw new MockError(401, 'Not authenticated', 'UNAUTHENTICATED');
+
+  const form = data instanceof FormData ? data : null;
+  const file = form?.get('file');
+  if (!file) throw new MockError(400, 'No image file uploaded', 'NO_FILE');
+
+  // The same fence the real `fileFilter` puts up, and the same ceiling: a PDF or
+  // a GIF is refused before anything is stored, with the message the teacher has
+  // to act on rather than a generic 500.
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    throw new MockError(400, 'Only JPG, PNG, and WebP images are allowed', 'INVALID_MIME');
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    throw new MockError(400, 'Image must be smaller than 2MB', 'FILE_TOO_LARGE');
+  }
+
+  const account = getDb().users.find((u) => u._id === user._id);
+  if (!account) throw new MockError(404, 'That account no longer exists', 'USER_NOT_FOUND');
+
+  account.avatar = AVATAR_CLOUDINARY_URL;
+
+  return { avatar: AVATAR_CLOUDINARY_URL, user: publicUser(account) };
+};
+
+/** `DELETE /upload/avatar` — clears the URL and falls back to initials. */
+const deleteAvatar = ({ user }) => {
+  if (!user) throw new MockError(401, 'Not authenticated', 'UNAUTHENTICATED');
+
+  const account = getDb().users.find((u) => u._id === user._id);
+  if (!account) throw new MockError(404, 'That account no longer exists', 'USER_NOT_FOUND');
+
+  account.avatar = null;
+
+  return { avatar: null, user: publicUser(account) };
 };
 
 const getSchool = ({ params, user }) => {
@@ -5861,7 +6374,17 @@ export const ROUTES = [
   // `/schools/:schoolId` patterns for readability; they cannot collide, since
   // "me" and "join" are not ObjectIds.
   ['POST', /^\/schools\/me$/, provisionMySchool],
-  ['POST', /^\/schools\/join$/, joinSchool],
+  ['POST', /^\/schools\/join\/?$/, joinSchool],
+
+  // The avatar endpoints, and the only `/upload/*` route that is not
+  // school-admin gated — see the comment above `uploadAvatar`.
+  ['POST', /^\/upload\/avatar$/, uploadAvatar],
+  ['DELETE', /^\/upload\/avatar$/, deleteAvatar],
+
+  // The approval queue and the decision on it. The `PUT` pattern is anchored so
+  // it cannot swallow `POST /schools/join` or any other `/schools/...` verb.
+  ['GET', /^\/schools\/join-requests$/, listJoinRequests],
+  ['PUT', /^\/schools\/join-requests\/(?<requestId>[^/]+)$/, decideJoinRequest],
 
   // `verifyHubtel` is a POST: `services/school.js` calls
   // `api.post('/schools/:id/verify-hubtel', credentials)`. Registering it as PUT
@@ -6091,6 +6614,23 @@ export const ROUTES = [
   ['PUT', /^\/users\/(?<userId>[^/]+)\/role$/, changeUserRole],
   ['DELETE', /^\/users\/(?<userId>[^/]+)$/, deleteUser],
   ['PUT', /^\/users\/([^/]+)$/, updateUser],
+
+  // ── Teacher assignment (admin academic) ──────────────────────────────────
+  //
+  // Which *students* a teacher is responsible for — the link
+  // `Backend/src/models/TeacherAssignment.js` holds, and the reason these paths
+  // are all under `/admin/`: they are the headmaster's academic console, mounted
+  // ahead of the platform console in the real router and therefore reachable by
+  // a school admin, not only by a `super_admin`.
+  //
+  // Ordered longest-first, the rule this file states above: the counts literal
+  // must beat `/users/:teacherId/students`, or `teacher-assignment-counts` is read
+  // as a teacher id and every lookup 404s.
+  ['GET', /^\/admin\/users\/teacher-assignment-counts$/, teacherAssignmentCounts],
+  ['POST', /^\/admin\/users\/teacher-assignment-drift\/repair$/, teacherAssignmentRepairDrift],
+  ['GET', /^\/admin\/users\/(?<teacherId>[^/]+)\/students$/, teacherAssignmentStudents],
+  ['POST', /^\/admin\/users\/(?<teacherId>[^/]+)\/students$/, teacherAssignmentAssign],
+  ['DELETE', /^\/admin\/users\/(?<teacherId>[^/]+)\/students$/, teacherAssignmentUnassign],
 
   // Registered before `/users/:userId` for the same ordering reason.
   ['POST', /^\/users\/invite$/, inviteUser],

@@ -16,6 +16,7 @@ import Card from '../../components/dashboard/ui/Card';
 import Badge from '../../components/dashboard/ui/Badge';
 import EmptyState from '../../components/dashboard/EmptyState';
 import InviteTeamMemberDialog from '../../components/user-management/InviteTeamMemberDialog';
+import PendingApprovals from '../../components/user-management/PendingApprovals';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../hooks/useToast';
 import { useUsers, useFilteredUsers, useUserActions } from '../../hooks/useUsers';
@@ -67,8 +68,9 @@ const relativeTime = (value) => {
 /**
  * The User Management module.
  *
- * The team roster, and the three things an administrator does with it: invite
- * somebody, change what they can do, and take that away.
+ * The team roster, and the four things an administrator does with it: invite
+ * somebody, approve somebody who asked to join, change what they can do, and
+ * take that away.
  *
  * Two decisions worth stating, because both are about who can see this page at
  * all rather than what is on it:
@@ -191,7 +193,7 @@ const UserManagement = () => {
       <PageHeader
         eyebrow="Administration"
         title="User Management"
-        description="Invite colleagues, manage what each person can do, and see who has actually signed in."
+        description="Approve people who asked to join, invite colleagues, manage what each person can do, and see who has actually signed in."
         actions={
           <button
             type="button"
@@ -203,6 +205,18 @@ const UserManagement = () => {
           </button>
         }
       />
+
+      {/*
+        The approval queue, above the roster.
+
+        It is the one thing on this page that is somebody else's *whole* problem:
+        a teacher who typed a school code cannot do anything at all until an
+        admin here presses Approve, so the request is placed where the admin
+        already is rather than behind a second nav entry they would have to
+        discover. `onChanged` re-reads the team list, which is what puts the
+        freshly approved member into the table below without a page reload.
+      */}
+      <PendingApprovals onChanged={refresh} />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {tiles.map((tile) => (

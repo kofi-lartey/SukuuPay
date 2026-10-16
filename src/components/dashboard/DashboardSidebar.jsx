@@ -18,6 +18,7 @@ import {
   School,
   Settings,
   UserCog,
+  UserCheck,
   Users,
   X,
 } from 'lucide-react';
@@ -47,6 +48,7 @@ const ICONS = {
   ScrollText,
   Settings,
   UserCog,
+  UserCheck,
 };
 
 /**

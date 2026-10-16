@@ -2,7 +2,7 @@ import React from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { LoaderCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { ROUTES } from '../utils/constants';
+import { ROUTES, TEACHER_ROUTES } from '../utils/constants';
 
 const FullPageSpinner = () => (
   <div className="flex min-h-screen items-center justify-center">
@@ -27,6 +27,17 @@ const FullPageSpinner = () => (
  * one branch. The server additionally knows that `super_admin` legitimately has
  * no school and that a `schoolId` can point at an archived school, so the rule
  * lives in exactly one place.
+ *
+ * ## Two onboarding flows
+ *
+ * `/onboarding` is a tree with two roots, and the server names the one this
+ * account is on (`flow`, plus `nextRoute`). `school_admin` walks the five-step
+ * wizard from `school-profile`. `accountant`, `teacher` and `viewer` get
+ * `/onboarding/join-school` and nothing else — one school-code field and a
+ * waiting room, because there is nothing else in the wizard they could legally
+ * finish. Crossing the two over would send a teacher into steps that 403, and
+ * would let a headteacher sit in a join screen that will never resolve, so the
+ * guard keeps each side on its own side.
  */
 const OnboardingGuard = () => {
   const { user, loading, onboardingCompleted, linkState } = useAuth();
@@ -55,6 +66,11 @@ const OnboardingGuard = () => {
   const isPlatformStaff = user.role === 'super_admin';
   const isLinked = linkState?.linked === true || isPlatformStaff;
 
+  // 'wizard' (provision and configure a school) or 'join' (enter a code and
+  // wait). Null in the window before the first `/auth/me` resolves, which is why
+  // every rule below reads it as a hint rather than as an access decision.
+  const flow = linkState?.flow ?? null;
+
   // Finishing the wizard is only "done" once there is a school to have finished
   // configuring. Gating on both closes the flag/school mismatch — an account
   // that somehow recorded completion without a school would otherwise be waved
@@ -62,11 +78,37 @@ const OnboardingGuard = () => {
   const isOnboarded = onboardingCompleted && isLinked;
 
   if (!isOnboarded && isDashboardPath) {
-    return <Navigate to={ROUTES.ONBOARDING} replace />;
+    // `nextRoute` rather than a bare `/onboarding`: the server has already
+    // decided which flow this account is on, and its index route redirects into
+    // the wizard's step 1 — the wrong destination for a teacher waiting on an
+    // approval. The bare path is the fallback for the pre-`/auth/me` paint,
+    // when `nextRoute` is still null.
+    return <Navigate to={linkState?.nextRoute || ROUTES.ONBOARDING} replace />;
   }
 
   if (isOnboarded && isOnboardingPath) {
+    // A teacher finishes onboarding by being approved into a school, and their
+    // portal is `/teacher`, not the school console — mirror `landingRouteFor`
+    // instead of detouring through `/dashboard`.
+    if (user?.role === 'teacher') {
+      return <Navigate to={TEACHER_ROUTES.dashboard} replace />;
+    }
     return <Navigate to={ROUTES.DASHBOARD} replace />;
+  }
+
+  // Still onboarding, and somewhere under /onboarding. Keep each flow to its own
+  // screen. The `flow === 'join'` rule is the one that matters day to day — a
+  // teacher who bookmarked or was linked a wizard step lands on the only screen
+  // they can use. The reverse rule is what stops a headteacher from waiting in a
+  // join screen that will never resolve, since no school admin can approve them
+  // into a school they are the one creating.
+  if (!isOnboarded && isOnboardingPath) {
+    if (flow === 'join' && location.pathname !== ROUTES.ONBOARDING_JOIN_SCHOOL) {
+      return <Navigate to={ROUTES.ONBOARDING_JOIN_SCHOOL} replace />;
+    }
+    if (flow === 'wizard' && location.pathname === ROUTES.ONBOARDING_JOIN_SCHOOL) {
+      return <Navigate to={ROUTES.ONBOARDING} replace />;
+    }
   }
 
   return <Outlet />;

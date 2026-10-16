@@ -7,6 +7,7 @@ import {
   getCurrentUser,
 } from '../services/auth';
 import { updateMe } from '../services/user';
+import { joinsSchoolByCode } from '../utils/constants';
 
 const AuthContext = createContext();
 
@@ -46,7 +47,12 @@ export const useAuth = () => {
  * and this provider passes it through untouched.
  *
  * Shape (see `onboardingBlock` in the auth controller):
- *   { linked, reason, schoolId, completed, highestStep, nextRoute }
+ *   { linked, reason, schoolId, completed, highestStep, nextRoute,
+ *     flow, joinRequested, joinRequest }
+ *
+ * `flow` is `'wizard'` or `'join'`: the two onboarding flows the server tells
+ * apart by role. `joinRequest` is the live pending request for join-flow
+ * accounts, or null.
  */
 const UNKNOWN_LINK_STATE = {
   linked: false,
@@ -55,6 +61,9 @@ const UNKNOWN_LINK_STATE = {
   completed: false,
   highestStep: 0,
   nextRoute: null,
+  flow: null,
+  joinRequested: false,
+  joinRequest: null,
 };
 
 export const AuthProvider = ({ children }) => {
@@ -77,7 +86,18 @@ export const AuthProvider = ({ children }) => {
       // The API is authoritative. The localStorage read only fills the gap while
       // the server says nothing, so a cleared flag can never strand a bursar in
       // the wizard after the server confirmed they finished.
-      completed: user.onboardingCompleted === true || readOnboardingFlag(user._id),
+      //
+      // `||`, not `=`, and the difference is the join flow: an accountant or
+      // teacher approved into a school has `onboardingCompleted === false`
+      // forever, because the wizard was never theirs to complete. Recomputing
+      // this field from that flag on every render would un-finish them, and the
+      // guard would bounce an approved teacher back into onboarding on each
+      // reload. Once finished — by the server or by the backstop — it stays
+      // finished for the rest of the session.
+      completed:
+        current.completed ||
+        user.onboardingCompleted === true ||
+        (!joinsSchoolByCode(user?.role) && readOnboardingFlag(user?._id)),
       highestStep: user.onboardingHighestStep ?? current.highestStep ?? 0,
     }));
   }, [user?._id, user?.onboardingCompleted, user?.onboardingHighestStep]);
@@ -98,8 +118,14 @@ export const AuthProvider = ({ children }) => {
       ...UNKNOWN_LINK_STATE,
       ...(linkState || {}),
       linked: linkState?.linked ?? Boolean(userData.schoolId),
+      // The server's `completed` wins where it speaks, because it answers for
+      // both flows: a wizard role has to have finished the steps, a join role
+      // has to have been approved. The local fallback covers only the window
+      // before the server has answered.
       completed:
-        userData.onboardingCompleted === true || readOnboardingFlag(userData._id),
+        linkState?.completed ??
+        (userData.onboardingCompleted === true ||
+          (!joinsSchoolByCode(userData?.role) && readOnboardingFlag(userData._id))),
       highestStep: userData.onboardingHighestStep ?? 0,
     });
   }, []);
