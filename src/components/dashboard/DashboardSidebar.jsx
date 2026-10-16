@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Building2,
+  Calendar,
   CalendarClock,
   ChartColumn,
   ChevronUp,
@@ -39,6 +40,7 @@ const ICONS = {
   FileText,
   Users,
   CreditCard,
+  Calendar,
   CalendarClock,
   MessageSquare,
   Inbox,

@@ -226,6 +226,7 @@ export const ACADEMICS_ROUTES = {
   // classes they teach, and one no class list can answer. See
   // `Backend/src/models/TeacherAssignment.js`.
   teacherAssignment: '/dashboard/academics/teacher-assignment',
+  timetables: '/dashboard/academics/timetables',
   reports: '/dashboard/academics/reports',
 };
 
@@ -480,11 +481,14 @@ export const DASHBOARD_NAV = [
         label: 'Teacher Assignment',
         icon: 'UserCheck',
         roles: ['school_admin'],
-        // Same `requireSchoolAdmin` boundary as its neighbours — a `teacher` is
-        // refused by the server on all four endpoints behind it — so the entry is
-        // hidden from them rather than left to 403. Which is also why it is not
-        // inside Classes: this is per *teacher*, and the class flow is per class.
         description: 'See which students each teacher looks after, and assign new ones.',
+      },
+      {
+        to: ACADEMICS_ROUTES.timetables,
+        label: 'Timetables',
+        icon: 'Calendar',
+        roles: ['school_admin'],
+        description: 'Build and publish class timetables for teachers and parents.',
       },
       {
         to: ROUTES.DASHBOARD_ACADEMICS_REPORTS,

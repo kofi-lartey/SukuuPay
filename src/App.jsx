@@ -6,7 +6,7 @@ import AppChrome from './components/layout/AppChrome';
 import OnboardingGuard from './routes/OnboardingGuard';
 import AdminGuard from './routes/AdminGuard';
 import RoleLanding from './routes/RoleLanding';
-import { ROUTES, TEACHER_ROUTES } from './utils/constants';
+import { ROUTES, TEACHER_ROUTES, ACADEMICS_ROUTES } from './utils/constants';
 
 import Home from './pages/Home';
 import Features from './pages/Features';
@@ -47,6 +47,7 @@ import ActivityLog from './pages/dashboard/ActivityLog';
 import UserManagement from './pages/dashboard/UserManagement';
 import Settings from './pages/dashboard/Settings';
 import AcademicsOverview from './pages/dashboard/academics/AcademicsOverview';
+import Timetables from './pages/dashboard/academics/Timetables';
 import GradeApproval from './pages/dashboard/academics/GradeApproval';
 import AcademicClasses from './pages/dashboard/academics/Classes';
 import AcademicsClassDetail from './pages/dashboard/academics/ClassDetail';
@@ -301,10 +302,11 @@ function App() {
                       inside Classes: assignment is per *teacher*, and the
                       class flow is per class. See the page's own notes.
                     */}
-                    <Route
-                      path="teacher-assignment"
-                      element={<TeacherAssignment />}
-                    />
+<Route
+  path="teacher-assignment"
+  element={<TeacherAssignment />}
+/>
+<Route path={ACADEMICS_ROUTES.timetables} element={<Timetables />} />
                   </Route>
                 <Route path="*" element={<NotFound variant="app" />} />
               </Route>

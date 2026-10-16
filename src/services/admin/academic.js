@@ -205,6 +205,39 @@ export const publishTimetable = async (payload) => {
   }
 };
 
+export const listTimetables = async ({ term, academicYear, status } = {}) => {
+  try {
+    const params = Object.fromEntries(
+      Object.entries({ term, academicYear, status }).filter(([, value]) => value !== '' && value !== null && value !== undefined)
+    );
+    const { data } = await api.get('/admin/timetables', { params, timeout: 15000 });
+    return data?.data || { timetables: [] };
+  } catch (error) {
+    throw toApiError(error, 'The timetables could not be loaded.');
+  }
+};
+
+export const getTimetable = async (className, { term, academicYear } = {}) => {
+  try {
+    const params = Object.fromEntries(
+      Object.entries({ term, academicYear }).filter(([, value]) => value !== '' && value !== null && value !== undefined)
+    );
+    const { data } = await api.get(`/admin/timetables/${encodeURIComponent(className)}`, { params, timeout: 15000 });
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, 'The timetable could not be loaded.');
+  }
+};
+
+export const saveTimetable = async (payload) => {
+  try {
+    const { data } = await api.put('/admin/timetables', payload, { timeout: 30000 });
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, 'The timetable could not be saved.');
+  }
+};
+
 // ── Teacher picker for class assignments ──────────────────────────────────────
 //
 // `GET /users` is school-scoped (the server resolves the school from the token)
