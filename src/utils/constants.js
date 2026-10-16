@@ -207,6 +207,7 @@ export const TEACHER_ROUTES = {
   records: '/teacher/records',
   recordsFor: (className) => `/teacher/records/${encodeURIComponent(className ?? '')}`,
   schedule: '/teacher/schedule',
+  timetables: '/teacher/timetables',
   notifications: '/teacher/notifications',
   profile: '/teacher/profile',
 };

@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import {
   Bell,
+  Calendar,
   CalendarCheck,
   CalendarRange,
   ClipboardList,
@@ -68,6 +69,13 @@ const NAV_ITEMS = [
     to: TEACHER_ROUTES.schedule,
     icon: CalendarRange,
     description: 'Your teaching timetable.',
+  },
+  {
+    key: 'timetables',
+    label: 'Timetables',
+    to: TEACHER_ROUTES.timetables,
+    icon: Calendar,
+    description: 'Draft and submit class timetables for approval.',
   },
   {
     key: 'records',

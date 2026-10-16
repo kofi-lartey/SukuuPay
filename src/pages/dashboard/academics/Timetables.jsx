@@ -1,18 +1,23 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import PageHeader from '../../../components/dashboard/PageHeader';
 import Card from '../../../components/dashboard/ui/Card';
+import Button from '../../../components/common/Button';
 import { Field, SelectField } from '../../../components/common/FormField';
 import EmptyState from '../../../components/parent/shared/EmptyState';
+import { Calendar, Clock } from 'lucide-react';
 import { useToast } from '../../../hooks/useToast';
-import { listClasses } from '../../../services/admin/academic';
 import {
+  listClasses,
   getTimetable,
   saveTimetable,
-  importTimetable,
   publishTimetable,
+  importTimetable,
+  approveTimetable,
+  rejectTimetable,
+  listSubmissions,
 } from '../../../services/admin/academic';
 import { ACADEMIC_TERMS } from '../../../utils/constants';
+import TimetableGridEditor from '../../../components/dashboard/TimetableGridEditor';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
@@ -28,6 +33,20 @@ const defaultAcademicYear = () => {
   return now.getMonth() >= 7 ? `${year}/${year + 1}` : `${year - 1}/${year}`;
 };
 
+const STATUS_LABEL = {
+  draft: 'Draft',
+  submitted: 'Submitted',
+  approved: 'Approved',
+  rejected: 'Rejected',
+};
+
+const STATUS_COLOR = {
+  draft: 'text-slate-600',
+  submitted: 'text-amber-700',
+  approved: 'text-emerald-700',
+  rejected: 'text-rose-700',
+};
+
 const Timetables = () => {
   const toast = useToast();
   const [classes, setClasses] = useState([]);
@@ -36,10 +55,12 @@ const Timetables = () => {
   const [academicYear, setAcademicYear] = useState(defaultAcademicYear());
   const [days, setDays] = useState(emptyDays());
   const [status, setStatus] = useState('draft');
+  const [submissionStatus, setSubmissionStatus] = useState('draft');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [importing, setImporting] = useState(false);
+  const [submissions, setSubmissions] = useState([]);
+  const [submissionsLoading, setSubmissionsLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -64,67 +85,52 @@ const Timetables = () => {
       if (result) {
         setDays({ ...emptyDays(), ...(result.days || {}) });
         setStatus(result.status || 'draft');
+        setSubmissionStatus(result.submissionStatus || 'draft');
       } else {
         setDays(emptyDays());
         setStatus('draft');
+        setSubmissionStatus('draft');
       }
     } catch {
       setDays(emptyDays());
       setStatus('draft');
+      setSubmissionStatus('draft');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (className && term && academicYear) {
-      loadTimetable();
-    }
+    if (className && term && academicYear) loadTimetable();
   }, [className, term, academicYear]);
 
-  const updatePeriod = (day, index, field, value) => {
-    setDays((current) => {
-      const next = { ...current };
-      next[day] = next[day].map((period, i) =>
-        i === index ? { ...period, [field]: value } : period
-      );
-      return next;
-    });
+  const loadSubmissions = async () => {
+    setSubmissionsLoading(true);
+    try {
+      const result = await listSubmissions({ term, academicYear });
+      setSubmissions(result?.submissions || []);
+    } catch {
+      setSubmissions([]);
+    } finally {
+      setSubmissionsLoading(false);
+    }
   };
 
-  const addPeriod = (day) => {
-    setDays((current) => {
-      const next = { ...current };
-      const number = (next[day].length || 0) + 1;
-      next[day] = [...next[day], { period: number, startTime: '', endTime: '', subject: '', teacher: '', room: '' }];
-      return next;
-    });
-  };
+  useEffect(() => {
+    loadSubmissions();
+  }, [term, academicYear]);
 
-  const removePeriod = (day, index) => {
-    setDays((current) => {
-      const next = { ...current };
-      next[day] = next[day].filter((_, i) => i !== index);
-      return next;
-    });
-  };
-
-  const buildPayload = (nextStatus) => ({
-    className,
-    term,
-    academicYear,
-    status: nextStatus,
-    days,
-  });
-
-  const onSaveDraft = async () => {
+  const handleSaveDraft = async (nextDays) => {
     setSaving(true);
     try {
-      const result = await saveTimetable(buildPayload('draft'));
-      if (result) {
-        setDays({ ...emptyDays(), ...(result.days || {}) });
-        setStatus(result.status || 'draft');
-      }
+      await saveTimetable({
+        className,
+        term,
+        academicYear,
+        days: nextDays,
+        status: 'draft',
+      });
+      setDays(nextDays);
       toast.success('Timetable saved as draft.');
     } catch (error) {
       toast.error(error?.message || 'Could not save the timetable.');
@@ -133,17 +139,13 @@ const Timetables = () => {
     }
   };
 
-  const onPublish = async () => {
+  const handlePublish = async () => {
     setPublishing(true);
     try {
-      // Save first so the published grid matches what is on screen.
-      await saveTimetable(buildPayload('draft'));
-      const result = await publishTimetable({ className, term, academicYear });
-      if (result) {
-        setDays({ ...emptyDays(), ...(result.days || {}) });
-        setStatus(result.status || 'published');
-      }
+      await publishTimetable({ className, term, academicYear });
+      setStatus('published');
       toast.success('Timetable published.');
+      loadSubmissions();
     } catch (error) {
       toast.error(error?.message || 'Could not publish the timetable.');
     } finally {
@@ -151,48 +153,52 @@ const Timetables = () => {
     }
   };
 
-  const handleImportFile = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setImporting(true);
-    event.target.value = '';
+  const handleApprove = async (item) => {
     try {
-      await importTimetable(file, { className, term, academicYear, status });
-      toast.success('Timetable imported from file.');
-      await loadTimetable();
+      await approveTimetable(item.className, {
+        term: item.term,
+        academicYear: item.academicYear,
+      });
+      toast.success('Timetable approved.');
+      setSubmissions((current) =>
+        current.map((s) =>
+          s.className === item.className && s.term === item.term
+            ? { ...s, submissionStatus: 'approved' }
+            : s
+        )
+      );
+      loadSubmissions();
     } catch (error) {
-      toast.error(error?.message || 'The timetable file could not be imported.');
-    } finally {
-      setImporting(false);
+      toast.error(error?.message || 'Could not approve the timetable.');
     }
   };
 
-  const downloadTemplate = () => {
-    const headers = ['day', 'period', 'start_time', 'end_time', 'subject', 'teacher', 'room'];
-    const exampleRows = [
-      ['Monday', 1, '8:00 am', '9:00 am', 'Mathematics', 'Sir Coblah', 'A1'],
-      ['Monday', 2, '9:05 am', '10:05 am', 'English', 'Madam Afua', 'B2'],
-      ['Tuesday', 1, '8:00 am', '9:00 am', 'Science', 'Mr. Kofi', 'Lab 1'],
-      ['Wednesday', 3, '11:15 am', '12:15 pm', 'Social Studies', 'Ms. Ama', 'C3'],
-      ['Friday', 5, '2:00 pm', '3:00 pm', 'Physical Education', 'Coach Mensah', 'Field'],
-    ];
-    const lines = [headers.join(','), ...exampleRows.map((row) => row.map(String).join(','))];
-    const csv = lines.join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'timetable-template.csv';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast.success('Timetable template downloaded.');
+  const handleReject = async (item) => {
+    const reason = window.prompt('Reason for rejection (shown to the teacher):');
+    if (!reason) return;
+    try {
+      await rejectTimetable(item.className, {
+        term: item.term,
+        academicYear: item.academicYear,
+        reason,
+      });
+      toast.success('Timetable returned to the teacher.');
+      setSubmissions((current) =>
+        current.map((s) =>
+          s.className === item.className && s.term === item.term
+            ? { ...s, submissionStatus: 'rejected' }
+            : s
+        )
+      );
+      loadSubmissions();
+    } catch (error) {
+      toast.error(error?.message || 'Could not reject the timetable.');
+    }
   };
 
-  const hasPeriods = useMemo(
-    () => DAYS.some((day) => (days[day] || []).length > 0),
-    [days]
+  const editable = useMemo(
+    () => !['submitted', 'approved', 'published'].includes(submissionStatus),
+    [submissionStatus]
   );
 
   return (
@@ -200,7 +206,7 @@ const Timetables = () => {
       <PageHeader
         eyebrow="Academics"
         title="Timetable Management"
-        description="Build and publish a class timetable. Teachers and parents read the published version."
+        description="Build and publish a class timetable. Teachers submit theirs for your approval before publication."
       />
 
       <Card className="p-4">
@@ -222,9 +228,7 @@ const Timetables = () => {
             onChange={(e) => setTerm(e.target.value)}
           >
             {ACADEMIC_TERMS.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
+              <option key={value} value={value}>{value}</option>
             ))}
           </SelectField>
           <Field
@@ -235,32 +239,13 @@ const Timetables = () => {
           />
         </div>
         <p className="mt-2 text-[12px] text-slate-500">
-          Status: {status}
+          Status: <span className={`font-semibold ${STATUS_COLOR[status] || ''}`}>{status}</span>{' '}
+          &middot; Approval:
+          <span className={`font-semibold ${STATUS_COLOR[submissionStatus] || ''}`}>
+            {STATUS_LABEL[submissionStatus]}
+          </span>
         </p>
       </Card>
-
-          <div className="flex flex-wrap gap-3 items-end">
-            <label
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] font-semibold text-slate-700 disabled:opacity-50 cursor-pointer"
-            >
-              <input
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                hidden
-                disabled={importing || !className || !term || !academicYear}
-                onChange={handleImportFile}
-              />
-              {importing ? 'Importing…' : 'Import CSV/Excel'}
-            </label>
-            <button
-              type="button"
-              disabled={importing}
-              onClick={downloadTemplate}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] font-semibold text-slate-700 disabled:opacity-50"
-            >
-              Download template
-            </button>
-          </div>
 
       {!className ? (
         <EmptyState
@@ -272,91 +257,106 @@ const Timetables = () => {
         <p className="text-sm text-slate-500">Loading timetable…</p>
       ) : (
         <div className="space-y-4">
-          {DAYS.map((day) => (
-            <Card key={day} className="p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-[15px] font-extrabold text-ink">{day}</h3>
-                <button
-                  type="button"
-                  onClick={() => addPeriod(day)}
-                  className="rounded-lg bg-brand-700 px-3 py-1.5 text-[12px] font-bold text-white"
-                >
-                  Add period
-                </button>
-              </div>
-              {(days[day] || []).length === 0 ? (
-                <p className="text-[12.5px] italic text-slate-400">No periods</p>
-              ) : (
-                <div className="space-y-2">
-                  {(days[day] || []).map((period, index) => (
-                    <div
-                      key={index}
-                      className="grid gap-2 rounded-lg border border-slate-200 p-2 sm:grid-cols-6"
-                    >
-                      <Field
-                        label="Period"
-                        type="number"
-                        value={period.period}
-                        onChange={(e) => updatePeriod(day, index, 'period', Number(e.target.value))}
-                      />
-                      <Field
-                        label="Start"
-                        value={period.startTime}
-                        onChange={(e) => updatePeriod(day, index, 'startTime', e.target.value)}
-                      />
-                      <Field
-                        label="End"
-                        value={period.endTime}
-                        onChange={(e) => updatePeriod(day, index, 'endTime', e.target.value)}
-                      />
-                      <Field
-                        label="Subject"
-                        value={period.subject}
-                        onChange={(e) => updatePeriod(day, index, 'subject', e.target.value)}
-                      />
-                      <Field
-                        label="Teacher"
-                        value={period.teacher}
-                        onChange={(e) => updatePeriod(day, index, 'teacher', e.target.value)}
-                      />
-                      <div className="flex items-end gap-2">
-                        <Field
-                          label="Room"
-                          value={period.room}
-                          onChange={(e) => updatePeriod(day, index, 'room', e.target.value)}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removePeriod(day, index)}
-                          className="mb-0.5 rounded-lg border border-red-200 px-2 py-2 text-[12px] font-bold text-red-600"
-                        >
-                          x
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          ))}
+          <TimetableGridEditor
+            initialDays={days}
+            className={className}
+            term={term}
+            academicYear={academicYear}
+            status={submissionStatus}
+            editable={editable}
+            saving={saving}
+            onSaveDraft={handleSaveDraft}
+            showImport
+            onImportFile={(file) =>
+              importTimetable(file, {
+                className,
+                term,
+                academicYear,
+                status: 'draft',
+              }).then(() => {
+                toast.success('Timetable imported from file.');
+                loadTimetable();
+              })
+            }
+          />
 
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              disabled={saving || !hasPeriods}
-              onClick={onSaveDraft}
-              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 disabled:opacity-50"
-            >
-              {saving ? 'Saving…' : 'Save draft'}
-            </button>
-            <button
-              type="button"
-              disabled={publishing || !hasPeriods}
-              onClick={onPublish}
+              disabled={
+                publishing ||
+                !editable ||
+                submissionStatus === 'published' ||
+                submissionStatus === 'submitted'
+              }
+              onClick={handlePublish}
               className="rounded-lg bg-brand-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
             >
               {publishing ? 'Publishing…' : 'Publish'}
             </button>
+          </div>
+
+          {submissionStatus === 'published' && (
+            <p className="text-[12.5px] text-emerald-700 font-semibold">
+              Published &mdash; teachers and parents can see this timetable.
+            </p>
+          )}
+
+          <div className="border-t border-slate-200 pt-4">
+            <h3 className="text-[14px] font-extrabold text-ink mb-3 flex items-center gap-2">
+              <Clock className="h-5 w-5" aria-hidden="true" />
+              Submissions for review
+            </h3>
+            {submissionsLoading ? (
+              <p className="text-sm text-slate-500">Loading submissions&hellip;</p>
+            ) : submissions.length === 0 ? (
+              <p className="text-sm text-slate-400">
+                No timetables awaiting your review.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {submissions.map((item) => (
+                  <Card key={`${item.className}|${item.term}`} className="p-3">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <span className="text-[12.5px] font-semibold text-ink">
+                        {item.className}
+                      </span>
+                      <span className="text-[11px] font-semibold text-slate-500">
+                        {item.term}
+                      </span>
+                      <span
+                        className={`text-[11px] font-semibold ${
+                          STATUS_COLOR[item.submissionStatus] || ''
+                        }`}
+                      >
+                        {STATUS_LABEL[item.submissionStatus]}
+                      </span>
+                      {item.teacher && (
+                        <span className="text-[11px] text-slate-400">
+                          &middot; {item.teacher}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="primary"
+                        onClick={() => handleApprove(item)}
+                        disabled={item.submissionStatus !== 'submitted'}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => handleReject(item)}
+                        disabled={item.submissionStatus !== 'submitted'}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

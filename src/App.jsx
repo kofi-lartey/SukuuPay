@@ -109,6 +109,7 @@ import EnterGrades from './pages/teacher/EnterGrades';
 import CompileReports from './pages/teacher/CompileReports';
 import TeacherNotifications from './pages/teacher/TeacherNotifications';
 import TeacherSchedule from './pages/teacher/TeacherSchedule';
+import TeacherTimetables from './pages/teacher/Timetables';
 import TeacherProfile from './pages/teacher/TeacherProfile';
 import { Terms, Privacy } from './pages/Legal';
 import NotFound from './pages/NotFound';
@@ -449,6 +450,7 @@ function App() {
                 <Route path="records" element={<CompileReports />} />
                 <Route path="records/:className" element={<CompileReports />} />
                 <Route path="schedule" element={<TeacherSchedule />} />
+                <Route path="timetables" element={<TeacherTimetables />} />
                 <Route path="notifications" element={<TeacherNotifications />} />
                 <Route path="profile" element={<TeacherProfile />} />
               </Route>

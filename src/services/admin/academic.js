@@ -404,6 +404,53 @@ export const importTimetable = async (
   }
 };
 
+export const submitTimetable = (className, { term, academicYear } = {}) =>
+  api
+    .post(`/admin/timetables/${encodeURIComponent(className)}/submit`, {
+      term,
+      academicYear,
+    })
+    .then((r) => r?.data || null);
+
+export const withdrawTimetable = (className, { term, academicYear } = {}) =>
+  api
+    .post(`/admin/timetables/${encodeURIComponent(className)}/withdraw`, {
+      term,
+      academicYear,
+    })
+    .then((r) => r?.data || null);
+
+export const approveTimetable = (
+  className,
+  { term, academicYear, comment } = {}
+) =>
+  api
+    .post(`/admin/timetables/${encodeURIComponent(className)}/approve`, {
+      term,
+      academicYear,
+      comment,
+    })
+    .then((r) => r?.data || null);
+
+export const rejectTimetable = (
+  className,
+  { term, academicYear, reason } = {}
+) =>
+  api
+    .post(`/admin/timetables/${encodeURIComponent(className)}/reject`, {
+      term,
+      academicYear,
+      reason,
+    })
+    .then((r) => r?.data || null);
+
+export const listSubmissions = ({ term, academicYear } = {}) =>
+  api
+    .get("/admin/timetables/submissions", {
+      params: term || academicYear ? { term, academicYear } : undefined,
+    })
+    .then((r) => r?.data || null);
+
 export default {
   getAcademicOverview,
   getGradeApprovalQueue,
@@ -424,6 +471,11 @@ export default {
   getTimetable,
   saveTimetable,
   importTimetable,
+  submitTimetable,
+  withdrawTimetable,
+  approveTimetable,
+  rejectTimetable,
+  listSubmissions,
   listTeachers,
   getTeacherAssignmentCounts,
   repairAssignmentDrift,
