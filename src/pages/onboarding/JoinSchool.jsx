@@ -16,6 +16,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../hooks/useToast';
 import { joinSchoolByCode } from '../../services/school';
 import { ROUTES } from '../../utils/constants';
+import { resolveLandingRoute } from '../../utils/landing';
 
 /**
  * How often the waiting room re-asks the server whether it has been approved.
@@ -77,12 +78,18 @@ const JoinSchool = () => {
   const pending = onboarding?.joinRequested === true || Boolean(justRequested);
   const linked = linkState?.linked === true;
 
-  // Approved. The guard would catch this on the next render anyway — this is
-  // the same rule one level down, so the redirect is immediate rather than
-  // waiting for a navigation.
   useEffect(() => {
-    if (linked) navigate(ROUTES.DASHBOARD, { replace: true });
-  }, [linked, navigate]);
+    if (linked) {
+      navigate(
+        resolveLandingRoute({
+          onboarding: linkState,
+          role: user?.role,
+          requested: null,
+        }),
+        { replace: true }
+      );
+    }
+  }, [linked, navigate, linkState, user?.role]);
 
   /**
    * Re-ask `/auth/me` while there is a request outstanding.
