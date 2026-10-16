@@ -382,6 +382,28 @@ export const unassignTeacherStudents = async (teacherId, studentIds, { force = f
   }
 };
 
+export const importTimetable = async (
+  file,
+  { className, term, academicYear, status = "draft" } = {}
+) => {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (className) formData.append("className", className);
+    if (term) formData.append("term", term);
+    if (academicYear) formData.append("academicYear", academicYear);
+    if (status) formData.append("status", status);
+
+    const { data } = await api.post("/admin/timetables/upload", formData, {
+      timeout: 60000,
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, 'The timetable file could not be imported.');
+  }
+};
+
 export default {
   getAcademicOverview,
   getGradeApprovalQueue,
@@ -398,6 +420,10 @@ export default {
   assignSubjectTeacher,
   unassignSubjectTeacher,
   publishTimetable,
+  listTimetables,
+  getTimetable,
+  saveTimetable,
+  importTimetable,
   listTeachers,
   getTeacherAssignmentCounts,
   repairAssignmentDrift,

@@ -9,6 +9,7 @@ import { listClasses } from '../../../services/admin/academic';
 import {
   getTimetable,
   saveTimetable,
+  importTimetable,
   publishTimetable,
 } from '../../../services/admin/academic';
 import { ACADEMIC_TERMS } from '../../../utils/constants';
@@ -38,6 +39,7 @@ const Timetables = () => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -149,6 +151,22 @@ const Timetables = () => {
     }
   };
 
+  const handleImportFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    event.target.value = '';
+    try {
+      await importTimetable(file, { className, term, academicYear, status });
+      toast.success('Timetable imported from file.');
+      await loadTimetable();
+    } catch (error) {
+      toast.error(error?.message || 'The timetable file could not be imported.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const hasPeriods = useMemo(
     () => DAYS.some((day) => (days[day] || []).length > 0),
     [days]
@@ -197,6 +215,21 @@ const Timetables = () => {
           Status: {status}
         </p>
       </Card>
+
+      <div className="flex flex-wrap gap-3 items-end">
+        <label
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] font-semibold text-slate-700 disabled:opacity-50 cursor-pointer"
+        >
+          <input
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            hidden
+            disabled={importing || !className || !term || !academicYear}
+            onChange={handleImportFile}
+          />
+          {importing ? 'Importing…' : 'Import CSV/Excel'}
+        </label>
+      </div>
 
       {!className ? (
         <EmptyState
