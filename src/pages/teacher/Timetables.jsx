@@ -12,10 +12,7 @@ import {
   submitTimetable,
   withdrawTimetable,
 } from '../../services/teacher/timetable';
-import {
-  fetchMyClasses,
-  fetchAvailableClasses,
-} from '../../services/teacher/classes';
+import { fetchMyClasses } from '../../services/teacher/classes';
 import { ACADEMIC_TERMS } from '../../utils/constants';
 import TimetableGridEditor from '../../components/dashboard/TimetableGridEditor';
 
@@ -53,9 +50,10 @@ const Timetables = () => {
   const toast = useToast();
   const [timetables, setTimetables] = useState([]);
   const [classes, setClasses] = useState([]);
-  const [availableClasses, setAvailableClasses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editingClass, setEditingClass] = useState('');
+  const [editorTerm, setEditorTerm] = useState(ACADEMIC_TERMS[0]);
+  const [editorAcademicYear, setEditorAcademicYear] = useState(defaultAcademicYear());
   const [editorDays, setEditorDays] = useState(emptyDays());
   const [editorStatus, setEditorStatus] = useState('draft');
   const [editorLoading, setEditorLoading] = useState(false);
@@ -85,21 +83,17 @@ const Timetables = () => {
         setClasses(result?.data?.classes || []);
       })
       .catch(() => {});
-    fetchAvailableClasses()
-      .then((result) => {
-        if (!active) return;
-        setAvailableClasses(result?.data?.classes || []);
-      })
-      .catch(() => {});
     return () => {
       active = false;
     };
   }, []);
 
-  const loadEditor = (className) => {
+  const loadEditor = (className, { term, academicYear } = {}) => {
     setCreating(false);
     const found = timetables.find((t) => t.className === className);
     setEditingClass(className);
+    setEditorTerm(found ? found.term : (term || ACADEMIC_TERMS[0]));
+    setEditorAcademicYear(found ? found.academicYear : (academicYear || defaultAcademicYear()));
     setEditorDays(
       found ? { ...emptyDays(), ...(found.days || {}) } : emptyDays()
     );
@@ -109,6 +103,8 @@ const Timetables = () => {
   const closeEditor = () => {
     setEditingClass('');
     setCreating(false);
+    setEditorTerm(ACADEMIC_TERMS[0]);
+    setEditorAcademicYear(defaultAcademicYear());
     setEditorDays(emptyDays());
     setEditorStatus('draft');
   };
@@ -116,6 +112,8 @@ const Timetables = () => {
   const startCreate = () => {
     setCreating(true);
     setEditingClass('');
+    setEditorTerm(ACADEMIC_TERMS[0]);
+    setEditorAcademicYear(defaultAcademicYear());
     setEditorDays(emptyDays());
     setEditorStatus('draft');
   };
@@ -128,8 +126,8 @@ const Timetables = () => {
     try {
       await saveTimetableDraft({
         className: editingClass,
-        term: ACADEMIC_TERMS[0],
-        academicYear: defaultAcademicYear(),
+        term: editorTerm,
+        academicYear: editorAcademicYear,
         days: nextDays,
         status: 'draft',
       });
@@ -146,7 +144,10 @@ const Timetables = () => {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      await submitTimetable(editingClass);
+      await submitTimetable(editingClass, {
+        term: editorTerm,
+        academicYear: editorAcademicYear,
+      });
       setEditorStatus('submitted');
       toast.success('Timetable submitted for approval.');
       closeEditor();
@@ -160,7 +161,10 @@ const Timetables = () => {
   const handleWithdraw = async () => {
     setWithdrawing(true);
     try {
-      await withdrawTimetable(editingClass);
+      await withdrawTimetable(editingClass, {
+        term: editorTerm,
+        academicYear: editorAcademicYear,
+      });
       setEditorStatus('draft');
       toast.success('Timetable withdrawn — back to draft.');
       loadTimetables();
@@ -195,15 +199,35 @@ const Timetables = () => {
               onChange={(e) => setEditingClass(e.target.value)}
             >
               <option value="">Select a class</option>
-              {availableClasses.map((c) => {
+              {classes.map((c) => {
                 const label = c.className || c.name || c._id;
                 return <option key={label} value={label}>{label}</option>;
               })}
             </SelectField>
+            <SelectField
+              label="Term"
+              value={editorTerm}
+              onChange={(e) => setEditorTerm(e.target.value)}
+            >
+              {ACADEMIC_TERMS.map((value) => (
+                <option key={value} value={value}>{value}</option>
+              ))}
+            </SelectField>
+            <Field
+              label="Academic year"
+              value={editorAcademicYear}
+              onChange={(e) => setEditorAcademicYear(e.target.value)}
+              placeholder="2026/2027"
+            />
             <Button
               variant="primary"
-              disabled={!editingClass || loading}
-              onClick={() => loadEditor(editingClass)}
+              disabled={!editingClass || !editorAcademicYear || loading}
+              onClick={() =>
+                loadEditor(editingClass, {
+                  term: editorTerm,
+                  academicYear: editorAcademicYear,
+                })
+              }
             >
               Create
             </Button>
@@ -293,7 +317,10 @@ const Timetables = () => {
                             onClick={() => {
                               loadEditor(t.className);
                               setSubmitting(true);
-                              submitTimetable(t.className).then(() => {
+                              submitTimetable(t.className, {
+                                term: t.term,
+                                academicYear: t.academicYear,
+                              }).then(() => {
                                 setEditorStatus('submitted');
                                 toast.success('Submitted for approval.');
                                 closeEditor();
@@ -312,8 +339,11 @@ const Timetables = () => {
                           size="sm"
                           disabled={withdrawing}
                           onClick={() => {
-                            loadEditor(t.className);
-                            withdrawTimetable(t.className).then(() => {
+                              loadEditor(t.className);
+                              withdrawTimetable(t.className, {
+                                term: t.term,
+                                academicYear: t.academicYear,
+                              }).then(() => {
                               setEditorStatus('draft');
                               toast.success('Withdrawn — back to draft.');
                               loadTimetables();
