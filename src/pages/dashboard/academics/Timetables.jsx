@@ -46,7 +46,7 @@ const Timetables = () => {
         if (!active) return;
         const list = result?.classes || [];
         setClasses(list);
-        if (list.length && !className) setClassName(list[0]?.name || '');
+        if (list.length && !className) setClassName(list[0]?.className || '');
       })
       .catch(() => {});
     return () => {
@@ -170,11 +170,10 @@ const Timetables = () => {
             onChange={(e) => setClassName(e.target.value)}
           >
             <option value="">Select a class</option>
-            {classes.map((c) => (
-              <option key={c.name || c.id} value={c.name}>
-                {c.name}
-              </option>
-            ))}
+            {classes.map((c) => {
+              const label = c.className || c.name || c._id;
+              return <option key={label} value={label}>{label}</option>;
+            })}
           </SelectField>
           <SelectField
             label="Term"
