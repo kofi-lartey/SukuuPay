@@ -2,7 +2,7 @@ import React from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { LoaderCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { ROUTES } from '../utils/constants';
+import { ROUTES, TEACHER_ROUTES } from '../utils/constants';
 
 const FullPageSpinner = () => (
   <div className="flex min-h-screen items-center justify-center">
@@ -87,6 +87,12 @@ const OnboardingGuard = () => {
   }
 
   if (isOnboarded && isOnboardingPath) {
+    // A teacher finishes onboarding by being approved into a school, and their
+    // portal is `/teacher`, not the school console — mirror `landingRouteFor`
+    // instead of detouring through `/dashboard`.
+    if (user?.role === 'teacher') {
+      return <Navigate to={TEACHER_ROUTES.dashboard} replace />;
+    }
     return <Navigate to={ROUTES.DASHBOARD} replace />;
   }
 

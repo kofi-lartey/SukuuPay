@@ -7,6 +7,7 @@ import {
   getCurrentUser,
 } from '../services/auth';
 import { updateMe } from '../services/user';
+import { joinsSchoolByCode } from '../utils/constants';
 
 const AuthContext = createContext();
 
@@ -96,7 +97,7 @@ export const AuthProvider = ({ children }) => {
       completed:
         current.completed ||
         user.onboardingCompleted === true ||
-        readOnboardingFlag(user._id),
+        (!joinsSchoolByCode(user?.role) && readOnboardingFlag(user?._id)),
       highestStep: user.onboardingHighestStep ?? current.highestStep ?? 0,
     }));
   }, [user?._id, user?.onboardingCompleted, user?.onboardingHighestStep]);
@@ -123,7 +124,8 @@ export const AuthProvider = ({ children }) => {
       // before the server has answered.
       completed:
         linkState?.completed ??
-        (userData.onboardingCompleted === true || readOnboardingFlag(userData._id)),
+        (userData.onboardingCompleted === true ||
+          (!joinsSchoolByCode(userData?.role) && readOnboardingFlag(userData._id))),
       highestStep: userData.onboardingHighestStep ?? 0,
     });
   }, []);
