@@ -59,7 +59,16 @@ export const resolveLandingRoute = ({ onboarding, role, requested } = {}) => {
 
   const requestedPath = safeSameAppPath(requested);
 
-  if (requestedPath) return requestedPath;
+  // A teacher following a link to the bare school-console root is not asking for
+  // that console in any meaningful sense — there is nothing on `/dashboard`'s
+  // index a teacher should see, only the RoleLanding redirect. Honouring it
+  // therefore just bounces a teacher through (or, on a stale client, lands them
+  // in) the management shell instead of their own portal. Treat the bare root
+  // the same as "no deep link" for this role; deeper module links are still
+  // honoured below.
+  if (requestedPath && !(role === 'teacher' && requestedPath === ROUTES.DASHBOARD)) {
+    return requestedPath;
+  }
 
   if (role === 'teacher') return TEACHER_ROUTES.dashboard;
 
