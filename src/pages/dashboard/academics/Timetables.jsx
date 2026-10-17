@@ -107,7 +107,7 @@ const Timetables = () => {
   const loadSubmissions = async () => {
     setSubmissionsLoading(true);
     try {
-      const result = await listSubmissions({ term, academicYear });
+      const result = await listSubmissions();
       setSubmissions(result?.submissions || []);
     } catch {
       setSubmissions([]);
@@ -118,7 +118,14 @@ const Timetables = () => {
 
   useEffect(() => {
     loadSubmissions();
-  }, [term, academicYear]);
+    const onFocus = () => loadSubmissions();
+    const interval = setInterval(loadSubmissions, 30000);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      clearInterval(interval);
+    };
+  }, []);
 
   const handleSaveDraft = async (nextDays) => {
     setSaving(true);
@@ -144,8 +151,10 @@ const Timetables = () => {
     try {
       await publishTimetable({ className, term, academicYear });
       setStatus('published');
+      setSubmissionStatus('published');
       toast.success('Timetable published.');
       loadSubmissions();
+      loadTimetable();
     } catch (error) {
       toast.error(error?.message || 'Could not publish the timetable.');
     } finally {
@@ -168,6 +177,7 @@ const Timetables = () => {
         )
       );
       loadSubmissions();
+      loadTimetable();
     } catch (error) {
       toast.error(error?.message || 'Could not approve the timetable.');
     }
@@ -191,6 +201,7 @@ const Timetables = () => {
         )
       );
       loadSubmissions();
+      loadTimetable();
     } catch (error) {
       toast.error(error?.message || 'Could not reject the timetable.');
     }
@@ -258,6 +269,7 @@ const Timetables = () => {
       ) : (
         <div className="space-y-4">
           <TimetableGridEditor
+            key={`${className}|${term}|${academicYear}`}
             initialDays={days}
             className={className}
             term={term}
@@ -306,6 +318,14 @@ const Timetables = () => {
             <h3 className="text-[14px] font-extrabold text-ink mb-3 flex items-center gap-2">
               <Clock className="h-5 w-5" aria-hidden="true" />
               Submissions for review
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={loadSubmissions}
+                disabled={submissionsLoading}
+              >
+                {submissionsLoading ? 'Refreshing…' : 'Refresh'}
+              </Button>
             </h3>
             {submissionsLoading ? (
               <p className="text-sm text-slate-500">Loading submissions&hellip;</p>
@@ -338,6 +358,17 @@ const Timetables = () => {
                       )}
                     </div>
                     <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setClassName(item.className);
+                          setTerm(item.term);
+                          setAcademicYear(item.academicYear);
+                        }}
+                      >
+                        View
+                      </Button>
                       <Button
                         variant="primary"
                         onClick={() => handleApprove(item)}

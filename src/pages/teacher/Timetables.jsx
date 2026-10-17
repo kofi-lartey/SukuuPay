@@ -8,11 +8,13 @@ import { Calendar, Clock } from 'lucide-react';
 import { useToast } from '../../hooks/useToast';
 import {
   fetchMyTimetables,
+  fetchMyTimetable,
   saveTimetableDraft,
   submitTimetable,
   withdrawTimetable,
 } from '../../services/teacher/timetable';
 import { fetchMyClasses } from '../../services/teacher/classes';
+import { importTimetable } from '../../services/admin/academic';
 import { ACADEMIC_TERMS } from '../../utils/constants';
 import TimetableGridEditor from '../../components/dashboard/TimetableGridEditor';
 
@@ -60,12 +62,17 @@ const Timetables = () => {
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [editorVersion, setEditorVersion] = useState(0);
   const [creating, setCreating] = useState(false);
 
   const loadTimetables = async () => {
     setLoading(true);
     try {
-      const result = await fetchMyTimetables();
+      const result = await fetchMyTimetables({
+        term: ACADEMIC_TERMS[0],
+        academicYear: defaultAcademicYear(),
+      });
       setTimetables(result?.data?.timetables || []);
     } catch {
       setTimetables([]);
@@ -132,10 +139,10 @@ const Timetables = () => {
         status: 'draft',
       });
       setEditorDays(nextDays);
-      toast.success('Timetable saved as draft.');
       loadTimetables();
     } catch (error) {
-      toast.error(error?.message || 'Could not save the timetable.');
+      // Let the editor's handleSaveDraft surface the error toast.
+      throw error;
     } finally {
       setEditorLoading(false);
     }
@@ -156,7 +163,8 @@ const Timetables = () => {
       toast.error(error?.message || 'Could not submit the timetable.');
     } finally {
       setSubmitting(false);
-  } };
+    }
+  };
 
   const handleWithdraw = async () => {
     setWithdrawing(true);
@@ -384,14 +392,48 @@ const Timetables = () => {
             </Button>
           </div>
           <TimetableGridEditor
+            key={`${editingClass}|${editorVersion}`}
             initialDays={editorDays}
             className={editingClass}
-            term=""
-            academicYear=""
+            term={editorTerm}
+            academicYear={editorAcademicYear}
             status={editorStatus}
             editable={canEditEditor}
             saving={editorLoading || saving}
             onSaveDraft={handleSaveDraft}
+            showImport
+            onImportFile={(file) => {
+              setImporting(true);
+              return importTimetable(file, {
+                className: editingClass,
+                term: editorTerm,
+                academicYear: editorAcademicYear,
+                status: 'draft',
+              })
+                .then(async () => {
+                  toast.success('Timetable imported from file.');
+                  try {
+                    const result = await fetchMyTimetable(editingClass, {
+                      term: editorTerm,
+                      academicYear: editorAcademicYear,
+                    });
+                    const found = result?.data;
+                    if (found) {
+                      setEditorDays({ ...emptyDays(), ...(found.days || {}) });
+                      setEditorStatus(found.submissionStatus || 'draft');
+                      setEditorVersion((v) => v + 1);
+                    }
+                  } catch {
+                    // Fall back to reloading from the list.
+                  }
+                  loadTimetables();
+                })
+                .catch((error) => {
+                  toast.error(error?.message || 'Could not import the timetable.');
+                })
+                .finally(() => setImporting(false));
+            }}
+            importing={importing}
           />
           <div className="flex flex-wrap gap-2 mt-3">
             {editorStatus === 'draft' && canEditEditor && hasEditorPeriods && (

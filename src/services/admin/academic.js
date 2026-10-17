@@ -444,12 +444,17 @@ export const rejectTimetable = (
     })
     .then((r) => r?.data || null);
 
-export const listSubmissions = ({ term, academicYear } = {}) =>
-  api
-    .get("/admin/timetables/submissions", {
-      params: term || academicYear ? { term, academicYear } : undefined,
-    })
-    .then((r) => r?.data || null);
+export const listSubmissions = async ({ term, academicYear } = {}) => {
+  try {
+    const params = Object.fromEntries(
+      Object.entries({ term, academicYear }).filter(([, value]) => value !== '' && value !== null && value !== undefined)
+    );
+    const { data } = await api.get('/admin/timetables/submissions', { params, timeout: 15000 });
+    return data?.data || { submissions: [] };
+  } catch (error) {
+    throw toApiError(error, 'The submissions could not be loaded.');
+  }
+};
 
 export default {
   getAcademicOverview,

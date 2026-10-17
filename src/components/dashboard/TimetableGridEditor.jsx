@@ -1,11 +1,13 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Calendar, Plus, Trash2 } from 'lucide-react';
 import Card from '../dashboard/ui/Card';
 import Button from '../common/Button';
 import TimeField from '../common/TimeField';
+import TimetablePreview from './TimetablePreview';
 import { Field, SelectField } from '../common/FormField';
 import Modal from '../common/Modal';
 import { useToast } from '../../hooks/useToast';
+import { listUsers } from '../../services/user';
 import {
   ACADEMIC_TERMS,
   SUBJECTS,
@@ -64,6 +66,28 @@ export default function TimetableGridEditor({
   };
 
   const [customSubjects, setCustomSubjects] = useState(loadCustomSubjects);
+  const [schoolTeachers, setSchoolTeachers] = useState([]);
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    listUsers({ role: 'teacher', limit: 100 })
+      .then((result) => {
+        if (!active) return;
+        const users = Array.isArray(result?.users) ? result.users : [];
+        setSchoolTeachers(
+          users.map((u) => ({
+            value: u.name || u.email || '',
+            label: u.name || u.email || '',
+          }))
+        );
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const [subjectManagerOpen, setSubjectManagerOpen] = useState(false);
   const [editingCustomSubject, setEditingCustomSubject] = useState(null);
   const [customSubjectName, setCustomSubjectName] = useState('');
@@ -149,7 +173,7 @@ export default function TimetableGridEditor({
     setDays((current) => {
       const next = { ...current };
       const number = (next[day].length || 0) + 1;
-      next[day] = [...(next[day] || []), initialPeriod(number)];
+      next[day] = [...(next[day] || []), { ...initialPeriod(number), teacher: teacherName }];
       return next;
     });
   };
@@ -240,6 +264,7 @@ export default function TimetableGridEditor({
                         updatePeriod(day, index, 'subject', e.target.value)
                       }
                     >
+                      <option value="">Select a subject</option>
                       {allSubjectOptions.map((subject) => (
                         <option
                           key={subject.value}
@@ -263,12 +288,56 @@ export default function TimetableGridEditor({
                       </Button>
                     )}
                   </div>
-                  <Field
-                    label="Teacher"
-                    value={period.teacher || teacherName}
-                    disabled={!canEdit}
-                    onChange={(e) => updatePeriod(day, index, 'teacher', e.target.value)}
-                  />
+                  <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+                    <SelectField
+                      label="Teacher"
+                      value={
+                        schoolTeachers.some((t) => t.value === (period.teacher || teacherName)) ||
+                        (teacherName && (period.teacher || '') === teacherName)
+                          ? (period.teacher || teacherName || '')
+                          : (period.teacher || '') !== ''
+                          ? 'Other…'
+                          : ''
+                      }
+                      disabled={!canEdit}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === 'Other…') {
+                          updatePeriod(day, index, 'teacher', '');
+                        } else {
+                          updatePeriod(day, index, 'teacher', val);
+                        }
+                      }}
+                    >
+                      <option value="">Select a teacher</option>
+                      {schoolTeachers.map((t) => (
+                        <option key={t.value} value={t.value}>
+                          {t.label}
+                        </option>
+                      ))}
+                      {teacherName &&
+                        !schoolTeachers.some((t) => t.value === teacherName) && (
+                          <option value={teacherName}>{teacherName}</option>
+                        )}
+                      <option value="Other…">Other…</option>
+                    </SelectField>
+                    {canEdit &&
+                      (period.teacher || teacherName || '') !== '' &&
+                      !schoolTeachers.some(
+                        (t) => t.value === (period.teacher || teacherName)
+                      ) &&
+                      period.teacher !== teacherName && (
+                        <Field
+                          label="Teacher name"
+                          value={period.teacher || ''}
+                          disabled={!canEdit}
+                          placeholder="Enter teacher name"
+                          onChange={(e) =>
+                            updatePeriod(day, index, 'teacher', e.target.value)
+                          }
+                        />
+                      )}
+                  </div>
                   <div className="flex items-end gap-2">
                     <Field
                       label="Room"
@@ -304,10 +373,19 @@ export default function TimetableGridEditor({
               accept=".csv,.xlsx,.xls"
               hidden
               disabled={importing || !className || !term || !academicYear}
-              onChange={onImportFile}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) onImportFile?.(file);
+                e.target.value = '';
+              }}
             />
             {importing ? 'Importing…' : 'Import CSV/Excel'}
           </label>
+        )}
+        {hasPeriods && (
+          <Button variant="secondary" size="sm" onClick={() => setPreviewOpen(true)}>
+            Preview
+          </Button>
         )}
         {canEdit && onSaveDraft && (
           <Button disabled={!hasPeriods || saving} onClick={handleSaveDraft}>
@@ -315,6 +393,15 @@ export default function TimetableGridEditor({
           </Button>
         )}
       </div>
+
+      <TimetablePreview
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        days={days}
+        className={className}
+        term={term}
+        academicYear={academicYear}
+      />
 
       <Modal
         open={subjectManagerOpen}
