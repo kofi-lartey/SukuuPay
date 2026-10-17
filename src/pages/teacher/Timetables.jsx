@@ -4,7 +4,8 @@ import Card from '../../components/dashboard/ui/Card';
 import Button from '../../components/common/Button';
 import { Field, SelectField } from '../../components/common/FormField';
 import EmptyState from '../../components/parent/shared/EmptyState';
-import { Calendar, Clock } from 'lucide-react';
+import Modal from '../../components/common/Modal';
+import { Calendar, Clock, Trash2 } from 'lucide-react';
 import { useToast } from '../../hooks/useToast';
 import {
   fetchMyTimetables,
@@ -12,6 +13,8 @@ import {
   saveTimetableDraft,
   submitTimetable,
   withdrawTimetable,
+  requestTimetableRemoval,
+  withdrawRemovalRequest,
 } from '../../services/teacher/timetable';
 import { fetchMyClasses } from '../../services/teacher/classes';
 import { importTimetable } from '../../services/admin/academic';
@@ -65,6 +68,9 @@ const Timetables = () => {
   const [importing, setImporting] = useState(false);
   const [editorVersion, setEditorVersion] = useState(0);
   const [creating, setCreating] = useState(false);
+  const [removalTarget, setRemovalTarget] = useState(null);
+  const [removalReason, setRemovalReason] = useState('');
+  const [editorRemovalStatus, setEditorRemovalStatus] = useState(null);
 
   const loadTimetables = async () => {
     setLoading(true);
@@ -105,6 +111,7 @@ const Timetables = () => {
       found ? { ...emptyDays(), ...(found.days || {}) } : emptyDays()
     );
     setEditorStatus(found ? found.submissionStatus || 'draft' : 'draft');
+    setEditorRemovalStatus(found ? found.removalStatus || null : null);
   };
 
   const closeEditor = () => {
@@ -114,6 +121,7 @@ const Timetables = () => {
     setEditorAcademicYear(defaultAcademicYear());
     setEditorDays(emptyDays());
     setEditorStatus('draft');
+    setEditorRemovalStatus(null);
   };
 
   const startCreate = () => {
@@ -123,6 +131,7 @@ const Timetables = () => {
     setEditorAcademicYear(defaultAcademicYear());
     setEditorDays(emptyDays());
     setEditorStatus('draft');
+    setEditorRemovalStatus(null);
   };
 
   const isEditable = (status) =>
@@ -180,6 +189,39 @@ const Timetables = () => {
       toast.error(error?.message || 'Could not withdraw the timetable.');
     } finally {
       setWithdrawing(false);
+    }
+  };
+
+  const handleRequestRemoval = async () => {
+    if (removalTarget && removalReason.trim().length >= 10) {
+      try {
+        await requestTimetableRemoval(removalTarget.className, {
+          term: removalTarget.term,
+          academicYear: removalTarget.academicYear,
+          reason: removalReason,
+        });
+        toast.success('Removal request submitted — awaiting admin review.');
+        setRemovalTarget(null);
+        setRemovalReason('');
+        loadTimetables();
+      } catch (error) {
+        toast.error(error?.message || 'Could not submit the removal request.');
+      }
+    } else {
+      toast.error('Please provide a removal reason of at least 10 characters.');
+    }
+  };
+
+  const handleWithdrawRemoval = async (target) => {
+    try {
+      await withdrawRemovalRequest(target.className, {
+        term: target.term,
+        academicYear: target.academicYear,
+      });
+      toast.success('Removal request withdrawn.');
+      loadTimetables();
+    } catch (error) {
+      toast.error(error?.message || 'Could not withdraw the removal request.');
     }
   };
 
@@ -303,6 +345,11 @@ const Timetables = () => {
                     >
                       {STATUS_LABEL[t.submissionStatus] || t.submissionStatus}
                     </span>
+                    {t.removalStatus === 'requested' && (
+                      <span className="ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold text-amber-700 bg-amber-100">
+                        Removal pending
+                      </span>
+                    )}
                   </td>
                   <td className="py-3 text-[12.5px] text-slate-500">
                     {t.updatedAt ? new Date(t.updatedAt).toLocaleDateString() : '-'}
@@ -370,6 +417,30 @@ const Timetables = () => {
                           onClick={() => loadEditor(t.className)}
                         >
                           View
+                        </Button>
+                      )}
+                      {(t.submissionStatus === 'submitted' ||
+                        t.submissionStatus === 'approved' ||
+                        t.submissionStatus === 'published') &&
+                        !t.removalStatus && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              setRemovalTarget(t);
+                              setRemovalReason('');
+                            }}
+                          >
+                            Request Removal
+                          </Button>
+                        )}
+                      {t.removalStatus === 'requested' && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleWithdrawRemoval(t)}
+                        >
+                          Withdraw Request
                         </Button>
                       )}
                     </div>
@@ -469,9 +540,81 @@ const Timetables = () => {
                 Published — teachers and parents can see this timetable.
               </p>
             )}
+            {editorRemovalStatus === 'requested' && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handleWithdrawRemoval({
+                  className: editingClass,
+                  term: editorTerm,
+                  academicYear: editorAcademicYear,
+                })}
+              >
+                Withdraw Removal Request
+              </Button>
+            )}
+            {(editorStatus === 'submitted' || editorStatus === 'approved' || editorStatus === 'published') &&
+              editorRemovalStatus !== 'requested' && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    const found = timetables.find((t) => t.className === editingClass);
+                    setRemovalTarget(found || {
+                      className: editingClass,
+                      term: editorTerm,
+                      academicYear: editorAcademicYear,
+                    });
+                    setRemovalReason('');
+                  }}
+                >
+                  Request Removal
+                </Button>
+              )}
           </div>
-        </Card>
-      )}
+         </Card>
+       )}
+
+      <Modal
+        open={!!removalTarget}
+        onClose={() => setRemovalTarget(null)}
+        title="Request Timetable Removal"
+      >
+        <div className="space-4">
+          <p className="text-sm text-slate-600">
+            Request removal of the timetable for <strong>{removalTarget?.className}</strong> ({removalTarget?.term}, {removalTarget?.academicYear}).
+          </p>
+          <p className="text-[12px] text-slate-500">
+            Provide a reason (minimum 10 characters):
+          </p>
+          <textarea
+            value={removalReason}
+            onChange={(e) => setRemovalReason(e.target.value)}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            rows={3}
+            placeholder="e.g. The timetable is outdated and no longer reflects the current schedule."
+          />
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setRemovalTarget(null);
+                setRemovalReason('');
+              }}
+              className="px-4 py-2 text-sm text-slate-600"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleRequestRemoval}
+              className="rounded-lg bg-rose-700 px-4 py-2 text-sm font-bold text-white"
+            >
+              Submit Request
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

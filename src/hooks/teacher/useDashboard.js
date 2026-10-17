@@ -27,5 +27,6 @@ export const useMySchedule = () =>
     queryKey: ['teacher', 'schedule'],
     queryFn: fetchMySchedule,
     staleTime: 5 * 60 * 1000,
+    refetchOnMount: true,
     select: (response) => response.data?.schedule || [],
   });

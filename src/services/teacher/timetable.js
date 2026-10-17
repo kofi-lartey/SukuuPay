@@ -53,3 +53,24 @@ export const withdrawTimetable = (className, { term, academicYear }) =>
     term,
     academicYear,
   });
+
+/**
+ * Request removal of a timetable the teacher owns (submitted or approved).
+ * The admin reviews the request in their removal-request queue.
+ */
+export const requestTimetableRemoval = (className, { term, academicYear, reason }) =>
+  apiClient.post(`/teacher/timetables/${encodeURIComponent(className)}/request-removal`, {
+    term,
+    academicYear,
+    reason,
+  });
+
+/**
+ * Withdraw a removal request before the admin acts on it.
+ * Returns the timetable to its current state (submitted/approved).
+ */
+export const withdrawRemovalRequest = (className, { term, academicYear }) =>
+  apiClient.post(`/teacher/timetables/${encodeURIComponent(className)}/withdraw-removal`, {
+    term,
+    academicYear,
+  });

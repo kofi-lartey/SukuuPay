@@ -205,6 +205,71 @@ export const publishTimetable = async (payload) => {
   }
 };
 
+export const deactivateTimetable = async (payload) => {
+  try {
+    const { data } = await api.post('/admin/timetables/deactivate', payload, { timeout: 15000 });
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, 'The timetable could not be deactivated.');
+  }
+};
+
+export const republishTimetable = async (payload) => {
+  try {
+    const { data } = await api.post('/admin/timetables/republish', payload, { timeout: 15000 });
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, 'The timetable could not be republished.');
+  }
+};
+
+export const removeTimetable = async (className, { term, academicYear } = {}) => {
+  try {
+    const params = Object.fromEntries(
+      Object.entries({ term, academicYear }).filter(([, value]) => value !== '' && value !== null && value !== undefined)
+    );
+    const { data } = await api.delete(`/admin/timetables/${encodeURIComponent(className)}/remove`, { params, timeout: 15000 });
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, 'The timetable could not be removed.');
+  }
+};
+
+export const listRemovalRequests = async () => {
+  try {
+    const { data } = await api.get('/admin/timetables/removal-requests', { timeout: 15000 });
+    return data?.data || { requests: [] };
+  } catch (error) {
+    throw toApiError(error, 'The removal requests could not be loaded.');
+  }
+};
+
+export const confirmRemoval = async (className, { term, academicYear } = {}) => {
+  try {
+    const { data } = await api.post(
+      `/admin/timetables/${encodeURIComponent(className)}/confirm-removal`,
+      { term, academicYear },
+      { timeout: 15000 }
+    );
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, 'The removal request could not be confirmed.');
+  }
+};
+
+export const rejectRemovalRequest = async (className, { term, academicYear } = {}) => {
+  try {
+    const { data } = await api.post(
+      `/admin/timetables/${encodeURIComponent(className)}/reject-removal`,
+      { term, academicYear },
+      { timeout: 15000 }
+    );
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, 'The removal request could not be rejected.');
+  }
+};
+
 export const listTimetables = async ({ term, academicYear, status } = {}) => {
   try {
     const params = Object.fromEntries(
@@ -472,6 +537,12 @@ export default {
   assignSubjectTeacher,
   unassignSubjectTeacher,
   publishTimetable,
+  deactivateTimetable,
+  republishTimetable,
+  removeTimetable,
+  listRemovalRequests,
+  confirmRemoval,
+  rejectRemovalRequest,
   listTimetables,
   getTimetable,
   saveTimetable,
