@@ -521,6 +521,23 @@ export const listSubmissions = async ({ term, academicYear } = {}) => {
   }
 };
 
+export const getAdminClassGrades = async ({ className, subject, term, academicYear } = {}) => {
+  const { data } = await api.get('/admin/class-grades', { params: { className, subject, term, academicYear } });
+  return data?.data || { grades: [] };
+};
+export const getTeacherAttendanceReport = async ({ className } = {}) => {
+  const { data } = await api.get('/admin/reports/teacher-attendance', { params: { className } });
+  return data?.data || {};
+};
+export const listTeacherAttendance = async ({ className, teacherId } = {}) => {
+  const { data } = await api.get('/admin/teacher-attendance', { params: { className, teacherId } });
+  return data?.data || { records: [] };
+};
+export const markTeacherAttendance = async (payload) => {
+  const { data } = await api.post('/admin/teacher-attendance', payload);
+  return data?.data || {};
+};
+
 export default {
   getAcademicOverview,
   getGradeApprovalQueue,

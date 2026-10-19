@@ -9,7 +9,7 @@ import ClassPicker from '../../components/teacher/ClassPicker';
 import { SkeletonRow } from '../../components/parent/shared/Skeleton';
 import EmptyState from '../../components/parent/shared/EmptyState';
 import useToast from '../../hooks/useToast';
-import { TEACHER_ROUTES } from '../../utils/constants';
+import { TEACHER_ROUTES, SUBJECTS, OTHER_SUBJECT, CUSTOM_SUBJECTS_KEY } from '../../utils/constants';
 
 const TERMS = ['Term 1', 'Term 2', 'Term 3'];
 
@@ -39,7 +39,43 @@ const EnterGrades = () => {
   const [subject, setSubject] = useState('');
   const [maxScore, setMaxScore] = useState(100);
   const [values, setValues] = useState({});
+  const [customSubjects, setCustomSubjects] = useState(() => {
+    try {
+      const raw = localStorage.getItem(CUSTOM_SUBJECTS_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
   const toast = useToast();
+
+  const allSubjectOptions = useMemo(() => {
+    const base = SUBJECTS.filter((s) => s.value !== OTHER_SUBJECT).concat(
+      customSubjects.map((name) => ({ value: name, label: name }))
+    );
+    if (subject && !base.some((o) => o.value === subject)) {
+      base.push({ value: subject, label: subject });
+    }
+    return base;
+  }, [customSubjects, subject]);
+
+  const handleSubjectChange = (value) => {
+    if (value === OTHER_SUBJECT) {
+      const name = window.prompt('New subject name');
+      const trimmed = name?.trim();
+      if (!trimmed) return;
+      if (!customSubjects.includes(trimmed)) {
+        const next = [...customSubjects, trimmed];
+        setCustomSubjects(next);
+        try {
+          localStorage.setItem(CUSTOM_SUBJECTS_KEY, JSON.stringify(next));
+        } catch {}
+      }
+      setSubject(trimmed);
+    } else {
+      setSubject(value);
+    }
+  };
 
   const { data: classes, isLoading: loadingClasses } = useMyClasses();
   const { data: roster, isLoading: loadingRoster } = useClassRoster(className);
@@ -100,6 +136,7 @@ const EnterGrades = () => {
     const payload = {
       className,
       term,
+      academicYear: existing?.academicYear,
       subject: subject.trim(),
       maxScore,
       grades: Object.entries(values)
@@ -173,14 +210,20 @@ const EnterGrades = () => {
             <option key={t}>{t}</option>
           ))}
         </select>
-        <input
-          type="text"
+        <select
           value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          placeholder="Subject (e.g. Mathematics)"
+          onChange={(e) => handleSubjectChange(e.target.value)}
           aria-label="Subject"
           className="min-h-[44px] rounded-xl border border-slate-200 px-3 py-2.5 text-[13px]"
-        />
+        >
+          <option value="">Select subject…</option>
+          {allSubjectOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+          <option value={OTHER_SUBJECT}>Other…</option>
+        </select>
         <input
           type="number"
           min={1}

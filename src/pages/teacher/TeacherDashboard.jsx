@@ -9,6 +9,7 @@ import { SkeletonCard } from '../../components/parent/shared/Skeleton';
 import EmptyState from '../../components/parent/shared/EmptyState';
 import { greetingForHour, greetingNow, msUntilNextBoundary } from '../../utils/greeting';
 import { firstNameOf } from '../../utils/names';
+import { useToast } from '../../hooks/useToast';
 
 const QUICK_ACTIONS = [
   { key: 'attendance', label: 'Take Attendance', to: TEACHER_ROUTES.attendance, icon: CalendarCheck },
@@ -98,6 +99,7 @@ const TeacherDashboard = () => {
   const { data: schedule, isLoading: scheduleLoading } = useMySchedule();
   const { data: classes, isLoading: classesLoading } = useMyClasses();
 
+  const toast = useToast();
   const greeting = useGreeting(data?.greeting, data?.greetingHour);
 
   const classCount = data?.classCount || classes?.length || 0;
@@ -235,12 +237,21 @@ const TeacherDashboard = () => {
                   {period.status}
                 </span>
                 {period.status === 'pending' ? (
-                  <Link
-                    to={TEACHER_ROUTES.attendanceFor(period.className)}
-                    className="flex min-h-[44px] shrink-0 items-center px-2 text-[11.5px] font-extrabold text-sky-700 hover:underline"
-                  >
-                    Mark
-                  </Link>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Link
+                      to={TEACHER_ROUTES.attendanceFor(period.className)}
+                      className="flex min-h-[44px] items-center rounded-lg bg-emerald-600 px-3 text-[11.5px] font-extrabold text-white hover:bg-emerald-700"
+                    >
+                      Accept
+                    </Link>
+                    <button
+                      type="button"
+                      className="flex min-h-[44px] items-center rounded-lg border border-rose-200 bg-rose-50 px-3 text-[11.5px] font-extrabold text-rose-700 hover:bg-rose-100"
+                      onClick={() => toast.info(`Marked ${period.className} as missed`)}
+                    >
+                      Missed
+                    </button>
+                  </div>
                 ) : null}
               </li>
             ))}

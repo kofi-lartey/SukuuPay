@@ -24,7 +24,9 @@ import {
   rejectRemovalRequest,
 } from '../../../services/admin/academic';
 import { ACADEMIC_TERMS } from '../../../utils/constants';
+import { listUsers } from '../../../services/user';
 import TimetableGridEditor from '../../../components/dashboard/TimetableGridEditor';
+import TeacherAttendanceReport from './TeacherAttendanceReport';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
@@ -60,8 +62,32 @@ const STATUS_COLOR = {
 
 const Timetables = () => {
   const toast = useToast();
+  const [activeTab, setActiveTab] = useState('create');
+  useEffect(() => {
+    listUsers({ role: 'teacher', limit: 100 })
+      .then((res) => setReportTeachers(res?.users || []))
+      .catch(() => setReportTeachers([]));
+  }, []);
+  const [reportTeachers, setReportTeachers] = useState([]);
+  const [reportTeacher, setReportTeacher] = useState('');
+  const [reportPeriod, setReportPeriod] = useState('week');
+  const tabs = [
+    { key: 'create', label: 'Create Timetable' },
+    { key: 'view', label: 'View Approved Timetable' },
+    { key: 'attendance', label: "Teachers' Attendance" },
+    { key: 'report', label: 'Generate Report' },
+  ];
   const [classes, setClasses] = useState([]);
   const [className, setClassName] = useState('');
+  const [teacherAttendanceRecords, setTeacherAttendanceRecords] = useState([]);
+  useEffect(() => {
+    if (activeTab !== 'attendance' || !className) return;
+    import('../../../services/admin/academic').then(({ listTeacherAttendance }) => {
+      listTeacherAttendance({ className })
+        .then((res) => setTeacherAttendanceRecords(res?.records || []))
+        .catch(() => setTeacherAttendanceRecords([]));
+    });
+  }, [activeTab, className]);
   const [term, setTerm] = useState(ACADEMIC_TERMS[0]);
   const [academicYear, setAcademicYear] = useState(defaultAcademicYear());
   const [days, setDays] = useState(emptyDays());
@@ -338,6 +364,105 @@ const Timetables = () => {
         description="Build and publish a class timetable. Teachers submit theirs for your approval before publication."
       />
 
+      <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-2">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setActiveTab(t.key)}
+            className={`rounded-lg px-3 py-1.5 text-[12.5px] font-extrabold ${
+              activeTab === t.key
+                ? 'bg-brand-700 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'view' && (
+        <Card className="p-4">
+          <h3 className="text-[14px] font-extrabold text-ink mb-3">Approved Timetable</h3>
+          <SelectField
+            label="Class"
+            value={className}
+            onChange={(e) => setClassName(e.target.value)}
+          >
+            <option value="">Select a class</option>
+            {classes.map((c) => {
+              const label = c.className || c.name || c._id;
+              return <option key={label} value={label}>{label}</option>;
+            })}
+          </SelectField>
+          {status === 'published' || submissionStatus === 'approved' ? (
+            <div className="mt-3 space-y-3">
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                <p className="text-[13px] font-extrabold text-ink">{className}</p>
+                <p className="text-[11.5px] text-slate-500">{term} · {academicYear}</p>
+                <p className="text-[11px] font-extrabold text-emerald-700 mt-1">{status} / {submissionStatus}</p>
+              </div>
+               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+                {['Monday','Tuesday','Wednesday','Thursday','Friday'].map((day) => {
+                  const periods = (days[day] || []).slice().sort((a, b) => (a.period || 0) - (b.period || 0));
+                  return (
+                    <div key={day} className="rounded-xl border border-slate-200 bg-slate-50/40 p-3">
+                      <h3 className="mb-2 text-[13px] font-extrabold text-ink">{day}</h3>
+                      {periods.length === 0 ? (
+                        <p className="text-[11.5px] italic text-slate-400">No periods</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {periods.map((p, i) => (
+                            <div key={i} className="rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[11px] font-bold text-brand-700">
+                                  {(() => { const [h,m]=String(p.startTime||'').split(':'); const hr=Number(h); return `${hr%12||12}:${m||'00'} ${hr>=12?'pm':'am'}`; })()} – {(() => { const [h,m]=String(p.endTime||'').split(':'); const hr=Number(h); return `${hr%12||12}:${m||'00'} ${hr>=12?'pm':'am'}`; })()}
+                                </span>
+                                <span className="text-[10px] font-semibold text-slate-400">#{p.period}</span>
+                              </div>
+                              <p className="mt-1 text-[12.5px] font-bold text-ink leading-tight">{p.subject || '—'}</p>
+                              {(p.teacher || p.room) && (
+                                <p className="mt-0.5 text-[10.5px] text-slate-500">{[p.teacher, p.room].filter(Boolean).join(' · ')}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400 mt-3">No approved timetable for the selected class.</p>
+          )}
+        </Card>
+      )}
+      {activeTab === 'attendance' && (
+        <Card className="p-4">
+          <h3 className="text-[14px] font-extrabold text-ink mb-3">Teachers' Attendance</h3>
+          {teacherAttendanceRecords.length === 0 ? (
+            <p className="text-sm text-slate-400">No attendance records yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {teacherAttendanceRecords.map((r, i) => (
+                <li key={i} className="flex items-center justify-between rounded-lg border border-slate-200 p-3">
+                  <div>
+                    <p className="text-[13px] font-extrabold text-ink">{r.teacherId?.name || 'Teacher'}</p>
+                    <p className="text-[11.5px] text-slate-500">{r.className} · {new Date(r.date).toLocaleDateString()}</p>
+                  </div>
+                  <span className={`text-[11px] font-extrabold ${r.status === 'attended' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                    {r.status}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
+      {activeTab === 'report' && <TeacherAttendanceReport className={className} />}
+
+      <div className={activeTab === 'create' ? '' : 'hidden'}>
       <Card className="p-4">
         <div className="grid gap-3 sm:grid-cols-3">
           <SelectField
@@ -621,7 +746,8 @@ const Timetables = () => {
           )}
         </div>
       </div>
-    )}
+     )}
+      </div>
 
     <Modal
       open={removeDialogOpen}

@@ -20,6 +20,13 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
  * to the sky accent. A teacher scanning for their Mathematics block reads the
  * colour before the words.
  */
+const statusTone = (status) => {
+  if (status === 'marked') return 'bg-emerald-100 text-emerald-800';
+  if (status === 'missed') return 'bg-rose-100 text-rose-800';
+  if (status === 'pending') return 'bg-amber-100 text-amber-800';
+  return 'bg-slate-100 text-slate-700';
+};
+
 const TeacherSchedule = () => {
   const { data: schedule, isLoading } = useMySchedule();
 
@@ -51,14 +58,20 @@ const TeacherSchedule = () => {
               <p className="text-[12.5px] italic text-slate-400">No classes</p>
             ) : (
               <ul className="space-y-2">
-                {byDay[day].map((period) => (
+                {byDay[day].map((period) => {
+                  const timeUp = period.status === 'marked' || period.status === 'missed';
+                  return (
                   <li
                     key={`${period.className}-${period.subject}-${period.startTime}`}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-3"
+                    className={`flex items-center gap-3 rounded-xl border p-3 ${
+                      timeUp
+                        ? 'border-emerald-200 bg-emerald-50'
+                        : 'border-slate-200/80 bg-white'
+                    }`}
                   >
                     <span
                       className="h-9 w-1 shrink-0 rounded-full"
-                      style={{ backgroundColor: period.subjectColor || '#0284C7' }}
+                      style={{ backgroundColor: timeUp ? '#059669' : (period.subjectColor || '#0284C7') }}
                       aria-hidden="true"
                     />
                     <div className="min-w-0 flex-1">
@@ -69,11 +82,15 @@ const TeacherSchedule = () => {
                         {period.startTime} – {period.endTime}
                       </p>
                     </div>
+                    <span className={`shrink-0 rounded-lg px-2 py-0.5 text-[11px] font-extrabold ${statusTone(period.status)}`}>
+                      {period.status}
+                    </span>
                     <span className="shrink-0 rounded-lg bg-slate-100 px-2 py-0.5 text-[11px] font-extrabold text-slate-600">
                       {period.room || '—'}
                     </span>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </section>

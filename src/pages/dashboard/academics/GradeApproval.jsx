@@ -7,7 +7,7 @@ import { SkeletonRow } from '../../../components/parent/shared/Skeleton';
 import EmptyState from '../../../components/parent/shared/EmptyState';
 import { useToast } from '../../../hooks/useToast';
 import { useGradeApprovalQueue } from '../../../hooks/admin/useGradeApprovalQueue';
-import { approveGrades, rejectGrades } from '../../../services/admin/academic';
+import { getAdminClassGrades } from '../../../services/admin/academic';
 import { ACADEMIC_TERMS } from '../../../utils/constants';
 import { formatCount } from '../../../utils/format';
 
@@ -155,7 +155,7 @@ const RejectDialog = ({ open, onClose, row, onDone }) => {
   );
 };
 
-const QueueTable = ({ items, onApprove, onReject }) => {
+const QueueTable = ({ items, onApprove, onReject, expandedKey, gradeMap, onView }) => {
   if (!items.length) {
     return (
       <EmptyState
@@ -180,31 +180,78 @@ const QueueTable = ({ items, onApprove, onReject }) => {
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {items.map((row, i) => (
-            <tr key={`${row.className}:${row.subject ?? 'class'}:${i}`}>
-              <td className="px-4 py-2.5 font-extrabold text-ink">{row.className}</td>
-              <td className="px-4 py-2.5 text-slate-600">{row.subject || <span className="italic">Whole class</span>}</td>
-              <td className="px-4 py-2.5 text-slate-600">{row.submittedByName || <UserCheck className="inline h-4 w-4" />}</td>
-              <td className="px-4 py-2.5">{formatCount(row.count)}</td>
-              <td className="px-4 py-2.5 text-slate-500">{formatDate(row.submittedAt)}</td>
-              <td className="px-4 py-2.5 text-right">
-                <button
-                  type="button"
-                  onClick={() => onApprove(row)}
-                  className="rounded-lg px-3 py-1.5 text-xs font-extrabold text-green-700 hover:bg-green-50"
-                >
-                  Approve
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onReject(row)}
-                  className="rounded-lg px-3 py-1.5 text-xs font-extrabold text-red-700 hover:bg-red-50"
-                >
-                  Reject
-                </button>
-              </td>
-            </tr>
-          ))}
+          {items.map((row, i) => {
+            const key = `${row.className}:${row.subject ?? 'class'}:${i}`;
+            const expanded = expandedKey === key;
+            const grades = gradeMap[key] || [];
+            return (
+              <React.Fragment key={key}>
+                <tr>
+                  <td className="px-4 py-2.5 font-extrabold text-ink">{row.className}</td>
+                  <td className="px-4 py-2.5 text-slate-600">{row.subject || <span className="italic">Whole class</span>}</td>
+                  <td className="px-4 py-2.5 text-slate-600">{row.submittedByName || <UserCheck className="inline h-4 w-4" />}</td>
+                  <td className="px-4 py-2.5">{formatCount(row.count)}</td>
+                  <td className="px-4 py-2.5 text-slate-500">{formatDate(row.submittedAt)}</td>
+                  <td className="px-4 py-2.5 text-right">
+                    <button
+                      type="button"
+                      onClick={() => onView(row, key)}
+                      className="rounded-lg px-3 py-1.5 text-xs font-extrabold text-sky-700 hover:bg-sky-50"
+                    >
+                      {expanded ? 'Hide' : 'View'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onApprove(row)}
+                      disabled={row.approvalStatus === 'approved'}
+                      className="ml-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-extrabold text-white hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onReject(row)}
+                      className="ml-2 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-extrabold text-white hover:bg-rose-700"
+                    >
+                      Reject
+                    </button>
+                  </td>
+                </tr>
+                {expanded && (
+                  <tr>
+                    <td colSpan={6} className="bg-slate-50 px-4 py-3">
+                      {grades.length === 0 ? (
+                        <p className="text-sm text-slate-400">No grades found.</p>
+                      ) : (
+                        <table className="min-w-full text-left text-sm">
+                          <thead className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
+                            <tr>
+                              <th className="px-3 py-2">Student</th>
+                              <th className="px-3 py-2">Subject</th>
+                              <th className="px-3 py-2">Score</th>
+                              <th className="px-3 py-2">Grade</th>
+                              <th className="px-3 py-2">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {grades.map((g, j) => (
+                              <tr key={j}>
+                                <td className="px-3 py-2">{g.studentName || g.studentId}</td>
+                                <td className="px-3 py-2">{g.subject}</td>
+                                <td className="px-3 py-2">{g.score}/{g.maxScore}</td>
+                                <td className="px-3 py-2">{g.grade}</td>
+                                <td className="px-3 py-2">{g.approvalStatus}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -215,6 +262,8 @@ const GradeApproval = () => {
   const [reloadKey, setReloadKey] = useState(0);
   const [pendingRow, setPendingRow] = useState(null);
   const [rejectRow, setRejectRow] = useState(null);
+  const [expandedKey, setExpandedKey] = useState(null);
+  const [gradeMap, setGradeMap] = useState({});
   const { items, loading, error, filters, setFilter } = useGradeApprovalQueue(reloadKey);
 
   const refetch = () => setReloadKey((n) => n + 1);
@@ -253,7 +302,32 @@ const GradeApproval = () => {
             {error.message || 'The approval queue could not be loaded.'}
           </p>
         ) : (
-          <QueueTable items={items} onApprove={onApprove} onReject={onReject} />
+          <QueueTable
+            items={items}
+            onApprove={onApprove}
+            onReject={onReject}
+            expandedKey={expandedKey}
+            gradeMap={gradeMap}
+            onView={async (row, key) => {
+              if (expandedKey === key) {
+                setExpandedKey(null);
+                return;
+              }
+              try {
+                const res = await getAdminClassGrades({
+                  className: row.className,
+                  subject: row.subject || undefined,
+                  term: row.term,
+                  academicYear: row.academicYear,
+                });
+                setGradeMap((prev) => ({ ...prev, [key]: res?.grades || [] }));
+                setExpandedKey(key);
+              } catch {
+                setGradeMap((prev) => ({ ...prev, [key]: [] }));
+                setExpandedKey(key);
+              }
+            }}
+          />
         )}
       </Card>
 
