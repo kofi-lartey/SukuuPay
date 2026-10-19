@@ -6512,6 +6512,7 @@ export const ROUTES = [
   ['POST', /^\/pay\/(?<token>[^/]+)\/plan\/cancel$/, portal.cancelPlan],
   ['POST', /^\/pay\/(?<token>[^/]+)\/plan\/request$/, portal.requestPlan],
   ['GET', /^\/pay\/(?<token>[^/]+)\/plan$/, portal.paymentPlan],
+  ['POST', /^\/pay\/(?<token>[^/]+)\/support$/, portal.support],
 
   // The portal's landing read. Reaches `getPortalView`'s shape rather than the
   // narrower `getStudentByPayToken` projection, because the portal's shell —

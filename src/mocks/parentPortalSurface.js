@@ -466,8 +466,14 @@ const markConversationRead = ({ params }) => {
  * page's summary band reads. `thisTerm` is this calendar year's share; the
  * term boundary is the school's, not the browser's, and the mock has no
  * academic calendar to consult.
+ *
+ * `filter` narrows the list to the same window the real route narrows it to:
+ * `all` (everything), `year` (this calendar year) and `term` (the same year,
+ * because the mock has no term dates to work from). The summary figures are
+ * always the lifetime totals, so the band does not change under the parent's
+ * finger.
  */
-const paymentHistory = ({ params }) => {
+const paymentHistory = ({ params, query }) => {
   const student = requireStudent(params.token);
   const rows = settledPayments(student).map((p) => ({
     paymentId: p.paymentId,
@@ -478,14 +484,19 @@ const paymentHistory = ({ params }) => {
     createdAt: p.createdAt,
   }));
 
-  const totalPaid = rows.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
   const year = new Date().getUTCFullYear();
-  const thisTerm = rows
-    .filter((p) => new Date(p.completedAt).getUTCFullYear() === year)
-    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const thisYear = rows.filter(
+    (p) => new Date(p.completedAt).getUTCFullYear() === year
+  );
+
+  const filter = String(query?.filter || 'all');
+  const scoped = filter === 'all' ? rows : thisYear;
+
+  const totalPaid = rows.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const thisTerm = thisYear.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
   return {
-    payments: rows,
+    payments: scoped,
     stats: { totalPaid, thisTerm, balance: Math.max(student.balance || 0, 0) },
   };
 };
@@ -532,6 +543,36 @@ const cancelPlan = ({ params }) => {
   return { plan: null, message: 'Cancellation request sent to the school.' };
 };
 
+/**
+ * `POST /pay/:token/support` — the parent's letter to the school office.
+ *
+ * It lands in the same inbox as the pay page's "contact the school" form,
+ * because it *is* that form, asked for in a place with room to type. The mock
+ * answers with the shape the real route does, so the page's success path is
+ * exercisable here too.
+ */
+const support = ({ params, body }) => {
+  const student = requireStudent(params.token);
+  const text = String(body?.body || '').trim();
+
+  if (text.length < 10) {
+    throw new PortalError(
+      400,
+      'Please write at least a short message so the school can help',
+      'MESSAGE_TOO_SHORT'
+    );
+  }
+
+  return {
+    messageId: `msg-local-${Date.now()}`,
+    delivered: true,
+    adminsNotified: 1,
+    category: body?.category || 'other',
+    subject: body?.subject || 'Support request',
+    studentName: student.studentName,
+  };
+};
+
 export const parentPortalHandlers = {
   portalView,
   attendance,
@@ -550,6 +591,7 @@ export const parentPortalHandlers = {
   paymentPlan,
   requestPlan,
   cancelPlan,
+  support,
 };
 
 export default parentPortalHandlers;

@@ -30,7 +30,10 @@ const MessageSchool = () => {
     }
     try {
       await send.mutateAsync({
-        category: subject,
+        // The label, not the slug: this text is read by the bursar in the
+        // school's inbox, where "Fees & payments" means something and "fees"
+        // means nothing.
+        category: SUBJECTS.find((s) => s.value === subject)?.label || subject,
         subject: subjectLine || SUBJECTS.find((s) => s.value === subject)?.label,
         body,
       });

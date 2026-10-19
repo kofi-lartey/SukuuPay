@@ -244,8 +244,11 @@ const PaymentPlan = () => {
 
   const handleCancel = async () => {
     try {
-      await cancel.mutateAsync({ reason: 'Parent asked to cancel' });
-      toast.success('Cancellation request sent to the school');
+      const response = await cancel.mutateAsync({ reason: 'Parent asked to cancel' });
+      // The server's wording, not a fixed one: withdrawing a request and
+      // cancelling an approved schedule are different acts, and the parent is
+      // told which one happened.
+      toast.success(response?.message || 'Cancellation request sent to the school');
     } catch (err) {
       toast.error(err.message || 'Could not send the cancellation.');
     }

@@ -51,10 +51,12 @@ export const fetchPortalView = async (token) => {
 };
 
 /** Full settled-payment history for this student, newest first. */
-export const fetchPaymentHistory = async (token, { page = 1, perPage = 20 } = {}) => {
+export const fetchPaymentHistory = async (token, { page = 1, perPage = 20, filter } = {}) => {
   try {
     return unwrap(
-      await api.get(pay(token, '/history'), { params: { page, perPage } })
+      await api.get(pay(token, '/payments'), {
+        params: { page, perPage, ...(filter ? { filter } : {}) },
+      })
     );
   } catch (error) {
     throw toApiError(error, 'We could not load your payment history.');
@@ -112,7 +114,7 @@ export const verifyPayment = async (token, reference) => {
 /** Asks the school to split the balance. Not auto-approved; see the backend. */
 export const requestPaymentPlan = async (token, payload) => {
   try {
-    return unwrap(await api.post(pay(token, '/request-plan'), payload));
+    return unwrap(await api.post(pay(token, '/plan/request'), payload));
   } catch (error) {
     throw toApiError(error, 'We could not send your request. Please try again.');
   }
