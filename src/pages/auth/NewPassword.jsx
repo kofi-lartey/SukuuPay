@@ -10,7 +10,7 @@ import {
   Lock,
   ShieldCheck,
 } from 'lucide-react';
-import { resetPassword } from '../../services/auth';
+import { resetPassword, clearTokens } from '../../services/auth';
 import AuthShell from '../../components/auth/AuthShell';
 import {
   AsideLink,
@@ -56,6 +56,7 @@ const NewPassword = () => {
     setLoading(true);
     try {
       await resetPassword(token, password);
+      clearTokens();
       setDone(true);
     } catch (err) {
       // The API uses the same response for an unknown and an expired token, so

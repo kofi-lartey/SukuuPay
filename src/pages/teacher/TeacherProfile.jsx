@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bell, BookOpen, CalendarCheck, ChevronRight, LogOut, Users } from 'lucide-react';
+import { Bell, BookOpen, CalendarCheck, ChevronRight, KeyRound, LogOut, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AvatarUpload from '../../components/common/AvatarUpload';
 import { Field } from '../../components/common/FormField';
@@ -189,6 +189,27 @@ const TeacherProfile = () => {
       </form>
 
       {/* ── Shortcuts — what "More" always was ── */}
+      <section className="rounded-2xl border border-slate-200/80 bg-white p-5">
+        <h2 className="text-[13px] font-extrabold uppercase tracking-wide text-slate-400">
+          Security
+        </h2>
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-[13px] font-bold text-slate-800">Password</p>
+            <p className="text-[11.5px] text-slate-500">
+              Change your password via a secure link sent to your email.
+            </p>
+          </div>
+          <Link
+            to={`/reset-password${user?.email ? `?email=${encodeURIComponent(user.email)}` : ""}`}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-800 shadow-sm transition-colors hover:bg-slate-50"
+          >
+            <KeyRound className="h-4 w-4 text-slate-500" aria-hidden="true" />
+            Change password
+          </Link>
+        </div>
+      </section>
+
       <section className="rounded-2xl border border-slate-200/80 bg-white p-1">
         {SHORTCUTS.map((row) => (
           <Link

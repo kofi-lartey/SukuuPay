@@ -7,7 +7,7 @@ const storeTokens = ({ accessToken, refreshToken }) => {
   if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
 };
 
-const clearTokens = () => TOKEN_KEYS.forEach((key) => localStorage.removeItem(key));
+export const clearTokens = () => TOKEN_KEYS.forEach((key) => localStorage.removeItem(key));
 
 /** Axios rejects with a plain `message`; the API also returns a structured body. */
 const toError = (error, fallback) => {

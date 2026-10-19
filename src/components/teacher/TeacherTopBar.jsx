@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ChevronDown, Globe, LogOut, Menu, Search, User } from 'lucide-react';
+import { ChevronDown, Globe, KeyRound, LogOut, Menu, Search, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ROUTES, TEACHER_ROUTES } from '../../utils/constants';
 import NotificationBell from '../common/NotificationBell';
@@ -169,6 +169,13 @@ const TeacherTopBar = ({
 
                 <MenuItem to={TEACHER_ROUTES.profile} icon={User}>
                   Profile &amp; settings
+                </MenuItem>
+
+                <MenuItem
+                  to={`/reset-password${user?.email ? `?email=${encodeURIComponent(user.email)}` : ""}`}
+                  icon={KeyRound}
+                >
+                  Change password
                 </MenuItem>
 
                 <MenuItem to={ROUTES.HOME} icon={Globe}>
