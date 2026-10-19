@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   BadgeCheck,
   Building2,
+  ChevronLeft,
+  ChevronRight,
   Fingerprint,
   KeyRound,
   Lock,
@@ -10,7 +12,7 @@ import {
   RefreshCw,
   ShieldCheck,
   Smartphone,
-  Zap,
+  Zap, Mail, CheckCircle2, 
 } from 'lucide-react';
 
 /**
@@ -226,19 +228,126 @@ export const VerifyAside = () => (
   </AsideFrame>
 );
 
+// Sliding Carousel Data for the Reset Password Aside panel
+const resetPasswordSlideContent = [
+  {
+    badge: "PASSWORD RESET",
+    title: "Reset your password.",
+    description: "Create a new password for your SukuuPay account.",
+    icon: Lock,
+    highlight: "Choose something only you know.",
+    stat: "Secure reset"
+  },
+  {
+    badge: "ACCOUNT SECURITY",
+    title: "Protect your account.",
+    description: "Use a strong, unique password you haven't used before.",
+    icon: ShieldCheck,
+    highlight: "At least 8 characters with a letter and number.",
+    stat: "Strong password"
+  },
+  {
+    badge: "ALMOST DONE",
+    title: "You're almost there.",
+    description: "Save your new password to finish resetting.",
+    icon: KeyRound,
+    highlight: "You'll be signed in after saving.",
+    stat: "One last step"
+  }
+];
+
 /** Compact aside for the "set a new password" screen, reached by email link. */
-export const ResetPasswordAside = () => (
-  <AsideFrame
-    pill="Password Reset"
-    headline="Choose a password only you know."
-    description="Something you have not used on SukuuPay before. Minimum eight characters, with at least one letter and one number."
-    features={[
-      { icon: KeyRound, label: 'Never reuse your school password here' },
-      { icon: ShieldCheck, label: 'Saving revokes all active sessions, including this one' },
-      { icon: BadgeCheck, label: 'We email a confirmation so any change is visible' },
-    ]}
-  />
-);
+export const ResetPasswordAside = () => {
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % resetPasswordSlideContent.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % resetPasswordSlideContent.length);
+  const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + resetPasswordSlideContent.length) % resetPasswordSlideContent.length);
+
+  const slide = resetPasswordSlideContent[currentSlide];
+  const IconComponent = slide.icon;
+
+  return (
+    <div className="h-full flex flex-col justify-between bg-[#0A5C36] text-white p-6 sm:p-8 relative overflow-hidden">
+      {/* Background Pattern Overlay */}
+      <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:14px_14px] pointer-events-none"></div>
+
+      {/* Top Brand Header inside Aside */}
+      <div className="relative z-10 flex items-center justify-between">
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-900/80 border border-emerald-700/50 backdrop-blur-md">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-200">
+            {slide.badge}
+          </span>
+        </div>
+
+        {/* Carousel Controls */}
+        <div className="flex items-center gap-1 bg-emerald-900/60 p-1 rounded-lg border border-emerald-700/50">
+          <button
+            onClick={prevSlide}
+            aria-label="Previous slide"
+            className="p-1 rounded-md hover:bg-emerald-800 text-emerald-200 hover:text-white transition-colors"
+          >
+            <ChevronLeft size={14} />
+          </button>
+          <button
+            onClick={nextSlide}
+            aria-label="Next slide"
+            className="p-1 rounded-md hover:bg-emerald-800 text-emerald-200 hover:text-white transition-colors"
+          >
+            <ChevronRight size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* Dynamic Sliding Content */}
+      <div className="relative z-10 my-auto py-6 transition-all duration-500 ease-in-out">
+        <div className="w-10 h-10 rounded-xl bg-amber-400 text-gray-900 flex items-center justify-center mb-4 shadow-md shadow-amber-400/20">
+          <IconComponent size={20} />
+        </div>
+
+        <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight leading-snug mb-2">
+          {slide.title}
+        </h2>
+        <p className="text-emerald-100 text-xs sm:text-sm leading-relaxed mb-4">
+          {slide.description}
+        </p>
+
+        <div className="bg-emerald-900/40 border border-emerald-700/40 rounded-lg p-3 backdrop-blur-sm">
+          <p className="text-[11px] font-semibold text-amber-300 flex items-center gap-1.5">
+            <span>✨</span> {slide.highlight}
+          </p>
+        </div>
+      </div>
+
+      {/* Footer Indicators & Stat */}
+      <div className="relative z-10 pt-4 border-t border-emerald-800/80 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          {resetPasswordSlideContent.map((_, idx) => (
+            <button
+              key={idx}
+              onClick={() => setCurrentSlide(idx)}
+              aria-label={`Go to slide ${idx + 1}`}
+              className={`h-1 rounded-full transition-all ${
+                currentSlide === idx ? 'w-5 bg-amber-400' : 'w-1 bg-emerald-700 hover:bg-emerald-600'
+              }`}
+            />
+          ))}
+        </div>
+
+        <div className="text-right">
+          <span className="text-[11px] font-bold text-white uppercase tracking-wider">{slide.stat}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const GoogleMark = () => (
   <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">

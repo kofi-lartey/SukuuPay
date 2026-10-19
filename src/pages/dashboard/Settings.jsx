@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   CreditCard,
   Info,
+  KeyRound,
   Lock,
   Receipt,
   Save,
@@ -898,6 +899,22 @@ const Settings = () => {
                       <p className="mt-0.5 text-[12px]/[17px] font-medium text-slate-500">
                         Every administrative action taken on this school, filterable by actor, action
                         and date, and exportable as CSV.
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+
+                <Link
+                  to={`/reset-password${user?.email ? `?email=${encodeURIComponent(user.email)}` : ''}`}
+                  className="rounded-xl border border-slate-200 p-4 transition-colors hover:border-brand-300 hover:bg-brand-50/40"
+                >
+                  <div className="flex items-start gap-3">
+                    <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-brand-700" aria-hidden="true" />
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-extrabold text-ink">Change your password</p>
+                      <p className="mt-0.5 text-[12px]/[17px] font-medium text-slate-500">
+                        Request a secure reset link by email. All other sessions are signed out when
+                        it is used.
                       </p>
                     </div>
                   </div>

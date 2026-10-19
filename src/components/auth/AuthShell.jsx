@@ -2,8 +2,8 @@ import React from 'react';
 import { ShieldCheck } from 'lucide-react';
 
 const AuthShell = ({ aside, eyebrow, title, description, children }) => (
-  <div className="min-h-[calc(100vh-4rem)] bg-slate-50 flex items-center justify-center px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-    <div className="w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-xl shadow-slate-900/5">
+  <div className={`min-h-[calc(100vh-4rem)] bg-slate-50 flex items-center justify-center px-4 py-6 sm:px-6 sm:py-8 lg:px-8`}>
+    <div className={`w-full overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-xl shadow-slate-900/5 ${aside ? 'max-w-5xl' : 'max-w-md'}`}>
       <div className="grid grid-cols-1 lg:grid-cols-12">
         {/* Aside — hidden on mobile, 5/12 on desktop */}
         {aside && (
@@ -12,8 +12,8 @@ const AuthShell = ({ aside, eyebrow, title, description, children }) => (
           </aside>
         )}
 
-        {/* Form section — full width on mobile, 7/12 on desktop */}
-        <section className="flex flex-col justify-between bg-white p-6 sm:p-7 lg:col-span-7 lg:p-9">
+        {/* Form section — full width on mobile, 7/12 on desktop (or full when no aside) */}
+        <section className={`flex flex-col justify-between bg-white p-6 sm:p-7 ${aside ? 'lg:col-span-7' : 'lg:col-span-12'} lg:p-9`}>
           <div>
             <div className="mb-6">
               {eyebrow && (
