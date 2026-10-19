@@ -10,7 +10,7 @@ import {
   VerifyAside,
 } from '../../components/auth/OnboardingAside';
 import OtpInput from '../../components/auth/CodeInput';
-import { Field, FormAlert } from '../../components/common/FormField';
+import { useAuth } from '../../context/AuthContext';
 
 const RESEND_COOLDOWN = 60;
 const CODE_LENGTH = 6;
@@ -19,6 +19,7 @@ const VerifyEmail = () => {
   const { token: pathToken } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const { clearSession } = useAuth();
 
   // `Signup` routes here when the account was created but the verification
   // email could not be sent. The user has no code to enter, so this screen
@@ -44,6 +45,10 @@ const VerifyEmail = () => {
   const [verified, setVerified] = useState(false);
   const [resendSent, setResendSent] = useState(false);
   const autoSubmitted = useRef(false);
+
+  useEffect(() => {
+    clearSession();
+  }, [clearSession]);
 
   useEffect(() => {
     if (cooldown <= 0) return undefined;

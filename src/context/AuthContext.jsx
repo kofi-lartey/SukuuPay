@@ -5,6 +5,7 @@ import {
   signup as apiSignup,
   signOutUser as apiSignOut,
   getCurrentUser,
+  clearTokens,
 } from '../services/auth';
 import { updateMe } from '../services/user';
 import { joinsSchoolByCode } from '../utils/constants';
@@ -182,6 +183,11 @@ export const AuthProvider = ({ children }) => {
     applySession(null);
   }, [applySession]);
 
+  const clearSession = useCallback(() => {
+    clearTokens();
+    applySession(null);
+  }, [applySession]);
+
   /**
    * Re-reads `/auth/me` and replaces the cached identity.
    *
@@ -272,6 +278,7 @@ export const AuthProvider = ({ children }) => {
     login,
     signup,
     logout,
+    clearSession,
     loading,
     onboardingCompleted: onboarding.completed,
     markOnboardingComplete,

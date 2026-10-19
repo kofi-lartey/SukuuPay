@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -12,6 +12,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { resetPassword, clearTokens } from '../../services/auth';
+import { useAuth } from '../../context/AuthContext';
 import AuthShell from '../../components/auth/AuthShell';
 import {
   AsideLink,
@@ -155,6 +156,11 @@ const ProgressBar = () => (
 const NewPassword = () => {
   const { token } = useParams();
   const navigate = useNavigate();
+  const { clearSession } = useAuth();
+
+  useEffect(() => {
+    clearSession();
+  }, [clearSession]);
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
