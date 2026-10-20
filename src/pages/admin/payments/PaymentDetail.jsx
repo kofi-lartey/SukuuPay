@@ -126,8 +126,7 @@ const Row = ({ label, value, mono = false }) => (
 );
 
 const PROVIDER_LABELS = {
-  paystack: 'Paystack',
-  hubtel: 'Hubtel',
+  moolre: 'Moolre',
   arke: 'Arke',
   mnotify: 'MNotify',
   manual: 'Recorded by hand',
@@ -338,14 +337,10 @@ const PaymentDetail = () => {
               <dl>
                 <Row label="Payment reference" value={payment?.paymentId} mono />
                 <Row label="Receipt number" value={payment?.receiptNumber} mono />
-                <Row
-                  label="Hubtel transaction id"
-                  value={payment?.hubtelTransactionId}
-                  mono
-                />
-                <Row label="Hubtel order id" value={payment?.hubtelOrderId} mono />
+                <Row label="Moolre reference" value={payment?.moolreReference} mono />
+                <Row label="Moolre transaction id" value={payment?.moolreTransactionId} mono />
                 {/*
-                  MTN payments carry `mtnReferenceId`, not a Hubtel id — which is
+                  MTN payments carry `mtnReferenceId`, not a Moolre id — which is
                   why every MTN payment reads as "unmatched" in the finance
                   reconciliation and why both sets of references are here rather than
                   than one column that is empty for half the platform's traffic.
@@ -369,8 +364,8 @@ const PaymentDetail = () => {
                   <Row label="Marked refunded" value={formatDateTime(payment.refundedAt)} />
                 )}
                 {payment?.failureReason && <Row label="Failure reason" value={payment.failureReason} />}
-                {payment?.hubtelResponseMessage && (
-                  <Row label="Gateway message" value={payment.hubertelResponseMessage} />
+                {payment?.moolreResponseMessage && (
+                  <Row label="Gateway message" value={payment.moolreResponseMessage} />
                 )}
               </dl>
             </Card>

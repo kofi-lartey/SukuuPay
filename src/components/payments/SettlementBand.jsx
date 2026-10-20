@@ -32,8 +32,7 @@ const maskAccount = (accountNumber) => {
 };
 
 const GATEWAY_LABELS = {
-  paystack: 'Paystack',
-  hubtel: 'Hubtel',
+  moolre: 'Moolre',
   arke: 'Arke',
   mnotify: 'MNotify',
   manual: 'recorded manually',

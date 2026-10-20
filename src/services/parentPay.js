@@ -93,6 +93,41 @@ export const initiatePayment = async (token, { amount, phone, network, descripti
 };
 
 /**
+ * The reference to poll on, out of an initiate response.
+ *
+ * **The reference is not at the top level.** The API answers with
+ * `{ payment, provider, <gateway block>, payLink }`, and the value the portal
+ * polls on is `Payment.reference` — the one the backend minted before the
+ * document was written, because the parent has the response long before a
+ * retry could look up the id generated in the pre-save hook.
+ *
+ * Each gateway surfaces it in its own block (`moolre.reference`,
+ * `mtn.referenceId`), so this reads all of them. Reading
+ * only `response.reference` returned `undefined` for every MoMo gateway, and
+ * the modal then sat on a spinner it could never resolve.
+ *
+ * Re-exported from `utils/parentPayResponse.js`, where it lives as a
+ * dependency-free module so it can be tested directly.
+ */
+export { resolvePaymentReference } from '../utils/parentPayResponse.js';
+
+/**
+ * Creates a hosted-checkout URL for a payment in flight.
+ *
+ * The fallback for a parent whose handset never received the USSD prompt — the
+ * phone is off, out of credit, or on a network that does not carry it. The
+ * link is created on demand rather than during initiation, because Moolre
+ * requires the reference to be unique and the prompt has already claimed it.
+ */
+export const getCheckoutUrl = async (token, reference) => {
+  try {
+    return unwrap(await api.post(pay(token, '/checkout'), { reference }));
+  } catch (error) {
+    throw toApiError(error, 'We could not open the web checkout. Please try again.');
+  }
+};
+
+/**
  * Polls one payment's status while the parent approves on their handset.
  *
  * `retryAfter` comes from the server and is honoured rather than replaced with a

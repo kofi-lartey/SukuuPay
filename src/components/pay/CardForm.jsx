@@ -7,12 +7,12 @@ import MoneyInput from '../common/MoneyInput';
 import { formatCedi } from '../../utils/format';
 
 /**
- * The Card payment form for Paystack's hosted checkout.
+ * The Card payment form for Moolre's hosted checkout.
  *
- * No phone number or network selector is needed — Paystack's page lets the parent
- * pick card, bank transfer, or mobile money from its own UI. The backend
- * initializes a Paystack transaction with a `callback_url` that returns the
- * parent to this page, and the webhook settles the final status.
+ * No phone number or network selector is needed — the checkout page lets the
+ * parent pick card, bank transfer, or mobile money from its own UI. The backend
+ * opens the session with a `redirect` that returns the parent to this page, and
+ * Moolre's callback settles the final status.
  */
 const CardForm = ({ student, onSubmit, submitting, error }) => {
   const balance = student.balance || 0;
@@ -62,13 +62,13 @@ const CardForm = ({ student, onSubmit, submitting, error }) => {
         >
           <CreditCard className="mr-2 h-4 w-4" aria-hidden="true" />
           {submitting
-            ? 'Redirecting to Paystack…'
+            ? 'Opening secure checkout…'
             : `Pay ${amount !== null ? formatCedi(amount) : ''}`.trim()}
         </Button>
 
         <p className="text-center text-[11px] font-semibold leading-relaxed text-slate-400">
-          You will be redirected to Paystack to complete the payment securely.
-          Card, bank transfer and mobile money are all available on their page.
+          You will be taken to a secure checkout page to complete the payment.
+          Card, bank transfer and mobile money are all available there.
         </p>
       </div>
     </Card>

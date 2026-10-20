@@ -796,7 +796,7 @@ const PlatformSettings = () => {
             }
           >
             <option value="arke">Arkesel</option>
-            <option value="hubtel">Hubtel</option>
+            <option value="moolre">Moolre</option>
           </SelectField>
 
           <MoneyInput

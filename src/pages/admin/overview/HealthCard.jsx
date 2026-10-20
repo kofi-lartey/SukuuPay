@@ -39,7 +39,7 @@ const HealthCard = ({ state }) => {
   const data = state?.data || {};
 
   /*
-   * `dependencies` is an **object keyed by name** (`{ mongodb, cloudinary, hubtel,
+   * `dependencies` is an **object keyed by name** (`{ mongodb, cloudinary, payments,
    * sms, cron }`), not an array — see `services/admin/health.service.js:755`. Calling
    * `.map` on it throws, and it threw on the Overview of the whole platform console
    * the moment `/admin/health` answered.

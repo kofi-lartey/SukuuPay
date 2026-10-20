@@ -561,7 +561,7 @@ if (user.role === 'super_admin') {
     logo: data.logo || null,
     stamp: null,
     brandColor: '#0F5132',
-    payment: { gatewayMode: 'hubtel', platformMarkupPercent: 1.5, settlement: null },
+    payment: { gatewayMode: 'moolre', platformMarkupPercent: 1.5, settlement: null },
     sms: { provider: 'arke', senderId: 'SukuuPay', balance: 0 },
     // The real service grants the trial here, so a self-provisioned school is
     // indistinguishable from an operator-created one.
@@ -1358,24 +1358,6 @@ const updatePayout = ({ params, body, user }) => {
   return school;
 };
 
-/** `POST /schools/:id/verify-hubtel` — also not on the real API. */
-const verifyHubtel = ({ body }) => {
-  const scenario = getScenarioId();
-  if (scenario === 'hubtel-unsupported') {
-    throw new MockError(405, 'Hubtel verification is not enabled', 'NOT_IMPLEMENTED');
-  }
-  const { clientId, clientSecret, merchantId, apiKey } = body || {};
-  if (!clientId || !clientSecret || !merchantId || !apiKey) {
-    throw new MockError(422, 'All four Hubtel credentials are required', 'VALIDATION_ERROR');
-  }
-  // A credential containing "invalid" is rejected, so the error path is
-  // reachable without waiting for a real provider.
-  if (String(clientId).toLowerCase().includes('invalid')) {
-    throw new MockError(422, 'Hubtel rejected those credentials: invalid client ID', 'HUBTEL_REJECTED');
-  }
-  return { verified: true, merchantId, checkedAt: new Date().toISOString() };
-};
-
 // -- Students ---------------------------------------------------------------
 
 const listStudents = ({ query, user }) => {
@@ -2129,6 +2111,18 @@ const payTokenOf = (student) => String(student.payLink || '').split('/').pop();
  * and it is reproduced there.
  */
 
+/**
+ * Starts a MoMo payment.
+ *
+ * Answers with the shape the real endpoint answers with — `{ payment, provider,
+ * requiresPayerApproval, <gateway block>, payLink }` — rather than a flat
+ * object. The portal reads the reference out of the gateway block, so a flat
+ * mock response left the sheet on a spinner it could never resolve.
+ *
+ * The portal sends `phone`/`network` and the admin flow sends
+ * `phoneNumber`/`momoNetwork`; the real endpoint accepts either, so the mock
+ * does too.
+ */
 const initiatePay = ({ params, body }) => {
   const db = getDb();
   const student = db.students.find((s) => payTokenOf(s) === params.token);
@@ -2142,6 +2136,10 @@ const initiatePay = ({ params, body }) => {
     throw new MockError(400, 'That is more than the balance due', 'AMOUNT_EXCEEDS_BALANCE');
   }
 
+  const phone = body.phone || body.phoneNumber || null;
+  const network = String(body.network || body.momoNetwork || 'UNKNOWN').toUpperCase();
+  const reference = `TXN-MOCK-${db.payments.length + 1}`;
+
   // Stays pending: the real gateway settles by webhook, and the client polls.
   // Returning `completed` here would skip the only state a real parent sees.
   db.payments.push({
@@ -2153,19 +2151,86 @@ const initiatePay = ({ params, body }) => {
     currency: 'GHS',
     status: 'pending',
     paymentMethod: 'momo',
-    provider: 'mtn',
-    momoPhoneNumber: body.phoneNumber || null,
-    momoNetwork: body.momoNetwork || 'UNKNOWN',
-    reference: `TXN-MOCK-${db.payments.length + 1}`,
+    provider: 'moolre',
+    momoPhoneNumber: phone,
+    momoNetwork: network,
+    moolreReference: reference,
+    reference,
     description: body.description || 'Mobile Money payment',
     createdAt: new Date().toISOString(),
   });
 
   return {
+    payment: {
+      reference,
+      amount: body.amount,
+      status: 'pending',
+      provider: 'moolre',
+    },
+    provider: 'moolre',
+    // The parent must authorise on their handset.
+    requiresPayerApproval: true,
+    moolre: {
+      reference,
+      channel: '13',
+      payerPhone: phone,
+    },
+    payLink: student.payLink,
+  };
+};
+
+/**
+ * The hosted-checkout fallback, `POST /pay/:token/checkout`.
+ *
+ * Created on demand rather than handed over with the initiate response:
+ * Moolre requires the payment reference to be unique, and the USSD prompt has
+ * already claimed it.
+ */
+const createCheckout = ({ params, body }) => {
+  const db = getDb();
+  const student = db.students.find((s) => payTokenOf(s) === params.token);
+  if (!student) {
+    throw new MockError(404, 'Invalid or expired payment link', 'INVALID_TOKEN');
+  }
+  const payment = db.payments.find(
+    (p) => p.studentId === student._id && p.reference === body?.reference
+  );
+  if (!payment) {
+    throw new MockError(404, 'We could not find that payment on this link.', 'PAYMENT_NOT_FOUND');
+  }
+  return {
+    checkoutUrl: `https://pos.moolre.com/MOCK-${payment.reference}`,
+    reference: payment.reference,
+    expiresInMinutes: 60,
+  };
+};
+
+/**
+ * The portal's status poll, `GET /pay/:token/verify/:reference`.
+ *
+ * Answers in the portal's own vocabulary — `success` / `failed` / `pending`
+ * with a `retryAfter` — because that is what `usePaymentPoller` reads. A mock
+ * that answered `pending` / `completed` instead left the poller running
+ * forever, because `completed` is not one of the two terminal states it knows.
+ */
+const verifyPayByReference = ({ params }) => {
+  const db = getDb();
+  const student = db.students.find((s) => payTokenOf(s) === params.token);
+  if (!student) {
+    throw new MockError(404, 'Invalid or expired payment link', 'INVALID_TOKEN');
+  }
+  const payment = db.payments.find(
+    (p) => p.studentId === student._id && p.reference === params.reference
+  );
+  if (!payment) {
+    throw new MockError(404, 'We could not find that payment on this link.', 'PAYMENT_NOT_FOUND');
+  }
+  return {
+    reference: payment.reference,
+    paymentId: payment.paymentId,
+    amount: payment.amount,
     status: 'pending',
-    hubtelTransactionId: `MOCK-TXN-${db.payments.length + 1}`,
-    hubtelOrderId: `MOCK-ORD-${db.payments.length + 1}`,
-    message: 'Check your phone for the prompt',
+    retryAfter: 3,
   };
 };
 
@@ -2333,7 +2398,7 @@ const filterPayments = (query, schoolId) => {
     const studentById = new Map(students.map((s) => [s._id, s]));
     const hit = (value) => Boolean(value) && String(value).toLowerCase().includes(search);
     rows = rows.filter((p) => {
-      if ([p.paymentId, p.receiptNumber, p.hubtelTransactionId].some(hit)) return true;
+      if ([p.paymentId, p.receiptNumber, p.moolreReference].some(hit)) return true;
       const student = studentById.get(p.studentId);
       return Boolean(student && (hit(student.studentName) || hit(student.studentId)));
     });
@@ -2817,7 +2882,7 @@ const exportPayments = ({ query, user }) => {
  *
  * Both references are populated, because that is what the drawer reads: the
  * student's name, class and guardians, and the school's name and code. The list's
- * projection is deliberately thinner — `hubtelTransactionId`, `feesBreakdown` and
+ * projection is deliberately thinner — `moolreReference`, `feesBreakdown` and
  * the provider reference are not on it — so a drawer built from the row it was
  * opened from would show blanks in exactly the fields a bursar opens it to check.
  * That is the whole reason this is a second request.
@@ -4699,7 +4764,7 @@ const adminSchoolUsage = ({ user, params }) => {
       schoolCode: school.schoolCode,
       status: school.status,
       subscription: school.subscription,
-      sms: { provider: 'hubtel', balance: 1500, senderId: school.schoolCode },
+      sms: { provider: 'moolre', balance: 1500, senderId: school.schoolCode },
     },
     counts: { students: school.studentCount, staff: school.staffCount, parents: 312 },
     payments: {
@@ -6354,7 +6419,7 @@ const health = () => ({ status: 'ok', mock: true, uptimeSeconds: Math.round(proc
 
 /**
  * Order matters: the first pattern whose regex matches the path wins, so
- * `/schools/:schoolId/verify-hubtel` is listed before `/schools/:schoolId`.
+ * `/schools/:schoolId/payout` is listed before `/schools/:schoolId`.
  */
 export const ROUTES = [
   ['POST', /^\/auth\/login$/, login, { public: true }],
@@ -6394,10 +6459,6 @@ export const ROUTES = [
   ['GET', /^\/schools\/join-requests$/, listJoinRequests],
   ['PUT', /^\/schools\/join-requests\/(?<requestId>[^/]+)$/, decideJoinRequest],
 
-  // `verifyHubtel` is a POST: `services/school.js` calls
-  // `api.post('/schools/:id/verify-hubtel', credentials)`. Registering it as PUT
-  // made the mock 404 on a call the frontend genuinely makes.
-  ['POST', /^\/schools\/([^/]+)\/verify-hubtel$/, verifyHubtel, { mockOnly: true }],
   ['PUT', /^\/schools\/([^/]+)\/payout$/, updatePayout, { mockOnly: true }],
   ['PUT', /^\/schools\/([^/]+)\/logo$/, ({ params, user, data }) =>
     uploadSchoolLogo({ data, user: { ...user, schoolId: params.schoolId } }).then((r) => ({ data: r }))],
@@ -6495,7 +6556,13 @@ export const ROUTES = [
   // Unauthenticated, and registered last: the mock resolves routes in order, and
   // a pay token looks like any other single segment.
   ['POST', /^\/pay\/(?<token>[^/]+)\/initiate$/, initiatePay],
+  ['POST', /^\/pay\/(?<token>[^/]+)\/checkout$/, createCheckout],
   ['POST', /^\/pay\/(?<token>[^/]+)\/verify$/, verifyPay],
+  // The portal's status poll. Registered after the two above because the mock
+  // resolves routes in order, and `/verify/:reference` is a different segment
+  // count from `/verify` — but leaving it unregistered meant the poller 404'd
+  // for the whole payment and the sheet never left its spinner.
+  ['GET', /^\/pay\/(?<token>[^/]+)\/verify\/(?<reference>[^/]+)$/, verifyPayByReference],
 
   // The parent portal's academic surfaces — attendance, records, timetable,
   // notifications, messages, payments, plan — from

@@ -13,7 +13,7 @@ export const SCENARIOS = [
   {
     id: 'healthy',
     label: 'Healthy API',
-    description: 'Everything the real API supports, working. Payout, Hubtel verification and SMS send all succeed.',
+    description: 'Everything the real API supports, working. Payout and SMS send both succeed.',
     config: { latencyMs: 120, mockOnlyEnabled: true },
   },
   {
@@ -22,12 +22,6 @@ export const SCENARIOS = [
     description:
       'PUT /schools/:id/payout 404s. This is the true state of the backend right now, and the path the wizard takes by default in the real app.',
     config: { latencyMs: 120, mockOnlyEnabled: false },
-  },
-  {
-    id: 'hubtel-unsupported',
-    label: 'Hubtel verification missing',
-    description: 'The verify-hubtel route 405s, so Step 2 must say verification is unavailable rather than show a green Verified badge.',
-    config: { latencyMs: 120, mockOnlyEnabled: true },
   },
   {
     id: 'sms-unsupported',

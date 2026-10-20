@@ -1,21 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  BadgeCheck,
-  Building2,
-  Eye,
-  EyeOff,
   Info,
-  KeyRound,
   Landmark,
-  LoaderCircle,
-  ShieldCheck,
   Smartphone,
-  Zap,
 } from 'lucide-react';
 import { Field, FormAlert, SelectField } from '../../components/common/FormField';
 import useOnboardingProgress from '../../hooks/useOnboardingProgress';
 import useToast from '../../hooks/useToast';
-import { updatePayoutAccount, verifyHubtel } from '../../services/school';
+import { updatePayoutAccount } from '../../services/school';
 import { useAuth } from '../../context/AuthContext';
 import { GHANA_BANKS, MOMO_NETWORKS } from '../../utils/constants';
 import { useStepChrome } from './OnboardingStepContext';
@@ -23,32 +15,16 @@ import { useStepChrome } from './OnboardingStepContext';
 const GHANA_PHONE = /^(0[2-5]\d{8}|233[2-5]\d{8})$/;
 
 /**
- * Two settlement modes. The School model stores `payment.gatewayMode` and
- * `payment.bankAccount`; there is no server field for "let SukuuPay collect and
- * remit weekly", so the mode is a client-side preference recorded in the draft
- * until a payout endpoint ships.
+ * How the money is collected.
+ *
+ * There is one answer to this now. Collections run on SukuuPay's own Moolre
+ * account, so every school uses the platform gateway and the School model
+ * stores `payment.gatewayMode` as `moolre` whether the school chose it or not.
+ * A school cannot bring its own gateway, so the mode is not a choice and is
+ * not asked for.
+ *
+ * What *is* asked for is where the money lands: the settlement account.
  */
-const MODES = [
-  {
-    value: 'sukuupay',
-    icon: Zap,
-    badge: 'Recommended',
-    badgeClass: 'bg-brand-50 text-brand-700 ring-brand-200',
-    title: "Use SukuuPay's gateway",
-    description:
-      'Fastest setup. SukuuPay handles all payments. A small service fee (1.5%) is added to each payment. Money settles to your school weekly.',
-  },
-  {
-    value: 'own-hubtel',
-    icon: Building2,
-    badge: 'Advanced',
-    badgeClass: 'bg-slate-100 text-slate-600 ring-slate-200',
-    title: "Connect your own Hubtel account",
-    description:
-      'All payments go directly to your school. No per-transaction markup. Requires a Hubtel merchant account.',
-  },
-];
-
 const EMPTY = {
   mode: 'sukuupay',
   payoutMethod: 'bank',
@@ -57,11 +33,6 @@ const EMPTY = {
   bankName: '',
   momoNumber: '',
   momoNetwork: '',
-  hubtelClientId: '',
-  hubtelClientSecret: '',
-  hubtelMerchantId: '',
-  hubtelApiKey: '',
-  hubtelVerified: false,
 };
 
 const StepHeader = ({ title, description }) => (
@@ -71,43 +42,6 @@ const StepHeader = ({ title, description }) => (
     <p className="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-slate-500">{description}</p>
   </header>
 );
-
-const ModeCard = ({ mode, selected, onSelect }) => {
-  const Icon = mode.icon;
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={onSelect}
-      className={`flex w-full flex-col rounded-2xl border-2 p-5 text-left transition-all ${
-        selected
-          ? 'border-brand-600 bg-brand-50/60 shadow-soft'
-          : 'border-slate-200 bg-white hover:border-slate-300'
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <span
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
-            selected ? 'bg-brand-700 text-white' : 'bg-slate-100 text-slate-500'
-          }`}
-        >
-          <Icon className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <span
-          className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide ring-1 ${mode.badgeClass}`}
-        >
-          {mode.badge}
-        </span>
-      </div>
-
-      <p className="mt-3.5 text-[15px] font-extrabold tracking-tight text-ink">{mode.title}</p>
-      <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-slate-600">
-        {mode.description}
-      </p>
-    </button>
-  );
-};
 
 const SectionCard = ({ icon: Icon, title, description, children }) => (
   <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft sm:p-6">
@@ -136,17 +70,17 @@ const Step2PaymentSetup = () => {
 
   const [form, setForm] = useState(EMPTY);
   const [touched, setTouched] = useState({});
-  const [verifying, setVerifying] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
-  const [verifyNotice, setVerifyNotice] = useState('');
   const [hydrated, setHydrated] = useState(false);
-  const [showSecret, setShowSecret] = useState(false);
-  const [showApiKey, setShowApiKey] = useState(false);
 
   useEffect(() => {
     const draft = getStepDraft('payment-setup');
-    if (draft) setForm((current) => ({ ...current, ...draft }));
+    if (draft) {
+      // The mode is not a choice any more, so a draft written before that
+      // change cannot bring it back — it is pinned to the platform gateway.
+      setForm((current) => ({ ...current, ...draft, mode: 'sukuupay' }));
+    }
     setHydrated(true);
   }, [getStepDraft]);
 
@@ -165,7 +99,6 @@ const Step2PaymentSetup = () => {
 
   const errors = useMemo(() => {
     const found = {};
-    if (!form.mode) found.mode = 'Choose how you want to collect payments.';
 
     if (form.payoutMethod === 'bank') {
       if (form.accountName.trim().length < 2) found.accountName = 'Enter the account name.';
@@ -179,13 +112,6 @@ const Step2PaymentSetup = () => {
       if (!momo) found.momoNumber = 'Enter your Mobile Money number.';
       else if (!GHANA_PHONE.test(momo)) found.momoNumber = 'Use a Ghana number, e.g. 0241234567.';
       if (!form.momoNetwork) found.momoNetwork = 'Choose the network.';
-    }
-
-    if (form.mode === 'own-hubtel') {
-      if (!form.hubtelClientId.trim()) found.hubtelClientId = 'Enter your Hubtel Client ID.';
-      if (!form.hubtelClientSecret.trim()) found.hubtelClientSecret = 'Enter your Hubtel Client Secret.';
-      if (!form.hubtelMerchantId.trim()) found.hubtelMerchantId = 'Enter your Hubtel Merchant ID.';
-      if (!form.hubtelApiKey.trim()) found.hubtelApiKey = 'Enter your Hubtel API key.';
     }
 
     return found;
@@ -239,37 +165,7 @@ const Step2PaymentSetup = () => {
     register({ valid: isValid && !saving, busy: saving, label: 'Continue', onSubmit: () => saveRef.current() });
   }, [isValid, saving, register]);
 
-  const handleVerify = async () => {
-    setVerifying(true);
-    setVerifyNotice('');
-    try {
-      await verifyHubtel(schoolId, {
-        clientId: form.hubtelClientId.trim(),
-        clientSecret: form.hubtelClientSecret.trim(),
-        merchantId: form.hubtelMerchantId.trim(),
-        apiKey: form.hubtelApiKey.trim(),
-      });
-      update('hubtelVerified', true);
-      toast.success('Hubtel credentials verified.');
-    } catch (error) {
-      update('hubtelVerified', false);
-      if (error.code === 'HUBTEL_VERIFY_NOT_SUPPORTED') {
-        setVerifyNotice(
-          'The API has no Hubtel verification endpoint yet, so we cannot confirm these credentials. You can still save them — they will be checked when verification ships.'
-        );
-        toast.warning('Hubtel verification is not available on the API yet.');
-      } else {
-        setVerifyNotice(error.message || 'Hubtel rejected those credentials.');
-        toast.error(error.message || 'Hubtel rejected those credentials.');
-      }
-    } finally {
-      setVerifying(false);
-    }
-  };
-
   const showError = (key) => (touched[key] ? errors[key] : undefined);
-  const hubtelErrors = ['hubtelClientId', 'hubtelClientSecret', 'hubtelMerchantId', 'hubtelApiKey'];
-  const hubtelReady = hubtelErrors.every((key) => !errors[key]);
 
   return (
     <div>
@@ -281,135 +177,14 @@ const Step2PaymentSetup = () => {
       <div className="space-y-6">
         {formError && <FormAlert tone="error">{formError}</FormAlert>}
 
-        <div
-          role="radiogroup"
-          aria-label="Payment gateway mode"
-          className="grid gap-4 lg:grid-cols-2"
-        >
-          {MODES.map((mode) => (
-            <ModeCard
-              key={mode.value}
-              mode={mode}
-              selected={form.mode === mode.value}
-              onSelect={() => update('mode', mode.value)}
-            />
-          ))}
+        <div className="flex items-start gap-2.5 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3.5">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-700" aria-hidden="true" />
+          <p className="text-[13px] font-semibold leading-relaxed text-brand-800">
+            SukuuPay collects every payment on your behalf. A small service fee is added to
+            each payment, and you&apos;ll receive weekly settlements every Monday for the
+            previous week&apos;s collections.
+          </p>
         </div>
-
-        {form.mode === 'sukuupay' && (
-          <div className="flex items-start gap-2.5 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3.5">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-700" aria-hidden="true" />
-            <p className="text-[13px] font-semibold leading-relaxed text-brand-800">
-              You&apos;ll receive weekly settlements every Monday for the previous week&apos;s
-              collections.
-            </p>
-          </div>
-        )}
-
-        {form.mode === 'own-hubtel' && (
-          <SectionCard
-            icon={ShieldCheck}
-            title="Hubtel credentials"
-            description="Found in your Hubtel merchant dashboard under Developer → API Keys."
-          >
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field
-                label="Hubtel Client ID"
-                icon={KeyRound}
-                value={form.hubtelClientId}
-                onChange={onChange('hubtelClientId')}
-                onBlur={blur('hubtelClientId')}
-                error={showError('hubtelClientId')}
-                required
-                autoComplete="off"
-              />
-
-              <Field
-                label="Hubtel Client Secret"
-                icon={KeyRound}
-                type={showSecret ? 'text' : 'password'}
-                value={form.hubtelClientSecret}
-                onChange={onChange('hubtelClientSecret')}
-                onBlur={blur('hubtelClientSecret')}
-                error={showError('hubtelClientSecret')}
-                required
-                autoComplete="off"
-                trailing={
-                  <button
-                    type="button"
-                    onClick={() => setShowSecret((prev) => !prev)}
-                    aria-label={showSecret ? 'Hide Hubtel client secret' : 'Show Hubtel client secret'}
-                    className="transition-colors hover:text-slate-700 text-slate-400"
-                  >
-                    {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                }
-              />
-
-              <Field
-                label="Hubtel Merchant ID"
-                icon={Building2}
-                value={form.hubtelMerchantId}
-                onChange={onChange('hubtelMerchantId')}
-                onBlur={blur('hubtelMerchantId')}
-                error={showError('hubtelMerchantId')}
-                required
-                autoComplete="off"
-              />
-
-              <Field
-                label="Hubtel API Key"
-                icon={KeyRound}
-                type={showApiKey ? 'text' : 'password'}
-                value={form.hubtelApiKey}
-                onChange={onChange('hubtelApiKey')}
-                onBlur={blur('hubtelApiKey')}
-                error={showError('hubtelApiKey')}
-                required
-                autoComplete="off"
-                trailing={
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKey((prev) => !prev)}
-                    aria-label={showApiKey ? 'Hide Hubtel API key' : 'Show Hubtel API key'}
-                    className="transition-colors hover:text-slate-700 text-slate-400"
-                  >
-                    {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                }
-              />
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={handleVerify}
-                disabled={!hubtelReady || verifying}
-                className="flex items-center gap-2 rounded-lg bg-brand-700 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {verifying ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-                )}
-                {verifying ? 'Verifying…' : 'Verify Credentials'}
-              </button>
-
-              {form.hubtelVerified && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-2.5 py-1 text-[12px] font-extrabold text-brand-700 ring-1 ring-brand-200">
-                  <BadgeCheck className="h-4 w-4" aria-hidden="true" />
-                  Verified
-                </span>
-              )}
-            </div>
-
-            {verifyNotice && (
-              <div className="mt-3">
-                <FormAlert tone="info">{verifyNotice}</FormAlert>
-              </div>
-            )}
-          </SectionCard>
-        )}
 
         <SectionCard
           icon={Landmark}
@@ -521,9 +296,8 @@ const Step2PaymentSetup = () => {
 
           <p className="mt-4 flex items-start gap-2 text-[12px] font-medium leading-relaxed text-slate-500">
             <Info className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            {form.mode === 'sukuupay'
-              ? "SukuuPay holds the collections and remits them to this account. You'll receive weekly settlements every Monday."
-              : 'Hubtel pays this account directly, so keep it accurate — a wrong number delays every settlement.'}
+            SukuuPay holds the collections and remits them to this account. You&apos;ll
+            receive weekly settlements every Monday.
           </p>
         </SectionCard>
       </div>

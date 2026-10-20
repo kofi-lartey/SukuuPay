@@ -82,31 +82,6 @@ export const updatePayoutAccount = async (schoolId, payout) => {
 };
 
 /**
- * Hubtel credential check.
- *
- * NOTE: there is no `/schools/:id/verify-hubtel` route on the API yet. This
- * throws `HUBTEL_VERIFY_NOT_SUPPORTED` so the step can say so plainly instead
- * of showing a fake "Verified" badge.
- */
-export const verifyHubtel = async (schoolId, credentials) => {
-  try {
-    const { data } = await api.post(`/schools/${schoolId}/verify-hubtel`, credentials);
-    return data;
-  } catch (error) {
-    const status = error?.response?.status;
-    if (status === 404 || status === 405) {
-      const notSupported = new Error(
-        'Hubtel credential verification is not available on the API yet.'
-      );
-      notSupported.status = status;
-      notSupported.code = 'HUBTEL_VERIFY_NOT_SUPPORTED';
-      throw notSupported;
-    }
-    throw toApiError(error, 'Hubtel rejected those credentials.');
-  }
-};
-
-/**
  * `POST /schools/me` — create the signed-in admin's own school and link them to
  * it. The endpoint that replaced the "not linked, contact support" dead end.
  *
@@ -207,5 +182,4 @@ export default {
   listJoinRequests,
   decideJoinRequest,
   updatePayoutAccount,
-  verifyHubtel,
 };

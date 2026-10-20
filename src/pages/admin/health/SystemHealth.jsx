@@ -329,19 +329,17 @@ const SystemHealth = () => {
                 {/*
                   Per-dependency extras, shown only when the probe reported them.
 
-                  `networkProbe: false` on Hubtel is the important one and is called out in
-                  words: there is no Hubtel client anywhere in this codebase, and Hubtel
-                  credentials are per school on `school.payment.*` with `select: false`. So
-                  the health payload can report how many schools carry a complete credential
-                  set and nothing more — it cannot reach Hubtel. A green "Hubtel OK" drawn
-                  from a credential count would be a reachability claim the server never
+                  `networkProbe: false` is the important one and is called out in
+                  words: a dependency the server can only count credentials for
+                  cannot be reached from the server. A green "OK" drawn from a
+                  credential count would be a reachability claim the server never
                   made, and an operator would act on it.
                 */}
                 {dependency.networkProbe === false && (
                   <p className="mt-2 rounded-lg bg-white/70 px-2.5 py-2 text-[11px]/[16px] font-semibold text-slate-600">
                     This is a configuration count, not a probe. There is no platform-level
                     credential and no client to call the provider with, so nothing here says
-                    Hubtel is reachable.
+                    the provider is reachable.
                     {dependency.credentialsConfigured !== undefined && (
                       <>
                         {' '}

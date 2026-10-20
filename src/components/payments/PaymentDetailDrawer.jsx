@@ -29,7 +29,7 @@ const Row = ({ label, value, mono = false }) => (
  *
  * Loads through `GET /payments/:paymentId` rather than rendering the row it was
  * opened from. The list projection is deliberately thin — it omits
- * `hubtelTransactionId`, `feesBreakdown` and the provider reference — so a
+ * `moolreReference`, `feesBreakdown` and the provider reference — so a
  * drawer built from the row would either show blanks in exactly the fields a
  * bursar opens it to check, or would push those fields into every page of the
  * list to make them available.
@@ -164,7 +164,11 @@ const PaymentDetailDrawer = ({ paymentId, onClose, onRefund }) => {
                   <Row label="Provider" value={payment.provider} />
                   <Row label="Network" value={payment.momoNetwork} />
                   <Row label="Transaction ref" value={payment.paymentId} mono />
-                  <Row label="Gateway reference" value={payment.hubtelTransactionId} mono />
+                  <Row
+                    label="Gateway reference"
+                    value={payment.moolreReference || payment.moolreTransactionId}
+                    mono
+                  />
                   <Row label="Receipt" value={payment.receiptNumber} mono />
                   <Row label="Description" value={payment.description} />
                   {payment.failureReason && (

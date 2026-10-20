@@ -13,7 +13,7 @@
  *     note in `services/api.js`. A static build cannot gain a key at deploy time
  *     from a file it does not ship, so a missing key is the *expected* state on a
  *     fresh clone, not an error to hide. Callers render a real fallback instead
- *     of a broken map, which is the same approach `verifyHubtel` takes when the
+ *     of a broken map, which is the same approach a service call takes when the
  *     API has no route yet.
  *
  *  3. **A failed load is remembered as failure.** The cached promise rejects, so

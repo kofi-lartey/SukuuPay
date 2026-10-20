@@ -136,17 +136,17 @@ const normaliseCredits = (payload) => {
  * The providers a top-up can be attributed to.
  *
  * Mirrors `SMS_PROVIDERS` in `Backend/src/config/constants.js:216`
- * (`hubtel | arke | mnotify`) rather than reusing `PAYMENT_PROVIDERS` from
+ * (`moolre | arke | mnotify`) rather than reusing `PAYMENT_PROVIDERS` from
  * `services/admin.js`, which is a different enum for a different product area —
  * it carries `manual` (a school collecting outside SukuuPay, so the platform took
  * no money) and `mtn` (a collection rail), neither of which can send SMS.
- * `PlatformSettings.sms.provider` is narrower still (`arke | hubtel` only), which
- * is why the two lists disagree and why this one is written out locally: the
- * provider recorded on a *purchase* is a historical fact about where credit came
- * from, and the platform may have moved since. The field is a free `String` on
- * `SmsCreditTopUp`, so nothing here is rejected server-side.
+ * `PlatformSettings.sms.provider` is narrower still (`arke | moolre` only),
+ * which is why the two lists disagree and why this one is written out locally:
+ * the provider recorded on a *purchase* is a historical fact about where credit
+ * came from, and the platform may have moved since. The API accepts
+ * `arke | moolre` on `POST /admin/sms/pool/top-up`.
  */
-const CREDIT_PROVIDERS = ['arke', 'hubtel', 'mnotify', 'other'];
+const CREDIT_PROVIDERS = ['arke', 'moolre'];
 
 /** `MAX_SMS_CREDIT_TOP_UP_UNITS`, `Backend/src/config/constants.js:328`. */
 const MAX_UNITS = 1000000;

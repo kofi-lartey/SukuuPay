@@ -67,8 +67,7 @@ const SORT_OPTIONS = [
 
 /** The cedi, gateway and tag vocabularies, worded for a person rather than a schema. */
 const GATEWAY_LABELS = {
-  paystack: 'Paystack',
-  hubtel: 'Hubtel',
+  moolre: 'Moolre',
   arke: 'Arkesel',
   mnotify: 'Mnotify',
   manual: 'Manual',

@@ -213,7 +213,7 @@ function buildWorld({
     stamp: null,
     brandColor: '#0F5132',
     payment: {
-      gatewayMode: 'hubtel',
+      gatewayMode: 'moolre',
       platformMarkupPercent: 1.5,
       // `settlement` is NOT a real School field — see handlers.js. The mock
       // stores it so the onboarding flow has somewhere to put it while the

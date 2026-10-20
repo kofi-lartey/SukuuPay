@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
  * The Overview cards against the payloads the server actually sends.
  *
  * `HealthCard` called `.map` on `data.dependencies`, which is an **object**
- * (`{ mongodb, cloudinary, hubtel, sms, cron }`) — so the platform Overview threw
+ * (`{ mongodb, cloudinary, payments, sms, cron }`) — so the platform Overview threw
  * `dependencies.map is not a function` the moment `/admin/health` answered, taking the
  * whole page with it. `EconomicsRow` and `HealthCard` also read five key names that
  * do not exist (`monthlyRecurringRevenue`, `annualRecurringRevenue`, `churnRate`,

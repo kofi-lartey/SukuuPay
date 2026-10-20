@@ -545,7 +545,7 @@ export const SUBSCRIPTION_STATUSES = ['active', 'suspended', 'expired', 'cancell
  * the school is collecting outside SukuuPay, so the platform took no money and is
  * owed a platform fee instead of a markup.
  */
-export const GATEWAY_MODES = ['paystack', 'hubtel', 'arke', 'mnotify', 'manual'];
+export const GATEWAY_MODES = ['moolre', 'arke', 'mnotify', 'manual'];
 
 /** The four per-school capability switches. See `School.featureFlags`. */
 export const FEATURE_FLAGS = ['installments','idCards','whatsapp','apiAccess'];
@@ -871,7 +871,7 @@ export const resendVerification = async (userId) => {
 export const PAYMENT_STATUSES = ['pending', 'processing', 'completed', 'failed', 'cancelled', 'refunded'];
 
 /** `Payment.provider` — the rail the payment actually went through. */
-export const PAYMENT_PROVIDERS = ['paystack', 'hubtel', 'arke', 'mnotify', 'manual', 'mtn'];
+export const PAYMENT_PROVIDERS = ['moolre', 'mtn', 'arke', 'mnotify', 'manual'];
 
 /** `Payment.momoNetwork`. */
 export const PAYMENT_NETWORKS = ['MTN', 'VODAFONE', 'AIRTELTELIGO', 'UNKNOWN'];

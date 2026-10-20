@@ -72,8 +72,7 @@ import { formatDateTime, paymentTimestamp } from '../../../utils/dates';
  * the build report: this wants a server-side `/admin/payments/export`.
  */
 const PROVIDER_LABELS = {
-  paystack: 'Paystack',
-  hubtel: 'Hubtel',
+  moolre: 'Moolre',
   arke: 'Arke',
   mnotify: 'MNotify',
   manual: 'Recorded by hand',

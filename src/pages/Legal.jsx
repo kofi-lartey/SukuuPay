@@ -19,7 +19,7 @@ import { COMPANY_ADDRESS, HELPDESK_PHONE, ROUTES } from '../utils/constants';
  *
  * Data processing is described by reference to the real data flows — the payment
  * gateways in `Backend/src/config/constants.js` (`SMS_PROVIDERS`,
- * `WEBHOOK_PROVIDERS`), the per-school Hubtel credentials on `school.payment`,
+ * `WEBHOOK_PROVIDERS`), the payment gateway on `school.payment`,
  * the columns in `STUDENT_IMPORT_COLUMNS`, the audit log, and the Google sign-in
  * added in `googleIdentity.js`. A policy that describes a processing activity the
  * service does not perform is worse than none: it is a claim somebody else can
@@ -178,8 +178,8 @@ const PRIVACY_SECTIONS = [
       'We share it only with the parties who must process it to deliver the service, and only for that purpose:',
     ],
     list: [
-      'Payment gateways, to initiate and confirm a payment and to settle funds — including MTN Mobile Money where your school uses our platform gateway, and Hubtel where your school has configured its own Hubtel account.',
-      'SMS gateways, to deliver the messages your school sends — currently Arkesel, mnotify and Hubtel. These providers receive the message content and the destination number.',
+      'Payment gateways, to initiate and confirm a payment and to settle funds — Moolre for the collection itself, and MTN Mobile Money where your school uses our platform gateway.',
+      'SMS gateways, to deliver the messages your school sends — currently Arkesel, mnotify and Moolre. These providers receive the message content and the destination number.',
       'Our hosting, database and image storage providers, which store the service’s data on our behalf under contract.',
       'A law enforcement, regulatory or court authority, where we are legally required to disclose it, and only the data specifically required.',
     ],

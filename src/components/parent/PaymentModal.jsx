@@ -2,8 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import NetworkSelector from './NetworkSelector';
 import PhonePreviewFrame from './PhonePreviewFrame';
 import { PrimaryButton, SecondaryButton, Amount } from './primitives';
-import { initiatePayment, detectNetwork, phonePlaceholderFor } from '../../services/parentPay';
+import {
+  initiatePayment,
+  detectNetwork,
+  phonePlaceholderFor,
+  getCheckoutUrl,
+} from '../../services/parentPay';
+import {
+  resolvePaymentReference,
+} from '../../utils/parentPayResponse';
 import { usePaymentPoller } from '../../hooks/usePayToken';
+import { useToast } from '../../hooks/useToast';
 import { isValidGhanaPhone, normalise } from '../common/PhoneInput';
 import { formatCedi } from '../../utils/parentFormat';
 
@@ -69,8 +78,73 @@ const FeeBreakdown = ({ lines, total }) => {
   );
 };
 
-/** Steps 5–7, once a prompt is out. */
-const PaymentPendingScreen = ({ reference, transientError }) => (
+/**
+ * The phone-number verification step.
+ *
+ * Moolre verifies the payer's number before it will send the approval
+ * prompt, and it sends the parent a code by SMS to do that. Until they type
+ * it in, no prompt goes out — so this cannot be folded into the pending
+ * screen, where the parent would be told to look for a prompt that was never
+ * going to arrive.
+ */
+const PaymentOtpScreen = ({ phone, otpCode, onOtpChange, onSubmit, submitting, error }) => (
+  <form onSubmit={onSubmit} className="px-5 py-6" noValidate>
+    <div className="text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#0A5C36]/10">
+        <svg viewBox="0 0 24 24" className="h-6 w-6 text-[#0A5C36]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+          <path d="M4 6h16v12H4z" strokeLinejoin="round" />
+          <path d="m4 7 8 6 8-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+
+      <p className="mt-3 text-[17px] font-extrabold text-slate-900">Enter the code we sent</p>
+      <p className="mx-auto mt-1.5 max-w-xs text-[14px] leading-relaxed text-slate-500">
+        We sent a verification code to {phone}. Enter it to continue with your payment.
+      </p>
+    </div>
+
+    <div className="mt-5">
+      <label htmlFor="moolre-otp" className="mb-1.5 block text-[13px] font-bold text-slate-700">
+        Verification code
+      </label>
+      <input
+        id="moolre-otp"
+        type="text"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        autoFocus
+        maxLength={12}
+        value={otpCode}
+        onChange={(event) => onOtpChange(event.target.value)}
+        placeholder="e.g. 123456"
+        className="w-full rounded-xl border border-slate-200 px-3.5 py-3 text-center text-[18px] font-bold tracking-[0.3em] text-slate-900 outline-none transition focus:border-[#0A5C36] focus:ring-4 focus:ring-[#0A5C36]/10"
+      />
+      {error ? (
+        <p className="mt-2 text-[13px] font-medium text-red-600" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+
+    <button
+      type="submit"
+      disabled={submitting || !otpCode.trim()}
+      className="mt-5 w-full rounded-xl bg-[#0A5C36] px-4 py-3.5 text-[15px] font-bold text-white transition hover:bg-[#08462A] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0A5C36] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {submitting ? 'Checking…' : 'Continue to payment'}
+    </button>
+  </form>
+);
+
+/**
+ * Steps 5–7, once a prompt is out.
+ *
+ * `canFallback` is the escape hatch. A USSD push that never arrives is the one
+ * failure the parent cannot do anything about: the phone is off, out of
+ * credit, or on a network that does not carry the prompt. Offering the hosted
+ * checkout there turns a dead end into a payment.
+ */
+const PaymentPendingScreen = ({ reference, transientError, canFallback, checkoutLoading, onOpenCheckout }) => (
   <div className="px-5 py-8 text-center" role="status" aria-live="polite">
     <div className="mx-auto h-14 w-14">
       <svg viewBox="0 0 50 50" className="h-full w-full" aria-hidden="true">
@@ -99,6 +173,33 @@ const PaymentPendingScreen = ({ reference, transientError }) => (
       <p className="mx-auto mt-3 max-w-xs text-[12px] leading-relaxed text-slate-400">
         Still checking. Your connection may be slow — keep the prompt open on your phone.
       </p>
+    ) : null}
+
+    {canFallback ? (
+      <div className="mx-auto mt-5 max-w-xs border-t border-slate-100 pt-4">
+        <p className="text-[12px] leading-relaxed text-slate-400">
+          No prompt on your phone? Pay on the web instead — it works on any network.
+        </p>
+        <button
+          type="button"
+          onClick={onOpenCheckout}
+          disabled={checkoutLoading}
+          className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-bold text-[#0A5C36] underline underline-offset-2 hover:text-[#08462A] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0A5C36] focus-visible:ring-offset-2 rounded disabled:opacity-60 disabled:cursor-wait"
+        >
+          {checkoutLoading ? (
+            <svg viewBox="0 0 20 20" className="h-3.5 w-3.5 animate-spin" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <circle cx="10" cy="10" r="8" strokeOpacity="0.25" />
+              <path d="M18 10a8 8 0 0 0-8-8" strokeLinecap="round" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+              <path d="M7 4H4.5A1.5 1.5 0 0 0 3 5.5v10A1.5 1.5 0 0 0 4.5 17h10a1.5 1.5 0 0 0 1.5-1.5V13" strokeLinecap="round" />
+              <path d="M11 3h6v6M17 3l-7 7" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+          {checkoutLoading ? 'Opening checkout…' : 'Pay on the web'}
+        </button>
+      </div>
     ) : null}
   </div>
 );
@@ -260,8 +361,15 @@ const PaymentModal = ({
   const [reference, setReference] = useState(null);
   const [result, setResult] = useState(null);
   const [transientError, setTransientError] = useState(false);
+  // The verification code Moolre sent to the parent's phone. Moolre verifies
+  // the number before it will send the approval prompt.
+  const [otpCode, setOtpCode] = useState('');
+  // True while the hosted-checkout link is being created. The link is made on
+  // demand, so the button has a real pending state of its own.
+  const [openingCheckout, setOpeningCheckout] = useState(false);
 
   const amountInput = useRef(null);
+  const toast = useToast();
 
   // Reset on open, not on every prop change — `open` is the event that means "start
   // over", and seeding from the arguments only when the modal newly opens stops a
@@ -377,13 +485,35 @@ const PaymentModal = ({
         network: network || detected?.id || 'MTN',
       });
 
-      setReference(response?.reference || null);
+      // The reference is not at the top level of the response — it lives on the
+      // payment record and in the gateway's own block. Reading only
+      // `response.reference` returned `undefined` for every MoMo gateway, and
+      // the sheet then sat on a spinner it could never resolve.
+      const nextReference = resolvePaymentReference(response);
+
+      setReference(nextReference);
+
+      // Moolre verifies the payer's number before it sends the prompt, and it
+      // sends the parent a code by SMS to do that. Until they type it in, no
+      // prompt goes out — so this is its own step, not the pending one.
+      if (response?.requiresOtp || response?.otpRequired) {
+        setPhase('otp');
+        if (!nextReference) {
+          setPhase('failed');
+          setResult({
+            status: 'failed',
+            reason: 'We could not start that payment. Please try again.',
+          });
+        }
+        return;
+      }
+
       setPhase('pending');
 
       // Without a reference there is nothing to poll, so the parent would sit on a
       // spinner forever. Falling through to a retryable failure is honest; the
       // payment may still settle, and the landing page shows it if it does.
-      if (!response?.reference) {
+      if (!nextReference) {
         setPhase('failed');
         setResult({
           status: 'failed',
@@ -399,12 +529,98 @@ const PaymentModal = ({
     }
   };
 
+  /**
+   * Submits the OTP Moolre sent to the parent's phone.
+   *
+   * The same initiate endpoint, with the code — Moolre repeats the request
+   * with it, verifies the number, and *then* sends the approval prompt. So
+   * this is a second call, not a new payment, and the amount and phone are
+   * the ones the parent already confirmed.
+   */
+  const submitOtp = async (event) => {
+    event?.preventDefault?.();
+    const code = (otpCode || '').trim();
+    if (!code || submitting) return;
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const response = await initiatePayment(token, {
+        amount: parsedAmount,
+        phone: normalise(phone),
+        network: network || detected?.id || 'MTN',
+        otpCode: code,
+      });
+
+      const nextReference = resolvePaymentReference(response);
+      setReference(nextReference || reference);
+      setOtpCode('');
+
+      if (response?.requiresOtp || response?.otpRequired) {
+        // Moolre still wants a code — this one was not accepted.
+        setError('That code was not accepted. Please check it and try again.');
+        return;
+      }
+
+      setPhase('pending');
+    } catch (caught) {
+      setError(caught?.message || 'We could not verify that code. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const retry = () => {
     stopPolling();
     setPhase('form');
     setReference(null);
     setResult(null);
     setError(null);
+  };
+
+  /**
+   * Opens the hosted checkout in a new tab.
+   *
+   * The link is created on demand — it is not handed over with the initiate
+   * response — because Moolre requires the payment reference to be unique and
+   * the USSD prompt has already claimed it.
+   *
+   * The tab is opened **synchronously**, before the request. A browser blocks
+   * a window opened after an `await`, and the request has to be awaited
+   * because the URL does not exist until it comes back — so the tab is opened
+   * blank and navigated once the URL is known. A fallback that silently does
+   * nothing is worse than no fallback.
+   */
+  const openCheckout = async () => {
+    if (!reference || openingCheckout) return;
+
+    const tab = window.open('', '_blank');
+    if (tab) {
+      // The checkout is a third-party page; it has no business reaching back
+      // into this one.
+      tab.opener = null;
+    } else {
+      toast.error('Your browser blocked the new tab. Allow pop-ups for this page to pay on the web.');
+      return;
+    }
+
+    setOpeningCheckout(true);
+    try {
+      const response = await getCheckoutUrl(token, reference);
+      const url = response?.checkoutUrl || response?.data?.checkoutUrl || null;
+      if (!url) {
+        tab.close();
+        toast.error('We could not open the web checkout. Please try again.');
+        return;
+      }
+      tab.location = url;
+    } catch (caught) {
+      tab.close();
+      toast.error(caught?.message || 'We could not open the web checkout. Please try again.');
+    } finally {
+      setOpeningCheckout(false);
+    }
   };
 
   const close = () => {
@@ -454,8 +670,23 @@ const PaymentModal = ({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          {phase === 'pending' ? (
-            <PaymentPendingScreen reference={reference} transientError={transientError} />
+          {phase === 'otp' ? (
+            <PaymentOtpScreen
+              phone={phone}
+              otpCode={otpCode}
+              onOtpChange={setOtpCode}
+              onSubmit={submitOtp}
+              submitting={submitting}
+              error={error}
+            />
+          ) : phase === 'pending' ? (
+            <PaymentPendingScreen
+              reference={reference}
+              transientError={transientError}
+              canFallback={Boolean(reference)}
+              checkoutLoading={openingCheckout}
+              onOpenCheckout={openCheckout}
+            />
           ) : phase === 'success' ? (
             <PaymentSuccessScreen state={result} token={token} onDone={close} />
           ) : phase === 'failed' ? (

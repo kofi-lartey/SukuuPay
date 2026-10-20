@@ -9,6 +9,7 @@ import CardForm from '../../components/pay/CardForm';
 import PaymentResult from '../../components/pay/PaymentResult';
 import Card from '../../components/dashboard/ui/Card';
 import { getPayView, initiatePay, verifyPay, downloadPayReceipt } from '../../services/publicPay';
+import { resolvePaymentReference } from '../../utils/parentPayResponse';
 import { ROUTES } from '../../utils/constants';
 
 /**
@@ -110,10 +111,12 @@ const PayPage = () => {
     polls.current = 0;
     try {
       const result = await initiatePay(token, payload);
-      // Paystack returns an authorizationUrl — redirect the parent to Paystack's
-      // hosted checkout. The webhook settles the payment on return.
-      if (result?.paystack?.authorizationUrl) {
-        window.location.href = result.paystack.authorizationUrl;
+      // Moolre's hosted checkout is a page of its own: the parent completes
+      // the payment there — card, bank transfer or mobile money — and Moolre's
+      // callback settles the payment on return.
+      const checkoutUrl = result?.checkoutUrl || result?.moolre?.checkoutUrl;
+      if (checkoutUrl) {
+        window.location.href = checkoutUrl;
         return;
       }
 
@@ -127,12 +130,11 @@ const PayPage = () => {
       }
 
       setPayment({ status: 'pending', data: result, error: null });
-      poll({
-        ...(result?.hubtelTransactionId ? { hubtelTransactionId: result.hubertelTransactionId } : {}),
-        ...(result?.hubtelOrderId ? { hubtelOrderId: result.hubertelOrderId } : {}),
-        ...(result?.transactionId ? { hubtelTransactionId: result.transactionId } : {}),
-        ...(result?.reference ? { hubtelTransactionId: result.reference } : {}),
-      });
+      // The poll is pinned to the reference this payment was started with, so
+      // the answer is about the payment being waited on even when the parent
+      // has more than one in flight.
+      const reference = resolvePaymentReference(result);
+      poll(reference ? { reference } : {});
     } catch (error) {
       // A 502 from the gateway is a real, common state: the school has no MTN
       // credentials configured, and a parent must be told the payment did not go
@@ -215,19 +217,19 @@ const PayPage = () => {
                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                        }`}
                      >
-                       Mobile Money (MTN)
-                     </button>
-                     <button
-                       type="button"
-                       onClick={() => setPaymentMethod('card')}
-                       className={`flex-1 rounded-xl px-4 py-2.5 text-[13px] font-extrabold ${
-                         paymentMethod === 'card'
-                           ? 'bg-brand-700 text-white'
-                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                       }`}
-                     >
-                       Card or Bank (Paystack)
-                     </button>
+                        Mobile Money
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('card')}
+                        className={`flex-1 rounded-xl px-4 py-2.5 text-[13px] font-extrabold ${
+                          paymentMethod === 'card'
+                            ? 'bg-brand-700 text-white'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        Card or Bank
+                      </button>
                    </div>
 
                    {paymentMethod === 'momo' ? (

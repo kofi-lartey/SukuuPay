@@ -37,8 +37,7 @@ import { ROUTES } from '../../utils/constants';
 
 /** Human-readable labels for the payment gateway modes. */
 const GATEWAY_LABELS = {
-  paystack: 'Paystack',
-  hubtel: 'Hubtel (disabled)',
+  moolre: 'Moolre',
   arke: 'Arkesel (disabled)',
   mnotify: 'Mnotify (disabled)',
   manual: 'Manual',
@@ -617,7 +616,7 @@ const Settings = () => {
 
               <div className="mt-4">
                 <DetailRow label="Collection gateway">
-                  {GATEWAY_LABELS[settings.payment?.gatewayMode] || settings.payment?.gatewayMode || 'Paystack'}
+                  {GATEWAY_LABELS[settings.payment?.gatewayMode] || settings.payment?.gatewayMode || 'Moolre'}
                 </DetailRow>
                 <DetailRow label="Platform markup">
                   {`${settings.payment?.platformMarkupPercent ?? 0}%`}
@@ -638,9 +637,9 @@ const Settings = () => {
               <p className="mt-4 flex items-start gap-2 text-[11px]/[16px] font-medium text-slate-500">
                 <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 <span>
-                  Paystack credentials are never returned by this endpoint and are never shown in a
-                  form field. They are write-only: a school sets them through the credential
-                  flow, and from then on only a masked confirmation is visible.
+                  Collections run on SukuuPay's own Moolre account, so a school never
+                  holds gateway credentials. What a school sets here is the markup
+                  SukuuPay adds on each collection and the networks it accepts.
                 </span>
               </p>
             </Card>
@@ -653,7 +652,7 @@ const Settings = () => {
               <p className="mt-0.5 text-[13px] font-medium text-slate-500">{section.blurb}</p>
 
               <div className="mt-4">
-                <DetailRow label="Provider">{settings.sms?.provider || 'hubtel'}</DetailRow>
+                <DetailRow label="Provider">{settings.sms?.provider || 'moolre'}</DetailRow>
                 <DetailRow label="Registered sender ID">
                   {settings.sms?.senderId ? (
                     <span className="font-mono">{settings.sms.senderId}</span>

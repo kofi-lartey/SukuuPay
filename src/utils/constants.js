@@ -523,13 +523,13 @@ export const DASHBOARD_NAV = [
         label: 'Settings',
         icon: 'Settings',
         // A teacher's job is records; a bursar's is money. Both would find the
-        // school's paystack settings and billing page in Settings irrelevant at
+        // school's payment settings and billing page in Settings irrelevant at
         // best and alarming at worst, so the module is hidden rather than shown
         // disabled — a rail full of dead entries trains people to ignore it.
         // This is presentation only: the server's `authorize` is the boundary,
         // and hiding an entry must never be the thing that enforces it.
         roles: ['super_admin', 'school_admin'],
-        description: 'School profile, academic year, paystack and billing.',
+        description: 'School profile, academic year, payments and billing.',
       },
       {
         to: ROUTES.DASHBOARD_ADVERTISEMENTS,

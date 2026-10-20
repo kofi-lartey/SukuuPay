@@ -573,7 +573,7 @@ const FinanceOverview = () => {
                     reconcile against and legitimately carries no reference, so it
                     appears in this list by design and is not an error. Neither is
                     an MTN payment: its reference is `mtnReferenceId`, not
-                    `hubtelTransactionId`, so every MTN row is counted unmatched
+                    `moolreReference`, so every MTN row is counted unmatched
                     even when it reconciles perfectly against MTN's own statement
                     (`disbursements.service.js:1100-1115`). Calling either a
                     failure would make this number get ignored within a week.
