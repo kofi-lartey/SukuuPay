@@ -2889,16 +2889,24 @@ const getPaymentReceipt = ({ params, query, user }) => {
     dayStart.setHours(0, 0, 0, 0);
     const dayEnd = new Date(now);
     dayEnd.setHours(23, 59, 59, 999);
-    // Counts the school's completed payments from today, *including this one* —
-    // it is already stored, exactly as `countDocuments` sees it. Hence +1.
-    const today = getDb().payments.filter(
+    // Counts the receipts this school has already issued today, then takes the
+    // next one. The backend allocates from a per-school, per-day counter
+    // (`Counter.findOneAndUpdate({key}, {$inc: {seq: 1}})`), so the sequence
+    // counts *receipts issued*, not *payments completed*.
+    //
+    // Counting completed payments instead — which is what this used to do — is
+    // wrong in a way that shows up as a duplicate receipt number: a payment
+    // completed today but created yesterday is not in that count, so it and the
+    // payment after it are both handed `0001`. The count here is over
+    // `receiptGeneratedAt`, which is the same thing the counter counts.
+    const issued = getDb().payments.filter(
       (p) =>
         p.schoolId === schoolId &&
-        p.status === 'completed' &&
-        createdAtMs(p) >= dayStart.getTime() &&
-        createdAtMs(p) <= dayEnd.getTime()
+        p.receiptNumber &&
+        new Date(p.receiptGeneratedAt).getTime() >= dayStart.getTime() &&
+        new Date(p.receiptGeneratedAt).getTime() <= dayEnd.getTime()
     ).length;
-    payment.receiptNumber = `RCP-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String(today + 1).padStart(4, '0')}`;
+    payment.receiptNumber = `RCP-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String(issued + 1).padStart(4, '0')}`;
     payment.receiptGeneratedAt = now.toISOString();
   }
 
