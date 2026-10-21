@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { refreshAccessToken, clearSession } from './tokenRefresh.js';
 
 /**
  * The API routes are mounted under `/api` on the server, so the prefix belongs
@@ -7,16 +8,12 @@ import axios from 'axios';
  * This fallback is the value that actually ships: there is no committed `.env`,
  * and a deployed static build cannot set env vars at build time from a file it
  * does not have. Keep it pointing at the deployed backend.
+ *
+ * Optional-chained on `import.meta.env` itself so the module can be imported
+ * outside a bundler — see `services/tokenRefresh.js` for why that matters.
  */
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://sukuupay-backend.onrender.com/api';
-
-const clearSession = () => {
-  localStorage.removeItem('auth_token');
-  localStorage.removeItem('refresh_token');
-  if (window.location.pathname !== '/login') {
-    window.location.href = '/login';
-  }
-};
+const API_BASE_URL =
+  import.meta.env?.VITE_API_BASE_URL || 'https://sukuupay-backend.onrender.com/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -138,18 +135,22 @@ api.interceptors.response.use(
       }
 
       originalRequest._retry = true;
-      try {
-        const refreshToken = localStorage.getItem('refresh_token');
-        const response = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken });
-        
-        const { accessToken, refreshToken: newRefreshToken } = response.data.tokens || {};
-        if (!accessToken) {
-          clearSession();
-          return Promise.reject(refreshError);
-        }
 
-        localStorage.setItem('auth_token', accessToken);
-        if (newRefreshToken) localStorage.setItem('refresh_token', newRefreshToken);
+      try {
+        /*
+         * The refresh itself lives in `services/tokenRefresh.js`, because the
+         * teacher portal's client needs the same one and the two must not drift.
+         *
+         * What this replaced had two faults. It read the refresh token and
+         * posted it inline, so every client with a 401 branch grew its own copy
+         * of the rotation logic — and the copy in the teacher portal was
+         * missing entirely. And it rejected with `refreshError` from inside the
+         * `try` block, where that name is not in scope: the `ReferenceError`
+         * that produced replaced the real failure, so a refresh that returned
+         * no access token surfaced as a JavaScript error rather than as the
+         * session problem it was.
+         */
+        const accessToken = await refreshAccessToken();
 
         // Replay the original request with the NEW token. This previously read
         // an undefined `token` variable, so every retried request went out as
@@ -158,7 +159,6 @@ api.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return api(originalRequest);
       } catch (refreshError) {
-        clearSession();
         return Promise.reject(refreshError);
       }
     }

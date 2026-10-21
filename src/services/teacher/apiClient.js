@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { refreshAccessToken } from '../tokenRefresh.js';
 
 /**
  * The teacher portal's API client.
@@ -28,9 +29,26 @@ import axios from 'axios';
  * axios throws; the body is folded into a plain Error carrying `.status` and
  * `.code`, so `catch (err) { if (err.status === 403) … }` works at every call
  * site without each one re-deriving it.
+ *
+ * ## The 401 branch, which is the whole reason this client used to fail
+ *
+ * The access token lasts fifteen minutes (`JWT_EXPIRE`). This client used to
+ * have no answer to an expired token beyond re-throwing the server's
+ * `Access token expired` at the user, so a teacher who took a class's marks
+ * down and came back to save them found the save impossible — every mark in
+ * the column lost to a token's age. The platform console's client refreshed
+ * and replayed; this one did not, because it was written as a copy of the
+ * console's *unwrapping* and not of its *auth* behaviour.
+ *
+ * So the 401 branch below refreshes and replays, and the replay is the same
+ * request the user asked for: the grades payload is already serialised, so it
+ * goes out again exactly as it was. `services/tokenRefresh.js` owns the
+ * refresh itself, including the part that matters most here — the refresh
+ * token rotates, so concurrent 401s share one refresh rather than racing each
+ * other into a revoked session.
  */
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://sukuupay-backend.onrender.com/api',
+  baseURL: import.meta.env?.VITE_API_BASE_URL || 'https://sukuupay-backend.onrender.com/api',
   timeout: 20000,
   headers: { Accept: 'application/json' },
 });
@@ -42,13 +60,44 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Unwrap the server's response envelope.
+// Unwrap the server's response envelope, and renew the session when it expires.
 apiClient.interceptors.response.use(
   (response) => response.data,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config;
+    const status = error.response?.status;
+
+    /*
+     * A 401 here is nearly always an expired access token, and the answer is
+     * not to tell the teacher to log in again — it is to mint a new token and
+     * do the work they asked for.
+     *
+     * `_retry` is the guard against a loop: a refresh that fails leaves the
+     * request unauthorized, and a second attempt would refresh again. One
+     * attempt, then the error is the error.
+     */
+    if (status === 401 && originalRequest && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      try {
+        const accessToken = await refreshAccessToken();
+        originalRequest.headers = originalRequest.headers || {};
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        /*
+         * `refreshAccessToken` has already ended the session when the server
+         * refused the refresh token, and left it alone when the network
+         * failed. Either way the refresh error is the more honest one to show
+         * than "Access token expired".
+         */
+        throw refreshError;
+      }
+    }
+
     const payload = error.response?.data;
     const err = new Error(payload?.message || error.message || 'Something went wrong');
-    err.status = error.response?.status;
+    err.status = status;
     err.code = payload?.code;
     err.meta = payload?.meta;
     throw err;
