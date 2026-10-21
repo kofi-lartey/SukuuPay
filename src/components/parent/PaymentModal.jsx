@@ -15,6 +15,7 @@ import { usePaymentPoller } from '../../hooks/usePayToken';
 import { useToast } from '../../hooks/useToast';
 import { isValidGhanaPhone, normalise } from '../common/PhoneInput';
 import { formatCedi } from '../../utils/parentFormat';
+import { SUCCESS_LINGER_MS, shouldAutoClose } from '../../utils/parentPayAutoClose';
 
 /** Below this, a Mobile Money prompt costs more in fees than it moves in fees. */
 const MIN_PAYMENT = 100;
@@ -208,6 +209,11 @@ const PaymentSuccessScreen = ({ state, token, onDone }) => {
   const [copied, setCopied] = useState(false);
   const receiptNumber = state?.receiptNumber;
 
+  // Whether the receipt SMS actually went out. The backend reports it, because
+  // the platform is the only party that knows — and promising a parent a
+  // receipt that is not coming is worse than not mentioning one.
+  const receiptSent = state?.receiptSent;
+
   const copyNumber = async () => {
     try {
       await navigator.clipboard.writeText(receiptNumber);
@@ -240,7 +246,9 @@ const PaymentSuccessScreen = ({ state, token, onDone }) => {
         Payment received
       </p>
       <p className="mt-1 text-[14px] leading-relaxed text-slate-500">
-        Thank you. A receipt has been sent to your phone by SMS.
+        {receiptSent === false
+          ? 'Thank you. Your receipt is shown below, and the school has it too.'
+          : 'Thank you. A receipt is on its way to your phone by SMS.'}
       </p>
 
       <div className="mt-5 rounded-xl bg-slate-50 p-4 text-left">
@@ -455,6 +463,14 @@ const PaymentModal = ({
     },
     onSettled: (state) => {
       setPhase(state.status === 'success' ? 'success' : 'failed');
+      if (state?.status === 'success') {
+        // The sheet is about to close itself, so the confirmation has to outlive
+        // it — a toast is the only thing the parent still sees once the sheet
+        // is gone.
+        toast.success(
+          `Payment received. ${formatCedi(state.amount)} is on its way to the school.`
+        );
+      }
       onSettled?.(state);
     },
     onTimeout: () => {
@@ -469,6 +485,37 @@ const PaymentModal = ({
 
   // A poll that is still running must not survive the sheet closing.
   useEffect(() => () => stopPolling(), [stopPolling]);
+
+  // Closing, held in a ref.
+  //
+  // `onClose` is usually an inline arrow in the parent (`() => setPaying(false)`),
+  // so it is a new reference on every parent render. A `useEffect` that depends
+  // on it would restart its timer on every render and the sheet would never
+  // close on its own — the exact failure the poll above documents, one layer up.
+  const closeRef = useRef(null);
+  closeRef.current = () => {
+    stopPolling();
+    onClose?.();
+  };
+
+  /**
+   * The success screen closes itself.
+   *
+   * A parent who has just paid, and has been told the money arrived, should not
+   * then be asked for one more tap. The screen is left up for a few seconds
+   * first — long enough to read the receipt number and the balance — and then
+   * it goes, leaving the fee page showing the new balance.
+   *
+   * The timer depends on the phase and the open state, so a re-render cannot
+   * restart it and a sheet that is closed by hand does not fire a stale timer
+   * over the next payment.
+   */
+  useEffect(() => {
+    if (!open) return undefined;
+    if (!shouldAutoClose(phase)) return undefined;
+    const timer = setTimeout(() => closeRef.current?.(), SUCCESS_LINGER_MS);
+    return () => clearTimeout(timer);
+  }, [open, phase]);
 
   const submit = async (event) => {
     event?.preventDefault?.();
@@ -627,11 +674,12 @@ const PaymentModal = ({
     }
   };
 
+  // Every way out of the sheet goes through the one close path, so the poll is
+  // always stopped and the parent is never left with a sheet that has already
+  // been dismissed underneath them.
   const close = () => {
-    stopPolling();
-    onClose?.();
+    closeRef.current?.();
   };
-
   if (!open) return null;
 
   const heading =
