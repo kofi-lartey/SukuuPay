@@ -10,11 +10,12 @@ import { SkeletonRow } from '../../components/parent/shared/Skeleton';
 import EmptyState from '../../components/parent/shared/EmptyState';
 import useToast from '../../hooks/useToast';
 import { TEACHER_ROUTES, SUBJECTS, OTHER_SUBJECT, CUSTOM_SUBJECTS_KEY } from '../../utils/constants';
+import { calculateTotalScore, hasBothScores, CLASS_SCORE_MAX, EXAM_SCORE_MAX } from '../../utils/gradeBands';
 
 const TERMS = ['Term 1', 'Term 2', 'Term 3'];
 
 /**
- * Enter a whole class's scores for one subject.
+ * Enter a whole class's marks for one subject.
  *
  * ## One grade column per subject
  *
@@ -25,19 +26,27 @@ const TERMS = ['Term 1', 'Term 2', 'Term 3'];
  * sitting in one column is the single most damaging mistake this page can
  * make, and it is the one a naive implementation invites.
  *
+ * ## Two marks per student
+ *
+ * A Ghanaian terminal report breaks a subject into a **Class Score (out of
+ * 50)** and an **Exam Score (out of 100)**, and the Total, the Grade and the
+ * Subject Position come out of that pair. The grid therefore holds two values
+ * per student, and the page sends both in one call — the payload is a flat
+ * list of rows, each carrying the `assessmentType` it belongs to, so the
+ * server knows which half of the report it is writing.
+ *
  * ## Save all, once
  *
- * The grid is a controlled view of a `{ studentId: score }` map, so "Save all
- * grades" sends the map in one call. A teacher entering thirty scores on a
- * phone should not have to save thirty times, and the server can reject the
- * batch before any of it lands.
+ * The grid is a controlled view of a `{ studentId: { classScore, examScore } }`
+ * map, so "Save all grades" sends the map in one call. A teacher entering
+ * thirty students' marks on a phone should not have to save sixty times, and
+ * the server can reject the batch before any of it lands.
  */
 const EnterGrades = () => {
   const { className } = useParams();
   const navigate = useNavigate();
   const [term, setTerm] = useState('Term 2');
   const [subject, setSubject] = useState('');
-  const [maxScore, setMaxScore] = useState(100);
   const [values, setValues] = useState({});
   const [customSubjects, setCustomSubjects] = useState(() => {
     try {
@@ -83,7 +92,7 @@ const EnterGrades = () => {
   const save = useSaveGradesBulk();
 
   /*
-    Re-open the grid with the scores already saved for this term and subject, so
+    Re-open the grid with the marks already saved for this term and subject, so
     a teacher who is interrupted mid-way returns to their work rather than to an
     empty column they might re-enter and overwrite.
 
@@ -101,10 +110,16 @@ const EnterGrades = () => {
     different subject, which returns a different `subject`, which re-issues it
     again — the page oscillates between two columns and never settles. The
     teacher owns that field; the server's copy is what they typed.
+
+    Both halves of a subject are rehydrated: the class score and the exam
+    score are two rows in the grade book, and restoring only one of them would
+    leave the grid showing a total the server cannot reproduce.
   */
   const [draftedFrom, setDraftedFrom] = useState(null);
   const draftKey = existing?.students
-    ? `${existing.maxScore ?? ''}:${existing.students.map((s) => `${s._id}:${s.score ?? ''}`).join('|')}`
+    ? existing.students
+        .map((s) => `${s._id}:${s.classScore ?? ''}:${s.examScore ?? ''}`)
+        .join('|')
     : null;
 
   if (draftedFrom !== draftKey) {
@@ -112,44 +127,87 @@ const EnterGrades = () => {
     if (existing?.students) {
       const next = {};
       for (const s of existing.students) {
-        if (s.score !== undefined && s.score !== null) next[s._id] = String(s.score);
+        const classScore = s.classScore ?? '';
+        const examScore = s.examScore ?? '';
+        if (classScore === '' && examScore === '') continue;
+        next[s._id] = { classScore: String(classScore), examScore: String(examScore) };
       }
       setValues(next);
-      // Safe to adopt: `maxScore` is not part of the query key, and a school
-      // marking out of 50 must not have every score read as a mark out of 100.
-      if (existing.maxScore) setMaxScore(existing.maxScore);
     }
   }
 
+  /*
+    The progress line: how many of the class have both halves, and the average
+    of the totals so far.
+
+    The average is over *complete* subjects only. A student with a class score
+    but no exam score has no total yet, and averaging a half into the class
+    average would report a number the report card will never carry.
+  */
   const stats = useMemo(() => {
-    const list = Object.values(values).filter((v) => v !== '' && v !== null);
-    if (!list.length) return { count: 0, average: 0 };
-    const sum = list.reduce((s, v) => s + Number(v || 0), 0);
-    return { count: list.length, average: Math.round((sum / list.length) * 10) / 10 };
+    const rows = Object.values(values);
+    const withAny = rows.filter((r) => r.classScore !== '' || r.examScore !== '');
+    const totals = rows
+      .filter((r) => hasBothScores(r.classScore, r.examScore))
+      .map((r) => calculateTotalScore(r.classScore, CLASS_SCORE_MAX, r.examScore, EXAM_SCORE_MAX).totalScore);
+    const average = totals.length
+      ? Math.round((totals.reduce((sum, t) => sum + t, 0) / totals.length) * 10) / 10
+      : 0;
+    return { count: withAny.length, complete: totals.length, average };
   }, [values]);
+
+  const handleChange = (studentId, field, value) => {
+    setValues((current) => ({
+      ...current,
+      [studentId]: { ...current[studentId], [field]: value },
+    }));
+  };
 
   const handleSave = async () => {
     if (!subject.trim()) {
       toast.error('Pick a subject first.');
       return;
     }
-    const payload = {
-      className,
-      term,
-      academicYear: existing?.academicYear,
-      subject: subject.trim(),
-      maxScore,
-      grades: Object.entries(values)
-        .filter(([, v]) => v !== '' && v !== null && v !== undefined)
-        .map(([studentId, score]) => ({ studentId, score: Number(score) })),
-    };
-    if (!payload.grades.length) {
+
+    // The payload is a flat list of rows, each one half of a subject, and each
+    // carrying the assessment type it belongs to. The server's upsert key
+    // includes that type, so a class score can never land on an exam score.
+    const rows = [];
+    for (const [studentId, row] of Object.entries(values)) {
+      const classScore = row?.classScore;
+      const examScore = row?.examScore;
+      if (classScore !== '' && classScore !== null && classScore !== undefined) {
+        rows.push({
+          studentId,
+          assessmentType: 'class_score',
+          score: Number(classScore),
+          maxScore: CLASS_SCORE_MAX,
+        });
+      }
+      if (examScore !== '' && examScore !== null && examScore !== undefined) {
+        rows.push({
+          studentId,
+          assessmentType: 'exam_score',
+          score: Number(examScore),
+          maxScore: EXAM_SCORE_MAX,
+        });
+      }
+    }
+
+    if (!rows.length) {
       toast.error('No grades entered.');
       return;
     }
+
     try {
-      await save.mutateAsync(payload);
-      toast.success(`Saved ${payload.grades.length} grades`);
+      await save.mutateAsync({
+        className,
+        term,
+        academicYear: existing?.academicYear,
+        subject: subject.trim(),
+        grades: rows,
+      });
+      toast.success(`Saved ${rows.length} grade ${rows.length === 1 ? 'entry' : 'entries'}`);
     } catch (err) {
       toast.error(err.message || 'Could not save grades.');
     }
@@ -194,7 +252,8 @@ const EnterGrades = () => {
       <div className="rounded-2xl border border-slate-200/80 bg-white p-4">
         <p className="text-[15px] font-extrabold text-ink">{className}</p>
         <p className="mt-0.5 text-[12.5px] text-slate-500">
-          Enter subject scores for the whole class. Grades compute automatically.
+          Enter the class score (50) and the exam score (100) for the whole class. Totals and
+          grades compute automatically.
         </p>
       </div>
 
@@ -224,16 +283,6 @@ const EnterGrades = () => {
           ))}
           <option value={OTHER_SUBJECT}>Other…</option>
         </select>
-        <input
-          type="number"
-          min={1}
-          max={200}
-          value={maxScore}
-          onChange={(e) => setMaxScore(Number(e.target.value) || 100)}
-          aria-label="Maximum score"
-          className="min-h-[44px] rounded-xl border border-slate-200 px-3 py-2.5 text-[13px]"
-          placeholder="Max score"
-        />
       </div>
 
       {/* Stats */}
@@ -252,6 +301,11 @@ const EnterGrades = () => {
             style={{ width: `${roster?.length ? (stats.count / roster.length) * 100 : 0}%` }}
           />
         </div>
+        {stats.count > stats.complete ? (
+          <p className="mt-2 text-[11.5px] font-semibold text-slate-500">
+            {stats.count - stats.complete} still waiting on an exam score — no total yet.
+          </p>
+        ) : null}
       </div>
 
       {/* Grid */}
@@ -272,10 +326,9 @@ const EnterGrades = () => {
           <BulkGradeGrid
             students={roster}
             values={values}
-            onChange={(studentId, value) =>
-              setValues((current) => ({ ...current, [studentId]: value }))
-            }
-            maxScore={maxScore}
+            onChange={handleChange}
+            maxClassScore={CLASS_SCORE_MAX}
+            maxExamScore={EXAM_SCORE_MAX}
           />
         </div>
       )}

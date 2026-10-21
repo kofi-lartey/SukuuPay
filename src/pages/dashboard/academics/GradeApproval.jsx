@@ -7,7 +7,15 @@ import { SkeletonRow } from '../../../components/parent/shared/Skeleton';
 import EmptyState from '../../../components/parent/shared/EmptyState';
 import { useToast } from '../../../hooks/useToast';
 import { useGradeApprovalQueue } from '../../../hooks/admin/useGradeApprovalQueue';
-import { getAdminClassGrades } from '../../../services/admin/academic';
+// `approveGrades` and `rejectGrades` are the two calls the dialogs make, and
+// they were missing from this import — so the headmaster's Approve and Reject
+// buttons threw a ReferenceError the moment they were pressed. The screen the
+// breakdown is reviewed on has to actually be able to approve.
+import {
+  approveGrades,
+  rejectGrades,
+  getAdminClassGrades,
+} from '../../../services/admin/academic';
 import { ACADEMIC_TERMS } from '../../../utils/constants';
 import { formatCount } from '../../../utils/format';
 
@@ -174,7 +182,7 @@ const QueueTable = ({ items, onApprove, onReject, expandedKey, gradeMap, onView 
             <th className="px-4 py-2.5">Class</th>
             <th className="px-4 py-2.5">Subject</th>
             <th className="px-4 py-2.5">Submitted by</th>
-            <th className="px-4 py-2.5">Entries</th>
+            <th className="px-4 py-2.5">Students</th>
             <th className="px-4 py-2.5">At</th>
             <th className="px-4 py-2.5 text-right">Action</th>
           </tr>
@@ -190,7 +198,7 @@ const QueueTable = ({ items, onApprove, onReject, expandedKey, gradeMap, onView 
                   <td className="px-4 py-2.5 font-extrabold text-ink">{row.className}</td>
                   <td className="px-4 py-2.5 text-slate-600">{row.subject || <span className="italic">Whole class</span>}</td>
                   <td className="px-4 py-2.5 text-slate-600">{row.submittedByName || <UserCheck className="inline h-4 w-4" />}</td>
-                  <td className="px-4 py-2.5">{formatCount(row.count)}</td>
+                  <td className="px-4 py-2.5">{formatCount(row.studentCount ?? row.count)}</td>
                   <td className="px-4 py-2.5 text-slate-500">{formatDate(row.submittedAt)}</td>
                   <td className="px-4 py-2.5 text-right">
                     <button
@@ -223,24 +231,57 @@ const QueueTable = ({ items, onApprove, onReject, expandedKey, gradeMap, onView 
                       {grades.length === 0 ? (
                         <p className="text-sm text-slate-400">No grades found.</p>
                       ) : (
+                        /*
+                          The breakdown, exactly as the terminal report prints it:
+                          the class score out of 50, the exam score out of 100,
+                          the total the two make, and the letter. The headmaster
+                          signs this block, so the numbers being signed must be
+                          the same numbers the report card will carry — and a
+                          total computed from a class score alone is not a
+                          result, so it is shown as a dash rather than as a
+                          figure.
+                        */
                         <table className="min-w-full text-left text-sm">
                           <thead className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
                             <tr>
                               <th className="px-3 py-2">Student</th>
                               <th className="px-3 py-2">Subject</th>
-                              <th className="px-3 py-2">Score</th>
-                              <th className="px-3 py-2">Grade</th>
+                              <th className="px-3 py-2 text-right">Class (50)</th>
+                              <th className="px-3 py-2 text-right">Exam (100)</th>
+                              <th className="px-3 py-2 text-right">Total</th>
+                              <th className="px-3 py-2 text-right">Grade</th>
+                              <th className="px-3 py-2 text-right">Pos</th>
                               <th className="px-3 py-2">Status</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
                             {grades.map((g, j) => (
-                              <tr key={j}>
+                              <tr key={`${g.studentId}-${g.subject}-${j}`}>
                                 <td className="px-3 py-2">{g.studentName || g.studentId}</td>
                                 <td className="px-3 py-2">{g.subject}</td>
-                                <td className="px-3 py-2">{g.score}/{g.maxScore}</td>
-                                <td className="px-3 py-2">{g.grade}</td>
-                                <td className="px-3 py-2">{g.approvalStatus}</td>
+                                <td className="px-3 py-2 text-right tabular-nums">
+                                  {g.classScore ?? '—'}
+                                </td>
+                                <td className="px-3 py-2 text-right tabular-nums">
+                                  {g.examScore ?? '—'}
+                                </td>
+                                <td className="px-3 py-2 text-right font-extrabold tabular-nums">
+                                  {g.totalScore ?? '—'}
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  {g.grade ? (
+                                    <span className="font-extrabold">{g.grade}</span>
+                                  ) : (
+                                    <span className="text-slate-400">—</span>
+                                  )}
+                                </td>
+                                {/* The position the report card will carry. A
+                                    half-marked subject has no total to rank
+                                    on, so it has no position. */}
+                                <td className="px-3 py-2 text-right tabular-nums text-slate-600">
+                                  {g.subjectPosition || '—'}
+                                </td>
+                                <td className="px-3 py-2 capitalize">{g.approvalStatus}</td>
                               </tr>
                             ))}
                           </tbody>

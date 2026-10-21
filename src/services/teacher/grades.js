@@ -42,10 +42,28 @@ export const saveGrade = (payload) =>
 export const saveGradesBulk = (payload) =>
   apiClient.post('/teacher/grades/bulk', payload);
 
-/** Turns the class's grades into report cards. Does not show them to anyone. */
+/**
+ * Turns the class's approved grades into report cards. Does not show them to
+ * anyone.
+ *
+ * `/admin/reports/compile` — the *grades-driven* compiler, not the
+ * payload-driven one. The browser is not the source of the marks: the class
+ * score and the exam score live in the grade book, the server folds them into
+ * the total, the grade and the subject position, and the browser only says
+ * which class and term to compile. The payload-driven endpoint
+ * (`/admin/records/compile`) still exists for a caller that genuinely holds a
+ * score sheet of its own, but a teacher portal that compiled from an empty
+ * browser-side score sheet would produce report cards with no subjects at all.
+ */
 export const compileClassReportCards = (payload) =>
-  apiClient.post('/admin/records/compile', payload);
+  apiClient.post('/admin/reports/compile', payload);
 
-/** Makes compiled reports visible to parents. Irreversible from the UI. */
+/**
+ * Makes compiled reports visible to parents. Irreversible from the UI.
+ *
+ * The same endpoint the school console publishes from, so a card compiled in
+ * the teacher portal is publishable from either place — and so the parent's
+ * "Download report card" PDF is rendered on publish.
+ */
 export const publishClassReportCards = (payload) =>
-  apiClient.post('/admin/records/publish', payload);
+  apiClient.post('/admin/reports/publish', payload);

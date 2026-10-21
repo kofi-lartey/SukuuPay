@@ -52,11 +52,10 @@ const CompileReports = () => {
         className,
         term,
         academicYear,
-        // Filled by the server from the class's grades — the compile endpoint
-        // reads the term's score sheet, not one assembled in the browser.
-        scores: {},
-        teacherRemark: { text: '', author: '' },
-        headRemark: { text: '', author: '' },
+        // The marks are the server's: it reads the class's *approved* grades
+        // and folds each subject's class score and exam score into the total,
+        // the grade and the subject position. The browser says which class
+        // and term, and nothing else.
       });
       setCompiled(result);
       toast.success(`Compiled ${result.compiled} report cards`);

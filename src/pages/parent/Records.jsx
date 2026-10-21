@@ -72,35 +72,64 @@ const PerformanceCard = ({ summary }) => (
   </div>
 );
 
+/*
+  The subject table, laid out the way the physical terminal report is.
+
+  A Ghanaian report card does not print one number per subject. It prints the
+  class score, the exam score, the total the two make, the grade, and where the
+  student came in that subject — and a parent who has the paper in their hand
+  expects to find the same thing on their phone.
+
+  A subject with only one half recorded shows a dash for the rest and no
+  total, because a total computed from one half is not a result.
+*/
 const SubjectTable = ({ subjects }) => (
   <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
     <div className="border-b border-slate-100 px-4 py-2.5">
       <SectionLabel>Subject grades</SectionLabel>
     </div>
-    <table className="w-full text-left">
-      <thead>
-        <tr className="border-b border-slate-100 text-[10.5px] font-extrabold uppercase tracking-wider text-slate-400">
-          <th className="px-4 py-2">Subject</th>
-          <th className="px-2 py-2 text-right">Score</th>
-          <th className="px-4 py-2 text-right">Grade</th>
-        </tr>
-      </thead>
-      <tbody>
-        {subjects.map((s) => (
-          <tr key={s.subject} className="border-b border-slate-100 last:border-b-0">
-            <td className="px-4 py-3 text-[13.5px] font-semibold text-slate-700">
-              {s.subject}
-            </td>
-            <td className="px-2 py-3 text-right text-[13.5px] font-extrabold tabular-nums text-ink">
-              {s.score}
-            </td>
-            <td className="px-4 py-3 text-right">
-              <StatusPill tone={gradeTone(s.grade)}>{s.grade}</StatusPill>
-            </td>
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[420px] text-left">
+        <thead>
+          <tr className="border-b border-slate-100 text-[10.5px] font-extrabold uppercase tracking-wider text-slate-400">
+            <th className="px-4 py-2">Subject</th>
+            <th className="px-2 py-2 text-right">Class (50)</th>
+            <th className="px-2 py-2 text-right">Exam (100)</th>
+            <th className="px-2 py-2 text-right">Total</th>
+            <th className="px-2 py-2 text-right">Pos</th>
+            <th className="px-4 py-2 text-right">Grade</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {subjects.map((s) => (
+            <tr key={s.subject} className="border-b border-slate-100 last:border-b-0">
+              <td className="px-4 py-3 text-[13.5px] font-semibold text-slate-700">
+                {s.subject}
+              </td>
+              <td className="px-2 py-3 text-right text-[13.5px] tabular-nums text-slate-600">
+                {s.classScore ?? '—'}
+              </td>
+              <td className="px-2 py-3 text-right text-[13.5px] tabular-nums text-slate-600">
+                {s.examScore ?? '—'}
+              </td>
+              <td className="px-2 py-3 text-right text-[13.5px] font-extrabold tabular-nums text-ink">
+                {s.totalScore ?? '—'}
+              </td>
+              <td className="px-2 py-3 text-right text-[13px] font-semibold tabular-nums text-slate-500">
+                {s.subjectPosition || '—'}
+              </td>
+              <td className="px-4 py-3 text-right">
+                {s.grade ? (
+                  <StatusPill tone={gradeTone(s.grade)}>{s.grade}</StatusPill>
+                ) : (
+                  <span className="text-[13px] text-slate-400">—</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   </section>
 );
 
