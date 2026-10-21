@@ -1,8 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarCheck, ChevronDown } from 'lucide-react';
 import { useParentPay } from '../../layouts/ParentLayout';
 import { useAttendance } from '../../hooks/parent/useAttendance';
 import { formatDate } from '../../utils/parentFormat';
+import {
+  defaultTermForSchool,
+  monthKeyOf,
+  resolveExpandedMonth,
+  toggleExpandedMonth,
+} from '../../utils/attendanceDefaults';
 import StudentRow from '../../components/parent/shared/StudentRow';
 import SectionLabel from '../../components/parent/shared/SectionLabel';
 import StatusPill from '../../components/parent/shared/StatusPill';
@@ -34,25 +40,43 @@ const TermPills = ({ value, onChange }) => (
   </div>
 );
 
-const SummaryCard = ({ summary }) => {
+const SummaryCard = ({ summary, today }) => {
   const present = summary?.present ?? 0;
   const late = summary?.late ?? 0;
   const absent = summary?.absent ?? 0;
+  const excused = summary?.excused ?? 0;
   const total = Math.max(present + late + absent, 1);
 
   const presentPct = (present / total) * 100;
   const latePct = (late / total) * 100;
   const absentPct = (absent / total) * 100;
-  const rate = summary?.rate ?? Math.round((present / total) * 1000) / 10;
+  // The same rule the server applies: a late mark is an attendance, and an
+  // excused day is not scored. The fallback here exists only for a payload
+  // that arrived without a summary, and it must not quote a different number
+  // from the one the server would.
+  const rate =
+    summary?.rate ?? Math.round(((present + late) / total) * 1000) / 10;
 
   return (
     <div className="rounded-2xl border border-emerald-200/60 bg-[#EAF7F0] p-5">
       <p className="text-[40px] font-extrabold leading-none tabular-nums text-[#0A5C36]">
         {rate}%
       </p>
-      <p className="mt-1 text-[12px] font-bold uppercase tracking-wider text-emerald-800/70">
-        Attendance rate
-      </p>
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <p className="text-[12px] font-bold uppercase tracking-wider text-emerald-800/70">
+          Attendance rate
+        </p>
+        {/*
+          The school's current date, as the server saw it. A parent opening this
+          page is asking "how has my child been this month", and the answer
+          only means something if they know which day "this month" ends on.
+        */}
+        {today ? (
+          <p className="text-[12px] font-semibold text-emerald-800/70">
+            Today · {formatDate(today)}
+          </p>
+        ) : null}
+      </div>
 
       <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-white">
         <div className="flex h-full">
@@ -66,6 +90,7 @@ const SummaryCard = ({ summary }) => {
         <StatusPill tone="green">Present · {present} days</StatusPill>
         <StatusPill tone="amber">Late · {late} days</StatusPill>
         <StatusPill tone="red">Absent · {absent} days</StatusPill>
+        {excused > 0 ? <StatusPill tone="sky">Excused · {excused} days</StatusPill> : null}
       </div>
     </div>
   );
@@ -85,6 +110,7 @@ const MonthGrid = ({ month, onToggle, expanded }) => {
           <p className="text-[14px] font-extrabold text-ink">{month.label}</p>
           <p className="text-[11.5px] text-slate-500">
             {month.present} present · {month.late} late · {month.absent} absent
+            {month.excused ? ` · ${month.excused} excused` : ''}
           </p>
         </div>
         <ChevronDown
@@ -114,9 +140,11 @@ const MonthGrid = ({ month, onToggle, expanded }) => {
                     ? 'bg-[#FEF3C7] text-[#92400E]'
                     : day.status === 'absent'
                       ? 'bg-[#FEE2E2] text-[#991B1B]'
-                      : day.status === 'future'
-                        ? 'bg-white border border-slate-200 text-slate-400'
-                        : 'bg-slate-100 text-slate-400';
+                      : day.status === 'excused'
+                        ? 'bg-[#DBEAFE] text-[#1E40AF]'
+                        : day.status === 'future'
+                          ? 'bg-white border border-slate-200 text-slate-400'
+                          : 'bg-slate-100 text-slate-400';
               const isToday = day.isToday;
 
               return (
@@ -140,7 +168,13 @@ const MonthGrid = ({ month, onToggle, expanded }) => {
 
 const LogRow = ({ entry }) => {
   const tone =
-    entry.status === 'present' ? 'green' : entry.status === 'late' ? 'amber' : 'red';
+    entry.status === 'present'
+      ? 'green'
+      : entry.status === 'late'
+        ? 'amber'
+        : entry.status === 'excused'
+          ? 'sky'
+          : 'red';
 
   return (
     <li className="border-b border-slate-100 py-3 last:border-b-0">
@@ -155,12 +189,57 @@ const LogRow = ({ entry }) => {
 
 const Attendance = () => {
   const { token, student, school } = useParentPay();
-  const [term, setTerm] = useState('Term 1');
-  const [expandedMonth, setExpandedMonth] = useState(0);
+
+  /*
+    The term this page opens on is the school's current term — the one its
+    Settings screen writes, and the one the server resolves every attendance
+    read against.
+
+    It used to be hard-coded to "Term 1", which is a constant that is right for
+    one term in three. For a school in Term 2, every request the page made
+    asked for the previous term's date window, so the marks the teachers had
+    actually made fell outside it: the calendar rendered, the rate read 0%, and
+    the "recent activity" list was empty. Nothing on the page said the data was
+    missing, because the page was not looking for it.
+  */
+  const schoolTerm = defaultTermForSchool(school);
+  const [term, setTerm] = useState(schoolTerm);
+
+  /*
+    A term the parent picked themselves is never overridden by the school's
+    setting changing under them — but a school that moves to Term 2 while the
+    portal is open must not leave the page pinned to Term 1. `chosen` records
+    that the parent has taken over.
+  */
+  const chosen = useRef(false);
+  useEffect(() => {
+    if (!chosen.current) setTerm(schoolTerm);
+  }, [schoolTerm]);
+
+  const handleTermChange = (next) => {
+    chosen.current = true;
+    setTerm(next);
+  };
+
+  /*
+    Which month is open. `null` means "follow the current month" — the state the
+    page opens in, because the month a parent opens this page for is the one
+    they are living in. A term lists its months newest-first, so the first one
+    is the *far* end of the term: the old default opened a month of days that
+    have not happened yet, with the month that actually holds the marks
+    collapsed underneath it.
+  */
+  const [expandedMonth, setExpandedMonth] = useState(null);
 
   const { data, isLoading, error, refetch } = useAttendance(token, { term });
 
   const months = useMemo(() => data?.months || [], [data]);
+  const today = data?.today || null;
+
+  const activeMonthKey = useMemo(
+    () => resolveExpandedMonth(expandedMonth, months, today),
+    [expandedMonth, months, today]
+  );
 
   if (error) {
     return (
@@ -178,10 +257,10 @@ const Attendance = () => {
       {isLoading ? (
         <SkeletonCard className="h-40" />
       ) : data ? (
-        <SummaryCard summary={data.summary} />
+        <SummaryCard summary={data.summary} today={today} />
       ) : null}
 
-      <TermPills value={term} onChange={setTerm} />
+      <TermPills value={term} onChange={handleTermChange} />
 
       {isLoading ? (
         <>
@@ -197,14 +276,19 @@ const Attendance = () => {
       ) : (
         <section className="space-y-3">
           <SectionLabel className="px-1">Monthly breakdown</SectionLabel>
-          {months.map((month, idx) => (
-            <MonthGrid
-              key={month.label}
-              month={month}
-              expanded={expandedMonth === idx}
-              onToggle={() => setExpandedMonth(expandedMonth === idx ? -1 : idx)}
-            />
-          ))}
+          {months.map((month) => {
+            const key = monthKeyOf(month);
+            return (
+              <MonthGrid
+                key={key || month.label}
+                month={month}
+                expanded={key === activeMonthKey}
+                onToggle={() =>
+                  setExpandedMonth(toggleExpandedMonth(expandedMonth, key, months, today))
+                }
+              />
+            );
+          })}
         </section>
       )}
 

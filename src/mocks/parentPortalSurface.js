@@ -128,6 +128,14 @@ const portalView = ({ params }) => {
           email: school.email || null,
           address: school.address || null,
           city: school.city || null,
+          // The school's active term, as the real portal payload carries it
+          // (`projectSchool` in `pay.service.js`). The attendance page opens on
+          // this term, so a mock that omitted it would exercise a different
+          // default than production does.
+          academic: {
+            currentTerm: school.academic?.currentTerm || '',
+            currentYear: school.academic?.currentYear || '',
+          },
         }
       : null,
     unreadCount: notificationFixture.filter((n) => n.unread).length,
@@ -153,6 +161,11 @@ const dayOf = (isoDate) => new Date(`${isoDate}T00:00:00Z`).getUTCDate();
  * The fixtures store a month as an ISO-date → status map; the calendar renders
  * an array of cells, so the map is expanded here rather than in the page —
  * which is where it was expanded before, twice.
+ *
+ * Shaped after the real endpoint (`services/parent/attendance.service.js`):
+ * `key` on each month, the school's `today`, and the `term` the answer is
+ * about. The page opens the month the current day falls in and rings that day,
+ * so a mock without them would exercise a different code path than production.
  */
 const attendance = ({ params }) => {
   requireStudent(params.token);
@@ -166,10 +179,12 @@ const attendance = ({ params }) => {
     }));
     const count = (status) => days.filter((d) => d.status === status).length;
     return {
+      key: month.monthKey,
       label: month.monthLabel,
       present: count('present'),
       late: count('late'),
       absent: count('absent'),
+      excused: count('excused'),
       days,
     };
   });
@@ -177,11 +192,21 @@ const attendance = ({ params }) => {
   const recorded = attendanceSummary.present + attendanceSummary.late + attendanceSummary.absent;
 
   return {
+    term: attendanceSummary.termLabel,
+    today: attendanceToday,
     summary: {
       present: attendanceSummary.present,
       late: attendanceSummary.late,
       absent: attendanceSummary.absent,
-      rate: recorded ? Math.round((attendanceSummary.present / recorded) * 1000) / 10 : 0,
+      excused: 0,
+      totalDays: recorded,
+      // A late mark is an attendance, and the rate says so — the same rule the
+      // real endpoint applies.
+      rate: recorded
+        ? Math.round(
+            ((attendanceSummary.present + attendanceSummary.late) / recorded) * 1000
+          ) / 10
+        : 0,
       termLabel: attendanceSummary.termLabel,
     },
     months,

@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Download, FileText, Share2 } from 'lucide-react';
 import { useParentPay } from '../../layouts/ParentLayout';
 import { useRecords } from '../../hooks/parent/useRecords';
 import { downloadReportCardPdf } from '../../services/parent/records';
+import { defaultTermForSchool } from '../../utils/attendanceDefaults';
 import StudentRow from '../../components/parent/shared/StudentRow';
 import SectionLabel from '../../components/parent/shared/SectionLabel';
 import StatusPill from '../../components/parent/shared/StatusPill';
@@ -153,9 +154,29 @@ const RemarkCard = ({ label, quote, author }) => (
 
 const Records = () => {
   const { token, student, school } = useParentPay();
-  const [term, setTerm] = useState('Term 1');
+  /*
+    The term this page opens on is the school's current term — the one its
+    Settings screen writes and the one the server resolves every report-card
+    read against. It was hard-coded to "Term 1", which is right for one term in
+    three: a school in Term 2 was shown the previous term's card (or none at
+    all) on the page a parent opens to ask how their child is doing this term.
+  */
+  const schoolTerm = defaultTermForSchool(school);
+  const [term, setTerm] = useState(schoolTerm);
   const toast = useToast();
   const { data, isLoading, error, refetch } = useRecords(token, { term });
+
+  // A term the parent picked is theirs; a school that moves term while the
+  // portal is open must not leave them on the old one.
+  const chosen = useRef(false);
+  useEffect(() => {
+    if (!chosen.current) setTerm(schoolTerm);
+  }, [schoolTerm]);
+
+  const handleTermChange = (next) => {
+    chosen.current = true;
+    setTerm(next);
+  };
 
   const handleDownload = async () => {
     try {
@@ -186,7 +207,7 @@ const Records = () => {
   return (
     <div className="space-y-5">
       <StudentRow student={student} school={school} />
-      <TermPills value={term} onChange={setTerm} />
+      <TermPills value={term} onChange={handleTermChange} />
 
       {isLoading ? (
         <>

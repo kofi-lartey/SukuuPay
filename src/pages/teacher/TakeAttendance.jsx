@@ -13,12 +13,20 @@ import { SkeletonRow } from '../../components/parent/shared/Skeleton';
 import EmptyState from '../../components/parent/shared/EmptyState';
 import useToast from '../../hooks/useToast';
 
-/** Local date, not UTC. Ghana is on GMT so the two agree, but the register is a local artefact. */
-const todayISO = () => {
-  const now = new Date();
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 10);
-};
+/**
+ * The school's current day, as `YYYY-MM-DD`.
+ *
+ * **UTC, not the browser's own calendar day.** Ghana sits on GMT permanently, so
+ * the school's day *is* the UTC day — and the UTC day is the one the register is
+ * stored against (`startOfDay` on the server), the one the teacher dashboard
+ * counts "marked today" by (`accraToday`), and the one the parent portal rings
+ * in the calendar. Reading the handset's own timezone instead made the register
+ * open on a different day from the dashboard sitting next to it whenever the two
+ * disagreed: a device set to US Eastern would open the register on the 6th
+ * while the dashboard — reading the school's clock — reported the 7th's register
+ * as still pending, and the teacher took yesterday's roll for a second time.
+ */
+const todayISO = () => new Date().toISOString().slice(0, 10);
 
 /**
  * The register: mark a class present, late or absent for one date.
