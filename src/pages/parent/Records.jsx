@@ -124,7 +124,7 @@ const RemarkCard = ({ label, quote, author }) => (
 
 const Records = () => {
   const { token, student, school } = useParentPay();
-  const [term, setTerm] = useState('Term 2');
+  const [term, setTerm] = useState('Term 1');
   const toast = useToast();
   const { data, isLoading, error, refetch } = useRecords(token, { term });
 

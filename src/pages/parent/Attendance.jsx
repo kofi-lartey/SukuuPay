@@ -155,7 +155,7 @@ const LogRow = ({ entry }) => {
 
 const Attendance = () => {
   const { token, student, school } = useParentPay();
-  const [term, setTerm] = useState('Term 2');
+  const [term, setTerm] = useState('Term 1');
   const [expandedMonth, setExpandedMonth] = useState(0);
 
   const { data, isLoading, error, refetch } = useAttendance(token, { term });
