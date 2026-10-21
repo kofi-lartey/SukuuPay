@@ -10,7 +10,15 @@ import { SkeletonRow } from '../../components/parent/shared/Skeleton';
 import EmptyState from '../../components/parent/shared/EmptyState';
 import useToast from '../../hooks/useToast';
 import { TEACHER_ROUTES, SUBJECTS, OTHER_SUBJECT, CUSTOM_SUBJECTS_KEY } from '../../utils/constants';
-import { calculateTotalScore, hasBothScores, CLASS_SCORE_MAX, EXAM_SCORE_MAX } from '../../utils/gradeBands';
+import {
+  calculateTotalScore,
+  calculateClassScore,
+  CLASS_SCORE_MAX,
+  EXAM_SCORE_MAX,
+  CLASS_WEIGHT,
+  EXAM_WEIGHT,
+  DEFAULT_CLASS_COMPONENTS,
+} from '../../utils/gradeBands';
 
 const TERMS = ['Term 1', 'Term 2', 'Term 3'];
 
@@ -26,21 +34,29 @@ const TERMS = ['Term 1', 'Term 2', 'Term 3'];
  * sitting in one column is the single most damaging mistake this page can
  * make, and it is the one a naive implementation invites.
  *
- * ## Two marks per student
+ * ## The 30/70 split, and the parts behind it
  *
- * A Ghanaian terminal report breaks a subject into a **Class Score (out of
- * 50)** and an **Exam Score (out of 100)**, and the Total, the Grade and the
- * Subject Position come out of that pair. The grid therefore holds two values
- * per student, and the page sends both in one call — the payload is a flat
- * list of rows, each carrying the `assessmentType` it belongs to, so the
- * server knows which half of the report it is writing.
+ * A Ghanaian terminal report is a **30/70 split**: the class assessment is
+ * worth 30% of the total and the end-of-term exam 70%. The class assessment
+ * is not one mark — it is gathered across the term from the parts the school
+ * runs, and the common split is class test 30%, group work 30%, homework 20%
+ * and class work 20%, which out of the 30 points is 9, 9, 6 and 6.
+ *
+ * So the grid holds one box per part, plus the exam, and the page sends every
+ * one of them in a single call — the payload is a flat list of rows, each
+ * carrying the `assessmentType` it belongs to, so the server knows which part
+ * of the report it is writing.
+ *
+ * The parts are the school's, so they arrive with the grade book. A school
+ * that runs no parts at all gets a single class-score box instead.
  *
  * ## Save all, once
  *
- * The grid is a controlled view of a `{ studentId: { classScore, examScore } }`
+ * The grid is a controlled view of a
+ * `{ studentId: { class_test, group_work, homework, class_work, exam_score } }`
  * map, so "Save all grades" sends the map in one call. A teacher entering
- * thirty students' marks on a phone should not have to save sixty times, and
- * the server can reject the batch before any of it lands.
+ * thirty students' marks on a phone should not have to save a hundred and
+ * fifty times, and the server can reject the batch before any of it lands.
  */
 const EnterGrades = () => {
   const { className } = useParams();
@@ -111,14 +127,23 @@ const EnterGrades = () => {
     again — the page oscillates between two columns and never settles. The
     teacher owns that field; the server's copy is what they typed.
 
-    Both halves of a subject are rehydrated: the class score and the exam
-    score are two rows in the grade book, and restoring only one of them would
-    leave the grid showing a total the server cannot reproduce.
+    Every part of a subject is rehydrated, not just the exam: the class test,
+    the group work, the homework and the class work are four rows in the grade
+    book, and restoring only some of them would leave the grid showing a
+    class score the server cannot reproduce.
   */
   const [draftedFrom, setDraftedFrom] = useState(null);
   const draftKey = existing?.students
     ? existing.students
-        .map((s) => `${s._id}:${s.classScore ?? ''}:${s.examScore ?? ''}`)
+        .map((s) =>
+          [
+            s._id,
+            ...Object.entries(s.classParts || {}).map(
+              ([key, part]) => `${key}=${part?.score ?? ''}`
+            ),
+            `exam=${s.examScore ?? ''}`,
+          ].join(':')
+        )
         .join('|')
     : null;
 
@@ -127,34 +152,91 @@ const EnterGrades = () => {
     if (existing?.students) {
       const next = {};
       for (const s of existing.students) {
-        const classScore = s.classScore ?? '';
-        const examScore = s.examScore ?? '';
-        if (classScore === '' && examScore === '') continue;
-        next[s._id] = { classScore: String(classScore), examScore: String(examScore) };
+        const row = {};
+        for (const [key, part] of Object.entries(s.classParts || {})) {
+          if (part?.score !== null && part?.score !== undefined) {
+            row[key] = String(part.score);
+          }
+        }
+        if (s.examScore !== null && s.examScore !== undefined) {
+          row.exam_score = String(s.examScore);
+        }
+        if (!Object.keys(row).length) continue;
+        next[s._id] = row;
       }
       setValues(next);
     }
   }
 
-  /*
-    The progress line: how many of the class have both halves, and the average
-    of the totals so far.
+  // The school's grading policy, from the grade book. Until it arrives the
+  // grid uses the Ghanaian default, so the columns are never empty.
+  const grading = existing?.grading || {
+    classMax: CLASS_SCORE_MAX,
+    examMax: EXAM_SCORE_MAX,
+    classWeight: CLASS_WEIGHT,
+    examWeight: EXAM_WEIGHT,
+    components: DEFAULT_CLASS_COMPONENTS,
+  };
+  const components = Array.isArray(grading.components) ? grading.components : [];
 
-    The average is over *complete* subjects only. A student with a class score
-    but no exam score has no total yet, and averaging a half into the class
+  /*
+    The progress line: how many of the class have a complete subject, and the
+    average of the totals so far.
+
+    The average is over *complete* subjects only. A student whose parts are in
+    but whose exam is not has no total yet, and averaging a half into the class
     average would report a number the report card will never carry.
   */
   const stats = useMemo(() => {
-    const rows = Object.values(values);
-    const withAny = rows.filter((r) => r.classScore !== '' || r.examScore !== '');
-    const totals = rows
-      .filter((r) => hasBothScores(r.classScore, r.examScore))
-      .map((r) => calculateTotalScore(r.classScore, CLASS_SCORE_MAX, r.examScore, EXAM_SCORE_MAX).totalScore);
+    const totals = [];
+    let withAny = 0;
+
+    for (const row of Object.values(values)) {
+      const parts = components.map((part) => ({
+        score: row?.[part.key] ?? '',
+        maxScore: part.maxScore,
+        weight: part.weight,
+      }));
+      const partsEntered = parts.filter(
+        (part) => part.score !== '' && part.score !== null && part.score !== undefined
+      );
+      const directClassScore =
+        components.length === 0 ? row?.class_score ?? '' : '';
+      const directEntered =
+        directClassScore !== '' &&
+        directClassScore !== null &&
+        directClassScore !== undefined;
+      const examScore = row?.exam_score;
+
+      const hasExam =
+        examScore !== '' && examScore !== null && examScore !== undefined;
+      if (partsEntered.length || directEntered || hasExam) withAny += 1;
+
+      if (components.length) {
+        if (!partsEntered.length || !hasExam) continue;
+        const folded = calculateClassScore(parts);
+        if (!folded.complete) continue;
+      } else {
+        if (!directEntered || !hasExam) continue;
+      }
+
+      const { totalScore } = calculateTotalScore(
+        components.length
+          ? calculateClassScore(parts).classScore
+          : Number(directClassScore),
+        grading.classMax,
+        examScore,
+        grading.examMax,
+        { classWeight: grading.classWeight, examWeight: grading.examWeight }
+      );
+      totals.push(totalScore);
+    }
+
     const average = totals.length
       ? Math.round((totals.reduce((sum, t) => sum + t, 0) / totals.length) * 10) / 10
       : 0;
-    return { count: withAny.length, complete: totals.length, average };
-  }, [values]);
+    return { count: withAny, complete: totals.length, average };
+  }, [values, components, grading.classMax, grading.examMax, grading.classWeight, grading.examWeight]);
 
   const handleChange = (studentId, field, value) => {
     setValues((current) => ({
@@ -169,27 +251,43 @@ const EnterGrades = () => {
       return;
     }
 
-    // The payload is a flat list of rows, each one half of a subject, and each
+    // The payload is a flat list of rows, each one part of a subject, and each
     // carrying the assessment type it belongs to. The server's upsert key
-    // includes that type, so a class score can never land on an exam score.
+    // includes that type, so a class test can never land on the group work.
     const rows = [];
     for (const [studentId, row] of Object.entries(values)) {
-      const classScore = row?.classScore;
-      const examScore = row?.examScore;
-      if (classScore !== '' && classScore !== null && classScore !== undefined) {
+      for (const part of components) {
+        const score = row?.[part.key];
+        if (score === '' || score === null || score === undefined) continue;
         rows.push({
           studentId,
-          assessmentType: 'class_score',
-          score: Number(classScore),
-          maxScore: CLASS_SCORE_MAX,
+          assessmentType: part.key,
+          score: Number(score),
+          maxScore: part.maxScore,
         });
       }
+      if (!components.length) {
+        const classScore = row?.class_score;
+        if (
+          classScore !== '' &&
+          classScore !== null &&
+          classScore !== undefined
+        ) {
+          rows.push({
+            studentId,
+            assessmentType: 'class_score',
+            score: Number(classScore),
+            maxScore: grading.classMax,
+          });
+        }
+      }
+      const examScore = row?.exam_score;
       if (examScore !== '' && examScore !== null && examScore !== undefined) {
         rows.push({
           studentId,
           assessmentType: 'exam_score',
           score: Number(examScore),
-          maxScore: EXAM_SCORE_MAX,
+          maxScore: grading.examMax,
         });
       }
     }
@@ -252,8 +350,9 @@ const EnterGrades = () => {
       <div className="rounded-2xl border border-slate-200/80 bg-white p-4">
         <p className="text-[15px] font-extrabold text-ink">{className}</p>
         <p className="mt-0.5 text-[12.5px] text-slate-500">
-          Enter the class score (50) and the exam score (100) for the whole class. Totals and
-          grades compute automatically.
+          The class assessment is worth {grading.classWeight}% of the terminal report and the
+          exam {grading.examWeight}%. Enter every part of the class assessment and the exam
+          score; the total and the grade compute automatically.
         </p>
       </div>
 
@@ -327,8 +426,7 @@ const EnterGrades = () => {
             students={roster}
             values={values}
             onChange={handleChange}
-            maxClassScore={CLASS_SCORE_MAX}
-            maxExamScore={EXAM_SCORE_MAX}
+            grading={grading}
           />
         </div>
       )}

@@ -2,108 +2,171 @@ import { useMemo, useRef } from 'react';
 import GradePill from './GradePill';
 import {
   calculateTotalScore,
-  hasBothScores,
+  calculateClassScore,
   rankByTotal,
   CLASS_SCORE_MAX,
   EXAM_SCORE_MAX,
+  CLASS_WEIGHT,
+  EXAM_WEIGHT,
+  DEFAULT_CLASS_COMPONENTS,
 } from '../../utils/gradeBands';
 
 /**
- * The whole class's marks, in the shape a Ghanaian terminal report prints them.
+ * The teacher's grade-entry grid for one class and one subject.
  *
- * ## Two marks per student, not one
+ * ## What is on the row
  *
- * A subject on a Ghanaian report card is a **Class Score (out of 50)** and an
- * **Exam Score (out of 100)**, and the Total, the Grade and the Subject
- * Position are all derived from the pair. So the grid has two inputs per
- * student, and the total and the letter are shown live as the teacher types —
- * the teacher sees the same number the report card will carry, before anything
- * has been saved or approved, and before they have to ask the headteacher what
- * the total came out as.
+ * A Ghanaian terminal report is a **30/70 split**: the class assessment is
+ * worth 30% of the total and the end-of-term exam 70%. The class assessment
+ * is not one mark — it is gathered across the term from the parts the school
+ * runs, and the common split is class test 30%, group work 30%, homework 20%
+ * and class work 20%, which out of the 30 points is 9, 9, 6 and 6.
  *
- * ## The values live in the parent page
+ * So a row is: one box per part of the class assessment, the class score they
+ * add up to, the exam, and then the total, the grade and the position. The
+ * parts are the school's, so the columns are the school's too — the server
+ * sends the policy with the grade book and this renders it.
  *
- * Values live in a `{ studentId: { classScore, examScore } }` map owned by the
- * parent page, so this component is a controlled view of them: it never holds
- * grade state itself, and a save, a reset or a re-hydration from the server is
- * one object assignment rather than thirty. That is also what makes "Save
- * sends the entire class in one call" trivially true — the payload is the map,
- * flattened.
+ * ## Why the numbers appear while the teacher types
  *
- * ## Enter moves down the column
- *
- * Enter moves to the next student's *same* field rather than the next student
- * outright, because the workflow is column-at-a-time: a teacher marks the
- * whole class's continuous assessment, then the whole class's exam. Tab
- * crosses to the other column; Enter is what a teacher's right hand does
- * anyway, and the numeric keypad on a phone puts it where the thumb already
- * is.
- *
- * ## Nothing is shown before it is known
- *
- * An empty cell shows a dash, not a zero, and the total and grade appear only
- * once **both** halves are in. A total computed from one half reads as a
- * result and is not one — the same rule the report-card compiler follows.
+ * The total, the grade and the position are computed here as well as on the
+ * server, so a teacher sees the number the report card will carry before
+ * anything is approved rather than after. The arithmetic is the server's; this
+ * is the same arithmetic, pinned to the same cases in `utils/gradeBands.test.js`.
  */
 const BulkGradeGrid = ({
-  students,
-  values,
+  students = [],
+  values = {},
   onChange,
-  maxClassScore = CLASS_SCORE_MAX,
-  maxExamScore = EXAM_SCORE_MAX,
+  grading,
 }) => {
   const inputRefs = useRef({});
+
+  // The school's policy, with the defaults for a page that has not loaded one
+  // yet. A school that runs no parts at all gets a single class-score box.
+  const policy = useMemo(
+    () => ({
+      classMax: grading?.classMax || CLASS_SCORE_MAX,
+      examMax: grading?.examMax || EXAM_SCORE_MAX,
+      classWeight: grading?.classWeight || CLASS_WEIGHT,
+      examWeight: grading?.examWeight || EXAM_WEIGHT,
+      components: Array.isArray(grading?.components)
+        ? grading.components
+        : DEFAULT_CLASS_COMPONENTS,
+    }),
+    [grading]
+  );
+
+  const { components, classMax, examMax, classWeight, examWeight } = policy;
+
+  /**
+   * One student's numbers, as the row shows them.
+   *
+   * The class score is folded from the parts when the school runs them, and
+   * taken from a single class score when it does not. A subject whose parts
+   * are not all in has no class score and therefore no total: a half-marked
+   * subject is not a result.
+   */
+  const rowFor = (student) => {
+    const row = values[student._id] || {};
+
+    const parts = components.map((part) => ({
+      key: part.key,
+      label: part.label,
+      weight: part.weight,
+      maxScore: part.maxScore,
+      score: row[part.key] ?? '',
+    }));
+    const partsEntered = parts.filter(
+      (part) => part.score !== '' && part.score !== null && part.score !== undefined
+    );
+
+    // The class score the row shows: folded from the parts when the school runs
+    // a breakdown, or — when it does not — the single class-score box the teacher
+    // is editing. Entering any part (or, in a breakdown school, a direct class
+    // score left over from before the breakdown) takes over from the other, so
+    // the live figure the grid previews is always the one the grid is built
+    // from.
+    let classScore;
+    let classComplete;
+    if (components.length) {
+      if (partsEntered.length) {
+        const folded = calculateClassScore(parts);
+        classScore = folded.classScore;
+        classComplete = folded.complete;
+      } else if (student.classScore != null && student.classScore !== '') {
+        classScore = Number(student.classScore);
+        classComplete = true;
+      } else {
+        classScore = null;
+        classComplete = false;
+      }
+    } else {
+      const direct = row.class_score ?? '';
+      classScore = direct === '' ? null : Number(direct);
+      classComplete = classScore !== null;
+    }
+    const examScore = row.exam_score ?? '';
+    const examEntered = examScore !== '' && examScore !== null && examScore !== undefined;
+
+    const complete = Boolean(classComplete && classScore !== null && examEntered);
+
+    const { totalScore, grade } = complete
+      ? calculateTotalScore(
+          classScore,
+          classMax,
+          examScore,
+          examMax,
+          { classWeight, examWeight }
+        )
+      : { totalScore: null, grade: null };
+
+    return { row, parts, classScore, examScore, complete, totalScore, grade };
+  };
 
   /**
    * Where each student currently stands in this subject.
    *
    * Ranked from the values the teacher is typing, with the same competition
    * ranking the report card uses, so the position in the grid is the position
-   * the card will print. A student whose pair is not finished is left out of
-   * the ranking entirely: a half-marked subject has no total to place on, and
-   * an unranked student in the middle of a table reads as a fail.
+   * the card will print. A student whose subject is not finished is left out
+   * of the ranking entirely: there is nothing to place them on.
    */
   const positions = useMemo(() => {
     const entries = students
       .map((student) => {
-        const row = values[student._id] || {};
-        if (!hasBothScores(row.classScore, row.examScore)) return null;
-        const { totalScore } = calculateTotalScore(
-          row.classScore,
-          maxClassScore,
-          row.examScore,
-          maxExamScore
-        );
+        const { complete, totalScore } = rowFor(student);
+        if (!complete) return null;
         return { id: student._id, totalScore };
       })
       .filter(Boolean);
     return rankByTotal(entries);
-  }, [students, values, maxClassScore, maxExamScore]);
+    // `values` is the only thing that changes the ranking; `students` and the
+    // policy are read through `rowFor` and are covered by it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [students, values, components, classMax, examMax, classWeight, examWeight]);
 
-  const handleKeyDown = (event, studentId, field) => {
-    if (event.key !== 'Enter') return;
-    event.preventDefault();
-    const ids = students.map((s) => s._id);
-    const index = ids.indexOf(studentId);
-    const nextId = ids[index + 1];
-    if (nextId && inputRefs.current[`${nextId}:${field}`]) {
-      inputRefs.current[`${nextId}:${field}`].focus();
-    }
+  const handleKeyDown = (e, studentId, field) => {
+    if (e.key !== 'Enter' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    const index = students.findIndex((s) => s._id === studentId);
+    const next = students[index + 1];
+    if (!next) return;
+    const target = inputRefs.current[`${next._id}:${field}`];
+    if (target) target.focus();
   };
 
   const scoreCell = (student, field, value, maxScore, label) => {
     const numeric = Number(value);
     const invalid =
       value !== '' &&
-      value !== null &&
-      value !== undefined &&
       (!Number.isFinite(numeric) || numeric < 0 || numeric > maxScore);
 
     return (
-      <div className="flex items-center gap-1.5">
+      <div className="flex w-[62px] flex-col items-center gap-1 sm:flex-row sm:items-center sm:justify-center sm:gap-1.5">
         <label
           htmlFor={`grade-${student._id}-${field}`}
-          className="w-[64px] shrink-0 text-[9.5px] font-extrabold uppercase tracking-tight text-slate-400 sm:hidden"
+          className="text-center text-[9.5px] font-extrabold uppercase tracking-tight text-slate-400 sm:hidden"
         >
           {label}
         </label>
@@ -120,7 +183,7 @@ const BulkGradeGrid = ({
           onChange={(e) => onChange(student._id, field, e.target.value)}
           onKeyDown={(e) => handleKeyDown(e, student._id, field)}
           aria-label={`${label} for ${student.studentName}`}
-          className={`h-11 w-[68px] rounded-xl border bg-white text-center text-[14px] font-extrabold tabular-nums text-ink focus:outline-none focus:ring-1 ${
+          className={`h-11 w-[62px] rounded-xl border bg-white text-center text-[14px] font-extrabold tabular-nums text-ink focus:outline-none focus:ring-1 ${
             invalid
               ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
               : 'border-slate-200 focus:border-sky-500 focus:ring-sky-500'
@@ -133,82 +196,108 @@ const BulkGradeGrid = ({
 
   return (
     <div>
-      {/* The column heads, on the widths where there is room for them. */}
-      <div className="mb-1 hidden items-center justify-end gap-2 sm:flex">
-        <div className="flex items-center gap-1.5">
-          {/*
-            The heads name the maximum as well as the mark. A column headed
-            "Class" is a word; a column headed "Class (50)" says what the
-            number in it is out of, which is the thing a teacher checks their
-            own marking against.
-          */}
-          <span className="w-[68px] text-center text-[9.5px] font-extrabold uppercase tracking-tight text-slate-500">
-            Class (50)
+      {/*
+        The column heads. They name the maximum as well as the mark: a column
+         headed "Class Test" is a word, a column headed "Class Test (30)" says
+        what the number in it is out of.
+      */}
+      <div className="mb-1 hidden items-center gap-x-3 overflow-x-auto sm:flex">
+        {/*
+          Mirror the row beneath it: a leading flex-1 spacer stands in for the
+          student-name slot, and the same gap-x-3 as the inputs, so each head
+          sits directly over its box instead of drifting under justify-end.
+        */}
+        <div className="flex min-w-0 flex-1 items-center" />
+        {components.map((part) => (
+          <span
+            key={part.key}
+            className="w-[62px] text-center text-[9px] font-extrabold uppercase tracking-tight text-slate-500 leading-tight"
+          >
+            {part.label} ({part.maxScore})
           </span>
-          <span className="w-[68px] text-center text-[9.5px] font-extrabold uppercase tracking-tight text-slate-500">
-            Exam (100)
-          </span>
-          <span className="w-8 text-center text-[10px] font-extrabold uppercase tracking-wide text-slate-400">
-            Total
-          </span>
-          <span className="w-10 text-center text-[10px] font-extrabold uppercase tracking-wide text-slate-400">
-            Grade
-          </span>
-          <span className="w-9 text-center text-[10px] font-extrabold uppercase tracking-wide text-slate-400">
-            Pos
-          </span>
-        </div>
+        ))}
+        <span
+          className={`${
+            components.length ? 'w-11' : 'w-[62px]'
+          } text-center text-[9px] font-extrabold uppercase tracking-tight text-slate-500 leading-tight`}
+        >
+          Class ({classMax})
+        </span>
+        <span className="w-[62px] text-center text-[9px] font-extrabold uppercase tracking-tight text-slate-500 leading-tight">
+          Exam ({examMax})
+        </span>
+        <span className="w-8 text-center text-[10px] font-extrabold uppercase tracking-wide text-slate-400">
+          Total
+        </span>
+        <span className="w-10 text-center text-[10px] font-extrabold uppercase tracking-wide text-slate-400">
+          Grade
+        </span>
+        <span className="w-9 text-center text-[10px] font-extrabold uppercase tracking-wide text-slate-400">
+          Pos
+        </span>
       </div>
 
       <ul className="divide-y divide-slate-100">
         {students.map((student) => {
-          const row = values[student._id] || {};
-          const classScore = row.classScore ?? '';
-          const examScore = row.examScore ?? '';
-
-          // The live preview of the report card's own arithmetic.
-          const complete = hasBothScores(classScore, examScore);
-          const { totalScore, grade } = calculateTotalScore(
-            classScore,
-            maxClassScore,
-            examScore,
-            maxExamScore
-          );
+          const { row, parts, classScore, examScore, complete, totalScore, grade } =
+            rowFor(student);
 
           return (
             <li
               key={student._id}
-              className="flex flex-wrap items-center gap-x-2 gap-y-2 py-2.5"
+              className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5"
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-extrabold text-slate-600">
-                {student.initials || student.studentName?.slice(0, 2).toUpperCase()}
-              </span>
-              <div className="min-w-[140px] flex-1">
-                <p className="truncate text-[13px] font-extrabold text-ink">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-extrabold text-slate-600">
+                  {student.initials || (student.studentName || '?').slice(0, 2).toUpperCase()}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-[13.5px] font-extrabold text-ink">
                   {student.studentName}
-                </p>
-                <p className="truncate text-[11px] text-slate-500">{student.studentId}</p>
+                </span>
               </div>
 
-              <div className="ml-auto flex items-center gap-2">
-                {scoreCell(student, 'classScore', classScore, maxClassScore, 'Class (50)')}
-                {scoreCell(student, 'examScore', examScore, maxExamScore, 'Exam (100)')}
+              {parts.map((part) =>
+                scoreCell(
+                  student,
+                  part.key,
+                  row[part.key] ?? '',
+                  part.maxScore,
+                  `${part.label} (${part.maxScore})`
+                )
+              )}
 
-                <div className="w-8 text-center">
-                  <span className="text-[15px] font-extrabold tabular-nums text-ink">
-                    {complete ? totalScore : '—'}
+              {components.length ? (
+                <div className="w-11 flex justify-center">
+                  <span className="text-[14px] font-extrabold tabular-nums text-ink">
+                    {classScore ?? '—'}
                   </span>
                 </div>
+              ) : (
+                scoreCell(
+                  student,
+                  'class_score',
+                  row.class_score ?? '',
+                  classMax,
+                  `Class (${classMax})`
+                )
+              )}
 
-                <div className="w-10 text-center">
-                  <GradePill grade={complete ? grade : null} />
-                </div>
+              {scoreCell(student, 'exam_score', examScore, examMax, `Exam (${examMax})`)}
 
-                <div className="w-9 text-center">
-                  <span className="text-[13px] font-extrabold tabular-nums text-slate-600">
-                    {positions.get(String(student._id)) || '—'}
-                  </span>
-                </div>
+              <div className="w-8 text-center">
+                <span className="text-[14px] font-extrabold tabular-nums text-ink">
+                  {complete ? totalScore : '—'}
+                </span>
+              </div>
+
+              <div className="w-10 text-center">
+                <GradePill grade={complete ? grade : null} />
+              </div>
+
+              <div className="w-9 text-center">
+                <span className="text-[13px] font-extrabold tabular-nums text-slate-600">
+                  {positions.get(String(student._id)) || '—'}
+                </span>
               </div>
             </li>
           );

@@ -192,6 +192,9 @@ const QueueTable = ({ items, onApprove, onReject, expandedKey, gradeMap, onView 
             const key = `${row.className}:${row.subject ?? 'class'}:${i}`;
             const expanded = expandedKey === key;
             const grades = gradeMap[key] || [];
+            // The class assessment's parts are the same for every row in the
+            // block, so the first row supplies the column heads.
+            const g0 = grades[0];
             return (
               <React.Fragment key={key}>
                 <tr>
@@ -232,22 +235,29 @@ const QueueTable = ({ items, onApprove, onReject, expandedKey, gradeMap, onView 
                         <p className="text-sm text-slate-400">No grades found.</p>
                       ) : (
                         /*
-                          The breakdown, exactly as the terminal report prints it:
-                          the class score out of 50, the exam score out of 100,
-                          the total the two make, and the letter. The headmaster
-                          signs this block, so the numbers being signed must be
-                          the same numbers the report card will carry — and a
-                          total computed from a class score alone is not a
-                          result, so it is shown as a dash rather than as a
-                          figure.
+                          The breakdown, exactly as the terminal report prints
+                          it: each part of the class assessment, the class
+                          score they add up to, the exam's points out of 70,
+                          the total, the letter and the position.
+
+                          The headmaster signs this block, so the numbers being
+                          signed must be the numbers the report card will
+                          carry — and a total computed from a class score alone
+                          is not a result, so it is shown as a dash rather than
+                          as a figure.
                         */
                         <table className="min-w-full text-left text-sm">
                           <thead className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
                             <tr>
                               <th className="px-3 py-2">Student</th>
                               <th className="px-3 py-2">Subject</th>
-                              <th className="px-3 py-2 text-right">Class (50)</th>
-                              <th className="px-3 py-2 text-right">Exam (100)</th>
+                              {(g0?.classParts || []).map((part) => (
+                                <th key={part.key} className="px-3 py-2 text-right">
+                                  {part.label}
+                                </th>
+                              ))}
+                               <th className="px-3 py-2 text-right">Class ({g0?.classMaxScore ?? 30})</th>
+                               <th className="px-3 py-2 text-right">Exam ({g0?.examMaxScore ?? 100})</th>
                               <th className="px-3 py-2 text-right">Total</th>
                               <th className="px-3 py-2 text-right">Grade</th>
                               <th className="px-3 py-2 text-right">Pos</th>
@@ -259,6 +269,16 @@ const QueueTable = ({ items, onApprove, onReject, expandedKey, gradeMap, onView 
                               <tr key={`${g.studentId}-${g.subject}-${j}`}>
                                 <td className="px-3 py-2">{g.studentName || g.studentId}</td>
                                 <td className="px-3 py-2">{g.subject}</td>
+                                {(g.classParts || []).map((part) => (
+                                  <td
+                                    key={part.key}
+                                    className="px-3 py-2 text-right tabular-nums"
+                                  >
+                                    {part.score === null || part.score === undefined
+                                      ? '—'
+                                      : `${part.score}/${part.maxScore}`}
+                                  </td>
+                                ))}
                                 <td className="px-3 py-2 text-right tabular-nums">
                                   {g.classScore ?? '—'}
                                 </td>
@@ -276,7 +296,7 @@ const QueueTable = ({ items, onApprove, onReject, expandedKey, gradeMap, onView 
                                   )}
                                 </td>
                                 {/* The position the report card will carry. A
-                                    half-marked subject has no total to rank
+                                    partly marked subject has no total to rank
                                     on, so it has no position. */}
                                 <td className="px-3 py-2 text-right tabular-nums text-slate-600">
                                   {g.subjectPosition || '—'}
