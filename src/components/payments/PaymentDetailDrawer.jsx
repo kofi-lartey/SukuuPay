@@ -5,6 +5,7 @@ import { ExternalLink, RotateCcw, X } from 'lucide-react';
 import Button from '../common/Button';
 import { PaymentChannelBadge, PaymentStatusBadge } from './PaymentBadges';
 import { getPayment } from '../../services/payments';
+import { resendPaymentSms } from '../../services/payments';
 import { formatCedi } from '../../utils/format';
 import { formatGhanaPhone } from '../../utils/ghanaPhone';
 import { formatDateTime, paymentTimestamp } from '../../utils/dates';
@@ -44,6 +45,7 @@ const PaymentDetailDrawer = ({ paymentId, onClose, onRefund }) => {
   const [payment, setPayment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+const [resending, setResending] = useState(false);
 
   useEffect(() => {
     if (!paymentId) return undefined;
@@ -247,18 +249,38 @@ const PaymentDetailDrawer = ({ paymentId, onClose, onRefund }) => {
           )}
         </div>
 
-        {payment?.status === 'completed' && onRefund && (
-          <footer className="border-t border-slate-100 px-5 py-4">
-            <Button
-              variant="danger"
-              className="w-full"
-              onClick={() => onRefund(payment)}
-            >
-              <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
-              Refund this payment
-            </Button>
-          </footer>
-        )}
+{payment?.status === 'completed' && (
+  <footer className="border-t border-slate-100 px-5 py-4 flex gap-2">
+    <Button
+      variant="secondary"
+      className="flex-1"
+      disabled={resending}
+      onClick={async () => {
+        setResending(true);
+        try {
+          await resendPaymentSms(payment._id || paymentId);
+          alert('SMS resend attempted');
+        } catch (e) {
+          alert(e?.message || 'Failed');
+        } finally {
+          setResending(false);
+        }
+      }}
+    >
+      {resending ? 'Sending…' : 'Resend SMS'}
+    </Button>
+    {onRefund && (
+      <Button
+        variant="danger"
+        className="flex-1"
+        onClick={() => onRefund(payment)}
+      >
+        <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
+        Refund
+      </Button>
+    )}
+  </footer>
+)}
       </aside>
     </div>,
     document.body

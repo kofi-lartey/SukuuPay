@@ -45,6 +45,15 @@ export const recordManualPayment = async (payload) => {
   }
 };
 
+export const resendPaymentSms = async (paymentId) => {
+  try {
+    const { data } = await api.post(`/payments/${paymentId}/resend-sms`, {}, { timeout: 20000 });
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, 'The SMS could not be resent.');
+  }
+};
+
 /** The payment list, for the dashboard's recent-activity and the Payments module. */
 export const listPayments = async (params = {}) => {
   try {

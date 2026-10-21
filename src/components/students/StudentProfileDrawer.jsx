@@ -220,13 +220,24 @@ const StudentProfileDrawer = ({ open, studentId, onClose, onArchived }) => {
                           }`
                         : '—',
                     },
-                    { label: 'Pay link', value: student.payLink || 'Not generated' },
+                    { label: 'Pay link', value: student.payLink || 'Not generated', copyable: Boolean(student.payLink) },
                   ].map((row) => (
                     <div key={row.label} className="min-w-0">
                       <dt className="text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
                         {row.label}
                       </dt>
-                      <dd className="truncate text-[13px] font-bold text-ink">{row.value}</dd>
+                      <dd className="truncate text-[13px] font-bold text-ink flex items-center gap-2">
+                        <span className="truncate">{row.value}</span>
+                        {row.copyable && (
+                          <button
+                            type="button"
+                            onClick={() => navigator.clipboard?.writeText(row.value)}
+                            className="shrink-0 text-[11px] font-extrabold text-indigo-600 hover:underline"
+                          >
+                            Copy
+                          </button>
+                        )}
+                      </dd>
                     </div>
                   ))}
                 </dl>
