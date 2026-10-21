@@ -103,7 +103,7 @@ const BulkGradeGrid = ({
       <div className="flex items-center gap-1.5">
         <label
           htmlFor={`grade-${student._id}-${field}`}
-          className="w-[52px] shrink-0 text-[10px] font-extrabold uppercase tracking-wide text-slate-400 sm:hidden"
+          className="w-[64px] shrink-0 text-[9.5px] font-extrabold uppercase tracking-tight text-slate-400 sm:hidden"
         >
           {label}
         </label>
@@ -136,14 +136,18 @@ const BulkGradeGrid = ({
       {/* The column heads, on the widths where there is room for them. */}
       <div className="mb-1 hidden items-center justify-end gap-2 sm:flex">
         <div className="flex items-center gap-1.5">
-          <span className="w-[68px] text-center text-[10px] font-extrabold uppercase tracking-wide text-slate-400">
-            Class
+          {/*
+            The heads name the maximum as well as the mark. A column headed
+            "Class" is a word; a column headed "Class (50)" says what the
+            number in it is out of, which is the thing a teacher checks their
+            own marking against.
+          */}
+          <span className="w-[68px] text-center text-[9.5px] font-extrabold uppercase tracking-tight text-slate-500">
+            Class (50)
           </span>
-          <span className="text-[10px] font-extrabold text-slate-300">/</span>
-          <span className="w-[68px] text-center text-[10px] font-extrabold uppercase tracking-wide text-slate-400">
-            Exam
+          <span className="w-[68px] text-center text-[9.5px] font-extrabold uppercase tracking-tight text-slate-500">
+            Exam (100)
           </span>
-          <span className="text-[10px] font-extrabold text-slate-300">/</span>
           <span className="w-8 text-center text-[10px] font-extrabold uppercase tracking-wide text-slate-400">
             Total
           </span>
@@ -187,8 +191,8 @@ const BulkGradeGrid = ({
               </div>
 
               <div className="ml-auto flex items-center gap-2">
-                {scoreCell(student, 'classScore', classScore, maxClassScore, 'Class')}
-                {scoreCell(student, 'examScore', examScore, maxExamScore, 'Exam')}
+                {scoreCell(student, 'classScore', classScore, maxClassScore, 'Class (50)')}
+                {scoreCell(student, 'examScore', examScore, maxExamScore, 'Exam (100)')}
 
                 <div className="w-8 text-center">
                   <span className="text-[15px] font-extrabold tabular-nums text-ink">
