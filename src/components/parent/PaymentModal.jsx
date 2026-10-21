@@ -551,6 +551,10 @@ const PaymentModal = ({
         phone: normalise(phone),
         network: network || detected?.id || 'MTN',
         otpCode: code,
+        // The reference of the payment already in flight. It pins the code to
+        // the transaction Moolre sent it for, so the backend answers against
+        // that payment instead of minting a new one the code does not match.
+        reference: reference || undefined,
       });
 
       const nextReference = resolvePaymentReference(response);

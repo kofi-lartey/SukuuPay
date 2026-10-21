@@ -1,5 +1,6 @@
 import api from './api';
 import { toApiError } from './toApiError';
+import { buildInitiatePayload } from '../utils/parentPayInitiate';
 
 /**
  * The parent pay portal's API client.
@@ -76,16 +77,30 @@ export const fetchPaymentHistory = async (token, { page = 1, perPage = 20, filte
  *
  * `amount` is pesewas, as the API takes it everywhere else. `MoneyInput` is the
  * boundary that speaks cedis to the user, so nothing here converts.
+ *
+ * `otpCode` is the code Moolre sent the payer by SMS. It **must** be forwarded:
+ * Moolre verifies the payer's number before it sends the approval prompt, and
+ * without the code the backend starts a fresh transaction that Moolre answers
+ * with "another code required" — which the parent sees as their code being
+ * rejected, every time, no matter how carefully they type it.
+ *
+ * `reference` pins the request to the payment already in flight, so the code
+ * is answered against the transaction Moolre actually sent it for.
  */
-export const initiatePayment = async (token, { amount, phone, network, description } = {}) => {
+export const initiatePayment = async (
+  token,
+  { amount, phone, network, description, otpCode, reference } = {}
+) => {
   try {
     return unwrap(
-      await api.post(pay(token, '/initiate'), {
+      await api.post(pay(token, '/initiate'), buildInitiatePayload({
         amount,
         phone,
         network,
         description,
-      })
+        otpCode,
+        reference,
+      }))
     );
   } catch (error) {
     throw toApiError(error, 'We could not start that payment. Please try again.');
