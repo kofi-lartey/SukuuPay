@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarCheck, ClipboardList, FileText, Users, ArrowRight, Clock, ChevronRight } from 'lucide-react';
+import { CheckCircle2, MapPin, CalendarCheck, ClipboardList, FileText, Users, ArrowRight, Clock, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTeacherDashboard, useMySchedule } from '../../hooks/teacher/useDashboard';
 import { useMyClasses } from '../../hooks/teacher/useMyClasses';
@@ -10,6 +10,7 @@ import EmptyState from '../../components/parent/shared/EmptyState';
 import { greetingForHour, greetingNow, msUntilNextBoundary } from '../../utils/greeting';
 import { firstNameOf } from '../../utils/names';
 import { useToast } from '../../hooks/useToast';
+import apiClient from '../../services/teacher/apiClient';
 
 const QUICK_ACTIONS = [
   { key: 'attendance', label: 'Take Attendance', to: TEACHER_ROUTES.attendance, icon: CalendarCheck },
@@ -282,3 +283,63 @@ const TeacherDashboard = () => {
 };
 
 export default TeacherDashboard;
+
+
+export const CurrentPeriodWidget = () => {
+  const [currentPeriod, setCurrentPeriod] = useState(null);
+  const [accepted, setAccepted] = useState(false);
+
+  // ... fetch logic to get the teacher's current timetable slot ...
+
+  const handleAccept = async () => {
+    try {
+      await apiClient.post('/teacher/accept-period', {
+        timetableId: currentPeriod.timetableId,
+        day: currentPeriod.day,
+        periodNumber: currentPeriod.period
+      });
+      setAccepted(true);
+    } catch (err) {
+      // handle error
+    }
+  };
+
+  if (!currentPeriod) return null;
+
+  if (accepted) {
+    return (
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 flex items-center gap-3">
+        <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+        <div>
+          <p className="font-bold text-emerald-900">You are marked present</p>
+          <p className="text-sm text-emerald-700">{currentPeriod.subject} � {currentPeriod.room}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+            <Clock className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-sm font-extrabold text-amber-900">Class starting now</p>
+            <p className="font-bold text-ink">{currentPeriod.className} � {currentPeriod.subject}</p>
+            <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+              <MapPin className="h-3 w-3" /> {currentPeriod.room || 'No room set'} � {currentPeriod.startTime}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={handleAccept}
+          className="rounded-xl bg-brand-700 px-4 py-2 text-sm font-extrabold text-white hover:bg-brand-800"
+        >
+          Accept Class
+        </button>
+      </div>
+    </div>
+  );
+};

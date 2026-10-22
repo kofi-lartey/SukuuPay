@@ -218,7 +218,7 @@ const Records = () => {
         <EmptyState
           icon={FileText}
           title="Report not published yet"
-          description="Your school publishes terminal reports at the end of each term. Check back after the term ends."
+          description="Your school has not published the report card for this term yet. Check back later."
         />
       ) : (
         <>
