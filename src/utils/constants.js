@@ -30,6 +30,7 @@ export const ROUTES = {
    DASHBOARD_ACADEMICS_GRADES: '/dashboard/academics/grades',
    DASHBOARD_ACADEMICS_CLASSES: '/dashboard/academics/classes',
    DASHBOARD_ACADEMICS_TEACHER_ASSIGNMENT: '/dashboard/academics/teacher-assignment',
+   DASHBOARD_ACADEMICS_TEACHER_ATTENDANCE: '/dashboard/academics/teacher-attendance',
    DASHBOARD_ACADEMICS_REPORTS: '/dashboard/academics/reports',
    DASHBOARD_ADVERTISEMENTS: '/dashboard/advertisements',
   ONBOARDING: '/onboarding',
@@ -227,6 +228,7 @@ export const ACADEMICS_ROUTES = {
   // classes they teach, and one no class list can answer. See
   // `Backend/src/models/TeacherAssignment.js`.
   teacherAssignment: '/dashboard/academics/teacher-assignment',
+  teacherAttendance: '/dashboard/academics/teacher-attendance',
   timetables: '/dashboard/academics/timetables',
   reports: '/dashboard/academics/reports',
 };
@@ -490,6 +492,13 @@ export const DASHBOARD_NAV = [
         icon: 'Calendar',
         roles: ['school_admin'],
         description: 'Build and publish class timetables for teachers and parents.',
+      },
+      {
+        to: ROUTES.DASHBOARD_ACADEMICS_TEACHER_ATTENDANCE,
+        label: 'Teacher Attendance',
+        icon: 'Clock',
+        roles: ['school_admin'],
+        description: 'Monitor teacher presence during scheduled periods.',
       },
       {
         to: ROUTES.DASHBOARD_ACADEMICS_REPORTS,

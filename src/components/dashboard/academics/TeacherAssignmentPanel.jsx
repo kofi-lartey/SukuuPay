@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { CheckSquare, Users } from 'lucide-react';
+import { CheckSquare, Users, Clock, UserCheck } from 'lucide-react';
 import { SelectField } from '../../common/FormField';
 import StudentAssignmentRow from './StudentAssignmentRow';
 import BulkAssignBar from './BulkAssignBar';
@@ -87,10 +87,66 @@ const TeacherAssignmentPanel = ({
     );
   }
 
+  const classes = Array.isArray(teacher.assignedClasses) ? teacher.assignedClasses : [];
+
   return (
     <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
       {/*
-        The filters, and why this is not `RosterFilterBar`.
+        The teacher's current class assignments: class teacher vs subject teacher,
+        and whether each subject-teacher slot carries attendance rights.
+      */}
+      <div className="border-b border-slate-200 bg-slate-50/60 p-3">
+        <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 mb-2">
+          Class assignments
+        </h3>
+        {classes.length === 0 ? (
+          <p className="text-[12px] text-slate-500">
+            No classes assigned — use "Select all in a class" or pick students to link.
+          </p>
+        ) : (
+          <div className="grid gap-1.5">
+            {classes.map((entry) => {
+              const isClassTeacher = String(entry.subject || '').trim() === '';
+              return (
+                <div
+                  key={`${entry.className}-${entry.subject || ''}`}
+                  className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2"
+                >
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                    isClassTeacher
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-slate-50 text-slate-600 border border-slate-200'
+                  }`}>
+                    {isClassTeacher ? 'Class teacher' : 'Subject teacher'}
+                  </span>
+                  <span className="flex-1 truncate text-[12px] font-semibold text-ink">
+                    {entry.className}
+                  </span>
+                  {!isClassTeacher && entry.subject && (
+                    <span className="truncate text-[12px] font-medium text-slate-600">
+                      {entry.subject}
+                    </span>
+                  )}
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                      entry.canMarkAttendance
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-amber-50 text-amber-700 border border-amber-200'
+                    }`}
+                  >
+                    {isClassTeacher
+                      ? 'Attendance: yes'
+                      : entry.canMarkAttendance
+                        ? 'Attendance: yes'
+                        : 'Attendance: no'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {/*
+          The filters, and why this is not `RosterFilterBar`.
 
         The roster's bar carries Fee Status and Plan Status, which this endpoint's
         query schema deliberately refuses: filtering "who a teacher looks after"
@@ -100,6 +156,7 @@ const TeacherAssignmentPanel = ({
         `SelectField`, the same styling, the same labels — minus the two dropdowns
         that do not belong, plus the class action that does.
       */}
+      </div>
       <div className="border-b border-slate-200 bg-slate-50/60 p-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
           <div className="relative lg:max-w-xs lg:flex-1">

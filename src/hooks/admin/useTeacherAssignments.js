@@ -259,7 +259,7 @@ export const useTeacherAssignments = (filters = {}, reloadKey = 0) => {
       setBusy('repair');
       setLastResult(null);
       try {
-        const result = await repairAssignmentDrift(teacherId);
+        const result = await repairAssignmentDrift(selectedTeacherId || undefined);
         // Re-read everything: the counts, the drift (which should now be empty),
         // and the page, whose Assigned pills are unchanged but whose counts are.
         await Promise.all([loadCounts(), loadPage(selectedTeacherId, filters)]);

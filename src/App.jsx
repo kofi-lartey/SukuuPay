@@ -53,6 +53,7 @@ import AcademicClasses from './pages/dashboard/academics/Classes';
 import AcademicsClassDetail from './pages/dashboard/academics/ClassDetail';
 import ReportCards from './pages/dashboard/academics/ReportCards';
 import TeacherAssignment from './pages/dashboard/academics/TeacherAssignment';
+import TeacherAttendance from './pages/dashboard/academics/TeacherAttendance';
 import IdCardBulkPrint from './pages/idCards/IdCardBulkPrint';
 import IdCardBatchPrint from './pages/idCards/IdCardBatchPrint';
 import IdCardSettings from './pages/settings/IdCardSettings';
@@ -307,6 +308,7 @@ function App() {
   path="teacher-assignment"
   element={<TeacherAssignment />}
 />
+<Route path="teacher-attendance" element={<TeacherAttendance />} />
 <Route path={ACADEMICS_ROUTES.timetables} element={<Timetables />} />
                   </Route>
                 <Route path="*" element={<NotFound variant="app" />} />

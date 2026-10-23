@@ -19,6 +19,7 @@ const AssignTeacherDialog = ({ open, onClose, className, subject, onAssigned, ti
   const { success, error: toastError } = useToast();
   const { items: teachers, loading } = useTeachers();
   const [teacherId, setTeacherId] = useState('');
+  const [canMarkAttendance, setCanMarkAttendance] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const isSubject = Boolean(subject);
@@ -32,7 +33,7 @@ const AssignTeacherDialog = ({ open, onClose, className, subject, onAssigned, ti
     setSubmitting(true);
     try {
       const res = isSubject
-        ? await assignSubjectTeacher(className, subject, teacherId)
+        ? await assignSubjectTeacher(className, subject, teacherId, canMarkAttendance)
         : await assignClassTeacher(className, { teacherId });
       const name = teachers.find((t) => t.id === teacherId)?.name || 'The teacher';
       success(res?.classTeacher ? `${name} is now the class teacher.` : `${name} is now assigned.`);
@@ -90,6 +91,23 @@ const AssignTeacherDialog = ({ open, onClose, className, subject, onAssigned, ti
               <option key={t.id} value={t.id}>{t.name} {t.role === 'school_admin' ? ' (admin)' : ''}</option>
             ))}
           </select>
+        )}
+        {isSubject && (
+          <div className="flex items-center gap-2 p-3 rounded-lg border border-slate-200 bg-slate-50">
+            <input
+              id="canMarkAttendance"
+              type="checkbox"
+              checked={canMarkAttendance}
+              onChange={(e) => setCanMarkAttendance(e.target.checked)}
+              className="rounded-md text-brand-600 focus:ring-brand-500"
+            />
+            <label htmlFor="canMarkAttendance" className="text-sm text-slate-600 cursor-pointer">
+              May mark attendance for {subject}
+            </label>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              When on, this teacher can accept class periods for this subject.
+            </p>
+          </div>
         )}
       </div>
     </Modal>

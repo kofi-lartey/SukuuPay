@@ -4,13 +4,11 @@ import { Search } from 'lucide-react';
 /**
  * The teacher rail: who can be assigned students, and how many they have.
  *
- * A search filter that runs *here* rather than on the server, and that is not a
- * shortcut: a school's whole staff is at most a few dozen accounts, the hook
- * already holds them all for the picker, and a keystroke round-trip per letter on
- * the connection a school office is actually on is a search that feels broken.
- *
- * The counts come from the aggregation, never from the student list — a teacher
- * past page one of the roster would otherwise read as having nobody.
+ * Each teacher's row shows their class assignments: a class-teacher slot
+ * (empty subject) means form-master control of that class — attendance and
+ * grading for every subject. A subject-teacher slot names one subject and
+ * carries an attendance flag that decides whether they may accept periods
+ * for it.
  */
 const TeacherPicker = ({
   teachers,
@@ -26,6 +24,29 @@ const TeacherPicker = ({
     if (!needle) return teachers;
     return teachers.filter((teacher) => (teacher.name || '').toLowerCase().includes(needle));
   }, [teachers, query]);
+
+  const summaryFor = (teacher) => {
+    const classes = Array.isArray(teacher.assignedClasses) ? teacher.assignedClasses : [];
+    if (!classes.length) return 'No classes assigned';
+    const classTeacher = classes.find((c) => String(c.subject || '').trim() === '');
+    const subjectTeachers = classes.filter((c) => String(c.subject || '').trim() !== '');
+    if (classTeacher && subjectTeachers.length === 0) {
+      return `Class teacher · ${classTeacher.className}`;
+    }
+    if (!classTeacher && subjectTeachers.length > 0) {
+      const subs = subjectTeachers.map((c) => c.subject).join(', ');
+      const att = subjectTeachers.filter((c) => c.canMarkAttendance).length;
+      return `Subject teacher · ${subs}${att ? ` · attendance for ${att}` : ''}`;
+    }
+    return `${classes.length} classes assigned`;
+  };
+
+  const badgeFor = (entry) => {
+    const isClassTeacher = String(entry.subject || '').trim() === '';
+    return isClassTeacher
+      ? 'Class teacher'
+      : `${entry.subject} ${entry.canMarkAttendance ? '· attendance' : ''}`;
+  };
 
   return (
     <aside className={`flex min-h-0 flex-col ${className}`} aria-label="Teachers">
@@ -45,9 +66,6 @@ const TeacherPicker = ({
 
       <ul className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
         {loading ? (
-          // Three skeleton rows rather than a spinner: the panel's width is
-          // stable while it loads, so the right column does not jump when the
-          // first teacher appears.
           [0, 1, 2, 3, 4].map((i) => (
             <li key={i} className="mb-1 flex items-center gap-2.5 rounded-xl px-2.5 py-2.5">
               <span className="h-9 w-9 animate-pulse rounded-full bg-slate-100" />
@@ -61,6 +79,7 @@ const TeacherPicker = ({
         ) : (
           filtered.map((teacher) => {
             const isActive = teacher.id === selectedTeacherId;
+            const classes = Array.isArray(teacher.assignedClasses) ? teacher.assignedClasses : [];
             return (
               <li key={teacher.id}>
                 <button
@@ -87,6 +106,11 @@ const TeacherPicker = ({
                     <span className={`block truncate text-[11px] font-semibold ${isActive ? 'text-sky-100' : 'text-slate-500'}`}>
                       {teacher.position || teacher.role || 'Teacher'}
                     </span>
+                    {classes.length > 0 && (
+                      <span className={`block truncate text-[10px] ${isActive ? 'text-sky-200' : 'text-slate-400'} mt-0.5`}>
+                        {classes.map((c) => badgeFor(c)).join('  •  ')}
+                      </span>
+                    )}
                   </span>
 
                   <span

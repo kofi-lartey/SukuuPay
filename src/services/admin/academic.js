@@ -164,11 +164,11 @@ export const assignClassTeacher = async (className, payload) => {
 };
 
 /** Assign (or replace) the teacher for one subject in one class. */
-export const assignSubjectTeacher = async (className, subject, teacherId) => {
+export const assignSubjectTeacher = async (className, subject, teacherId, canMarkAttendance = false) => {
   try {
     const { data } = await api.post(
       `/admin/classes/${encodeURIComponent(className)}/subject-teacher`,
-      { subject, teacherId },
+      { subject, teacherId, canMarkAttendance },
       { timeout: 15000 }
     );
     return data?.data || null;
@@ -318,6 +318,7 @@ export const listTeachers = async () => {
       id: u._id || u.id,
       name: u.name || u.email || '',
       role: u.role || 'teacher',
+      assignedClasses: Array.isArray(u.assignedClasses) ? u.assignedClasses : [],
     }));
   } catch (error) {
     throw toApiError(error, 'The teacher list could not be loaded.');

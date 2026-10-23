@@ -187,6 +187,7 @@ const AssignmentsTable = ({ assignments, onAssignSubject, onAssignClassTeacher }
             <th className="px-4 py-2.5">Role</th>
             <th className="px-4 py-2.5">Subject</th>
             <th className="px-4 py-2.5">Teacher</th>
+            <th className="px-4 py-2.5">Attendance</th>
             <th className="px-4 py-2.5 text-right">Action</th>
           </tr>
         </thead>
@@ -202,6 +203,15 @@ const AssignmentsTable = ({ assignments, onAssignSubject, onAssignClassTeacher }
               </td>
               <td className="px-4 py-2.5 text-slate-600">{a.subject || '—'}</td>
               <td className="px-4 py-2.5 font-extrabold text-ink">{a.name}</td>
+              <td className="px-4 py-2.5">
+                {a.isClassTeacher ? (
+                  <span className="text-[11px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">Yes</span>
+                ) : a.canMarkAttendance ? (
+                  <span className="text-[11px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">Yes</span>
+                ) : (
+                  <span className="text-[11px] text-slate-400">No</span>
+                )}
+              </td>
               <td className="px-4 py-2.5 text-right">
                 <button
                   type="button"
