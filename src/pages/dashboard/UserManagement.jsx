@@ -152,7 +152,7 @@ const UserManagement = () => {
     if (result.emailSent) {
       toast.success(`Invitation re-sent to ${row.email}. The previous password no longer works.`);
     } else {
-      toast.warning('The invitation still could not be sent. Check the address and try again.');
+      toast.warning(result.emailFailureReason || 'The invitation still could not be sent. Check the address and try again.');
     }
   };
 
@@ -538,3 +538,4 @@ const UserManagement = () => {
 };
 
 export default UserManagement;
+
