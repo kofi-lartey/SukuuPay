@@ -42,7 +42,7 @@ const StudentAssignmentRow = ({
           <input
             type="checkbox"
             checked={selected}
-            disabled={disabled}
+            disabled={disabled || (tag === 'CT' && !student.assignedToTeacher)}
             onChange={() => onToggle(id)}
             className="h-4 w-4 rounded border-slate-300 text-brand-700 focus:ring-2 focus:ring-brand-700/30 disabled:opacity-50"
           />
@@ -65,25 +65,30 @@ const StudentAssignmentRow = ({
       </td>
 
       <td className="px-4 py-2.5">
-        {student.assignedToTeacher ? (
-          <span className="flex flex-wrap items-center gap-1.5">
-            <Badge tone="green" icon={Check}>
-              Assigned
+        <span className="flex flex-wrap items-center gap-1.5">
+          {Array.isArray(student.teacherInitials) && student.teacherInitials.length > 0 && (
+            <span className="flex flex-wrap items-center gap-1">
+              {student.teacherInitials.map((initials, index) => (
+                <Badge key={`${initials}-${index}`} tone="blue">
+                  {initials}
+                </Badge>
+              ))}
+            </span>
+          )}
+          {student.classMediated && student.assignedToTeacher && (
+            <Badge tone="slate" icon={Link2}>
+              With a class
             </Badge>
-            {student.classMediated && (
-              <Badge tone="slate" icon={Link2}>
-                With a class
-              </Badge>
-            )}
-            {tag && (
-              <Badge tone={tagColor || 'emerald'}>
-                {tag}
-              </Badge>
-            )}
-          </span>
-        ) : (
-          <span className="text-[11.5px] font-semibold text-slate-300">Not assigned</span>
-        )}
+          )}
+          {tag && (
+            <Badge tone={tagColor || 'emerald'}>
+              {tag}
+            </Badge>
+          )}
+          {!student.assignedToTeacher && !tag && !student.teacherInitials?.length && (
+            <span className="text-[11.5px] font-semibold text-slate-300">Not assigned</span>
+          )}
+        </span>
       </td>
 
       <td className="px-4 py-2.5 text-right">

@@ -115,11 +115,15 @@ const TeacherAssignment = () => {
       return undefined;
     }
     if (result.action === 'assign') {
-      toast.success(
-        result.assigned > 0
-          ? `Assigned ${result.assigned} student${result.assigned === 1 ? '' : 's'} to ${assignments.selectedTeacher?.name || 'the teacher'}.`
-          : 'Those students were already assigned.'
-      );
+      if (result.role === 'subject') {
+        toast.success(`Updated subjects for ${result.className || 'the class'} for ${assignments.selectedTeacher?.name || 'the teacher'}.`);
+      } else {
+        toast.success(
+          result.assigned > 0
+            ? `Assigned ${result.assigned} student${result.assigned === 1 ? '' : 's'} to ${assignments.selectedTeacher?.name || 'the teacher'}.`
+            : 'Those students were already assigned.'
+        );
+      }
     }
     if (result.action === 'unassign') {
       toast.success(
