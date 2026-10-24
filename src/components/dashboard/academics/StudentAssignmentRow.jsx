@@ -69,12 +69,22 @@ const StudentAssignmentRow = ({
           {Array.isArray(student.teacherInitials) && student.teacherInitials.length > 0 && (
             <span className="flex flex-wrap items-center gap-1">
               {student.teacherInitials.map((initials, index) => (
-                <Badge key={`${initials}-${index}`} tone="blue">
+                <Badge key={`t-${initials}-${index}`} tone="blue">
                   {initials}
                 </Badge>
               ))}
             </span>
           )}
+          {Array.isArray(student.subjectInitials) && student.subjectInitials.length > 0 && (
+            <span className="flex flex-wrap items-center gap-1">
+              {student.subjectInitials.map((initial, index) => (
+                <Badge key={`s-${initial}-${index}`} tone="amber">
+                  {initial}
+                </Badge>
+              ))}
+            </span>
+          )}
+
           {student.classMediated && student.assignedToTeacher && (
             <Badge tone="slate" icon={Link2}>
               With a class
