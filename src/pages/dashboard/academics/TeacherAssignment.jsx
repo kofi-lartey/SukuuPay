@@ -46,6 +46,7 @@ const TeacherAssignment = () => {
       class: searchParams.get('class') || '',
       status: searchParams.get('status') || 'active',
       gender: searchParams.get('gender') || '',
+      tag: searchParams.get('tag') || '',
       page: Number(searchParams.get('page')) || 1,
     }),
     [searchParams]
@@ -144,9 +145,9 @@ const TeacherAssignment = () => {
     [assignments]
   );
 
-  const assignClass = useCallback(
-    async (className) => {
-      await assignments.assign({ className });
+  const onAssignClass = useCallback(
+    async (className, options = {}) => {
+      await assignments.assign({ className, ...options });
     },
     [assignments]
   );
@@ -248,7 +249,7 @@ const TeacherAssignment = () => {
           onToggleStudent={assignments.toggleStudent}
           onSelectPage={assignments.selectPage}
           onAssign={assignSelected}
-          onAssignClass={assignClass}
+          onAssignClass={onAssignClass}
           onUnassign={async (ids, options = {}) => assignments.unassign({ studentIds: ids, ...options })}
           onFilterChange={setFilters}
           onPageChange={(page) => setFilters({ page })}

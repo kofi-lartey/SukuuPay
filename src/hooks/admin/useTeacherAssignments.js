@@ -5,6 +5,7 @@ import {
   listTeachers,
   listTeacherStudents,
   assignTeacherStudents,
+  assignTeacherStudentsByClass,
   unassignTeacherStudents,
 } from '../../services/admin/academic';
 
@@ -169,7 +170,7 @@ export const useTeacherAssignments = (filters = {}, reloadKey = 0) => {
   const clearSelection = useCallback(() => setSelected(new Set()), []);
 
   const assign = useCallback(
-    async ({ studentIds, className } = {}) => {
+    async ({ studentIds, className, role, subjects, canMarkAttendance } = {}) => {
       if (!selectedTeacherId) return { ok: false, error: new Error('Pick a teacher first.') };
       if (!className && !studentIds?.length) {
         return { ok: false, error: new Error('Pick at least one student.') };
@@ -178,7 +179,11 @@ export const useTeacherAssignments = (filters = {}, reloadKey = 0) => {
       setBusy('assign');
       setLastResult(null);
       try {
-        const result = await assignTeacherStudents(selectedTeacherId, { studentIds, className });
+        // Use the separate service for class assignment to ensure proper parameter handling
+        const result = className
+          ? await assignTeacherStudentsByClass(selectedTeacherId, { className, role, subjects, canMarkAttendance })
+          : await assignTeacherStudents(selectedTeacherId, { studentIds, className, role, subjects, canMarkAttendance });
+
         // Refresh in the order the admin watches: the tally next to every teacher,
         // then the rows. The class path clears the selection because "all of JHS 2"
         // is not a set of rows anybody meant to hold.

@@ -418,13 +418,24 @@ export const listTeacherStudents = async (teacherId, filters = {}) => {
  * caller asked for, so a row archived mid-session is reported truthfully rather
  * than silently.
  */
-export const assignTeacherStudents = async (teacherId, { studentIds, className }) => {
+export const assignTeacherStudents = async (teacherId, { studentIds, className, role, subjects, canMarkAttendance }) => {
   try {
-    const payload = className ? { className } : { studentIds };
+    const payload = className
+      ? { className, role, subjects, canMarkAttendance }
+      : { studentIds };
     const { data } = await api.post(`/admin/users/${teacherId}/students`, payload);
     return data?.data || { assigned: 0 };
   } catch (error) {
     throw toApiError(error, 'Those students could not be assigned.');
+  }
+};
+
+export const assignTeacherStudentsByClass = async (teacherId, { className, role, subjects, canMarkAttendance }) => {
+  try {
+    const { data } = await api.post(`/admin/users/${teacherId}/students`, { className, role, subjects, canMarkAttendance });
+    return data?.data || { assigned: 0 };
+  } catch (error) {
+    throw toApiError(error, 'Those students could not be assigned by class.');
   }
 };
 
@@ -575,5 +586,6 @@ export default {
   repairAssignmentDrift,
   listTeacherStudents,
   assignTeacherStudents,
+  assignTeacherStudentsByClass,
   unassignTeacherStudents,
 };

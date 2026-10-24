@@ -8,8 +8,8 @@ import Badge from '../ui/Badge';
  * Two pills, and they say different things:
  *
  *   - **Assigned** — this teacher is already linked to this student. It is what
- *     makes the page's main failure mode visible: an admin who cannot tell
- *     whether a tick is adding or re-showing.
+ *     makes the page's main failure mode visible: an admin who cannot tell whether a
+ *     tick is adding or re-showing.
  *   - **With a class** — the link came from assigning the class, not from picking
  *     this student individually. Which is the warning that removing it will
  *     silently take the child out of the class's roster if forced through.
@@ -27,6 +27,9 @@ const StudentAssignmentRow = ({
   onRemove,
 }) => {
   const id = String(student._id);
+  const { tag } = student || {};
+
+  const tagColor = tag === 'CT' ? 'green' : tag === 'ST' ? 'blue' : null;
 
   return (
     <tr className={disabled ? 'opacity-60' : 'hover:bg-slate-50/60'}>
@@ -70,6 +73,11 @@ const StudentAssignmentRow = ({
             {student.classMediated && (
               <Badge tone="slate" icon={Link2}>
                 With a class
+              </Badge>
+            )}
+            {tag && (
+              <Badge tone={tagColor || 'emerald'}>
+                {tag}
               </Badge>
             )}
           </span>
