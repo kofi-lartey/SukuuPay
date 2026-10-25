@@ -74,15 +74,7 @@ const EnterGrades = () => {
   });
   const toast = useToast();
 
-  const allSubjectOptions = useMemo(() => {
-    const base = SUBJECTS.filter((s) => s.value !== OTHER_SUBJECT).concat(
-      customSubjects.map((name) => ({ value: name, label: name }))
-    );
-    if (subject && !base.some((o) => o.value === subject)) {
-      base.push({ value: subject, label: subject });
-    }
-    return base;
-  }, [customSubjects, subject]);
+
 
   const handleSubjectChange = (value) => {
     if (value === OTHER_SUBJECT) {
@@ -106,6 +98,22 @@ const EnterGrades = () => {
   const { data: roster, isLoading: loadingRoster } = useClassRoster(className);
   const { data: existing, isLoading: loadingGrades } = useClassGrades(className, { term, subject });
   const save = useSaveGradesBulk();
+
+  const allowedSubjects = useMemo(() => {
+    const cls = classes?.find((c) => c.className === className);
+    return cls?.subjects?.length ? cls.subjects : null;
+  }, [classes, className]);
+
+  const allSubjectOptions = useMemo(() => {
+    const base = (allowedSubjects
+      ? SUBJECTS.filter((s) => allowedSubjects.includes(s.value))
+      : SUBJECTS.filter((s) => s.value !== OTHER_SUBJECT)
+    ).concat(allowedSubjects ? [] : customSubjects.map((name) => ({ value: name, label: name })));
+    if (subject && !base.some((o) => o.value === subject)) {
+      base.push({ value: subject, label: subject });
+    }
+    return base;
+  }, [allowedSubjects, customSubjects, subject]);
 
   /*
     Re-open the grid with the marks already saved for this term and subject, so

@@ -64,7 +64,7 @@ const MyClasses = () => {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[15px] font-extrabold text-ink">{c.className}</p>
                   <p className="mt-0.5 truncate text-[12.5px] text-slate-500">
-                    {c.subject || 'Class teacher'} · {c.studentCount} students
+                    {c.subjects?.length ? c.subjects.join(', ') : 'Class teacher'} · {c.studentCount} students
                   </p>
                 </div>
                 <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />

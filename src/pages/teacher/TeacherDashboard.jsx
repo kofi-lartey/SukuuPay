@@ -121,7 +121,9 @@ const TeacherDashboard = () => {
     }
   };
 
-  const classCount = data?.classCount || classes?.length || 0;
+  const isWeekend = [0, 6].includes(new Date().getDay());
+
+  const classCount = isWeekend ? 0 : (data?.classCount || classes?.length || 0);
   const pendingAttendance = data?.pendingAttendance || 0;
 
   return (
@@ -147,7 +149,7 @@ const TeacherDashboard = () => {
           {greeting}, {firstNameOf(user?.name) || 'Teacher'}
         </p>
         <p className="mt-1 text-[13px] font-semibold text-brand-800/80">
-          {classCount} classes today · {pendingAttendance} attendance pending
+          {isWeekend ? 'Weekend — no classes today' : `${classCount} classes today · ${pendingAttendance} attendance pending`}
         </p>
       </div>
 
@@ -211,7 +213,7 @@ const TeacherDashboard = () => {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[13.5px] font-extrabold text-ink">{c.className}</p>
                     <p className="mt-0.5 truncate text-[11.5px] text-slate-500">
-                      {c.subject || 'Class teacher'} · {c.studentCount} students
+                       {c.subjects?.length ? c.subjects.join(', ') : 'Class teacher'} · {c.studentCount} students
                     </p>
                   </div>
                   <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />

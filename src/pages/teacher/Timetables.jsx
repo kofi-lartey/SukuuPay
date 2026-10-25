@@ -503,11 +503,12 @@ const Timetables = () => {
                   toast.error(error?.message || 'Could not import the timetable.');
                 })
                 .finally(() => setImporting(false));
-            }}
-            importing={importing}
-          />
-          <div className="flex flex-wrap gap-2 mt-3">
-            {editorStatus === 'draft' && canEditEditor && hasEditorPeriods && (
+             }}
+             allowedSubjects={classes.find((c) => c.className === editingClass)?.subjects || []}
+             importing={importing}
+            />
+            <div className="flex flex-wrap gap-2 mt-3">
+             {editorStatus === 'draft' && canEditEditor && hasEditorPeriods && (
               <Button
                 variant="primary"
                 disabled={submitting}

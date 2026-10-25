@@ -50,6 +50,7 @@ export default function TimetableGridEditor({
   saving = false,
   onSaveDraft,
   showImport = false,
+  allowedSubjects = null,
   onImportFile,
   importing = false,
 }) {
@@ -99,13 +100,15 @@ export default function TimetableGridEditor({
     } catch {}
   };
 
-  const allSubjectOptions = useMemo(
-    () =>
-      SUBJECTS.filter((s) => s.value !== OTHER_SUBJECT).concat(
-        customSubjects.map((name) => ({ value: name, label: name }))
-      ),
-    [customSubjects]
-  );
+  const allSubjectOptions = useMemo(() => {
+    if (allowedSubjects && allowedSubjects.length) {
+      return allowedSubjects.map((name) => ({ value: name, label: name }));
+    }
+    return SUBJECTS.filter((s) => s.value !== OTHER_SUBJECT).concat(
+      customSubjects.map((name) => ({ value: name, label: name }))
+    );
+  }, [allowedSubjects, customSubjects]);
+
 
   const handleAddCustomSubject = () => {
     const trimmed = customSubjectName.trim();
@@ -274,7 +277,7 @@ export default function TimetableGridEditor({
                         </option>
                       ))}
                     </SelectField>
-                    {canEdit && (
+                    {canEdit && !allowedSubjects?.length && (
                       <Button
                         variant="ghost"
                         size="sm"
