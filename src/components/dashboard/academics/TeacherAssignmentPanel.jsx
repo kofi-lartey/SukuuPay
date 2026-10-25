@@ -38,7 +38,7 @@ const TeacherAssignmentPanel = ({
     }
   });
   const [customSubjectName, setCustomSubjectName] = useState('');
-  const [attendance, setAttendance] = useState(false);
+  const [attendance, setAttendance] = useState(true);
   const [showClassAssignments, setShowClassAssignments] = useState(true);
   const [showSubjects, setShowSubjects] = useState(true);
 
@@ -326,14 +326,26 @@ const TeacherAssignmentPanel = ({
                  )}
                </div>
                 {filters.class ? (
-                  <button
-                    type="button"
-                    onClick={() => onAssignClass(filters.class, { role, subjects: selectedSubjects, canMarkAttendance: role === 'class' ? true : attendance })}
-                    disabled={busy !== null || (role === 'subject' && selectedSubjects.length === 0)}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-brand-700 px-3 text-[12.5px] font-extrabold text-white transition-colors hover:bg-brand-800 disabled:opacity-50"
-                  >
-                    Assign class
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => onAssignClass(filters.class, { role, subjects: selectedSubjects, canMarkAttendance: role === 'class' ? true : attendance })}
+                      disabled={busy !== null || (role === 'subject' && selectedSubjects.length === 0)}
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-brand-700 px-3 text-[12.5px] font-extrabold text-white transition-colors hover:bg-brand-800 disabled:opacity-50"
+                    >
+                      Assign class
+                    </button>
+                    {role === 'subject' && (
+                      <button
+                        type="button"
+                        onClick={() => onAssignClass(filters.class, { role, subjects: selectedSubjects, canMarkAttendance: false })}
+                        disabled={busy !== null}
+                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[12.5px] font-extrabold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        Revoke attendance
+                      </button>
+                    )}
+                  </>
                 ) : (
                   <span className="text-[12px] text-slate-500">Select a class above to assign.</span>
                 )}
