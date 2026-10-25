@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, CalendarCheck, FileText, MessageCircle, Wallet } from 'lucide-react';
+import { Bell, CalendarCheck, FileText, MessageCircle, Mic, Wallet } from 'lucide-react';
 import { useParentPay } from '../../layouts/ParentLayout';
 import {
   useNotifications,
@@ -22,6 +22,8 @@ const FILTERS = [
 ];
 
 const iconForType = (type) => {
+  if (type?.includes('audio_message'))
+    return { Icon: Mic, bg: 'bg-amber-100', fg: 'text-amber-700' };
   if (type?.includes('payment'))
     return { Icon: Wallet, bg: 'bg-emerald-100', fg: 'text-emerald-700' };
   if (type?.includes('attendance'))

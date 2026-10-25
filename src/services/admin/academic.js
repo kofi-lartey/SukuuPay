@@ -78,6 +78,15 @@ export const rejectGrades = async (payload) => {
 // the disclosure boundary — head remark, publish, unpublish — which is what
 // makes a card visible to a parent.
 
+export const setTeacherRemark = async (payload) => {
+  try {
+    const { data } = await api.post('/admin/reports/teacher-remark', payload, { timeout: 30000 });
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, 'The teacher remark could not be saved.');
+  }
+};
+
 export const setHeadRemark = async (payload) => {
   try {
     const { data } = await api.post('/admin/reports/head-remark', payload, { timeout: 30000 });
@@ -555,6 +564,7 @@ export default {
   getGradeApprovalQueue,
   approveGrades,
   rejectGrades,
+  setTeacherRemark,
   setHeadRemark,
   publishReports,
   unpublishReports,

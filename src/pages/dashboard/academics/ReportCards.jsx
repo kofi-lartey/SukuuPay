@@ -8,7 +8,7 @@ import { Field, SelectField } from '../../../components/common/FormField';
 import { SkeletonRow } from '../../../components/parent/shared/Skeleton';
 import EmptyState from '../../../components/parent/shared/EmptyState';
 import { useClasses } from '../../../hooks/admin/useClasses';
-import { setHeadRemark, publishReports, unpublishReports } from '../../../services/admin/academic';
+import { setTeacherRemark, setHeadRemark, publishReports, unpublishReports } from '../../../services/admin/academic';
 import { useToast } from '../../../hooks/useToast';
 import { ACADEMIC_TERMS, ROUTES } from '../../../utils/constants';
 import { formatCount } from '../../../utils/format';
@@ -18,6 +18,7 @@ const ReleaseModal = ({ open, onClose, row, onDone }) => {
   const [term, setTerm] = useState('');
   const [year, setYear] = useState('');
   const [remark, setRemark] = useState('');
+  const [teacherRemark, setTeacherRemarkState] = useState('');
   const [mode, setMode] = useState('publish');
   const [submitting, setSubmitting] = useState(false);
 
@@ -25,6 +26,7 @@ const ReleaseModal = ({ open, onClose, row, onDone }) => {
     setTerm('');
     setYear('');
     setRemark('');
+    setTeacherRemarkState('');
     setMode('publish');
   };
 
@@ -37,6 +39,9 @@ const ReleaseModal = ({ open, onClose, row, onDone }) => {
     try {
       if (remark.trim().length >= 3) {
         await setHeadRemark({ className: row.className, term, academicYear: year, text: remark });
+      }
+      if (teacherRemark.trim().length >= 3) {
+        await setTeacherRemark({ className: row.className, term, academicYear: year, text: teacherRemark });
       }
       const res = mode === 'publish'
         ? await publishReports({ className: row.className, term, academicYear: year })
@@ -105,6 +110,14 @@ const ReleaseModal = ({ open, onClose, row, onDone }) => {
           placeholder="e.g. Strong finish to the term; keep an eye on participation."
           value={remark}
           onChange={(e) => setRemark(e.target.value)}
+          maxLength={500}
+          hint="3+ characters to be saved alongside the reports."
+        />
+        <Field
+          label="Class teacher remark (optional)"
+          placeholder="e.g. Good effort; needs to focus on homework."
+          value={teacherRemark}
+          onChange={(e) => setTeacherRemarkState(e.target.value)}
           maxLength={500}
           hint="3+ characters to be saved alongside the reports."
         />
