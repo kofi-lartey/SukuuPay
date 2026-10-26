@@ -233,7 +233,7 @@ const Timetables = () => {
         term: item.term,
         academicYear: item.academicYear,
       });
-      toast.success('Timetable approved.');
+      toast.success('Timetable approved and published — now visible to parents.');
       setSubmissions((current) =>
         current.map((s) =>
           s.className === item.className && s.term === item.term
@@ -246,6 +246,7 @@ const Timetables = () => {
         term === item.term &&
         academicYear === item.academicYear
       ) {
+        setStatus('approved');
         setSubmissionStatus('approved');
       }
       loadSubmissions();
@@ -395,7 +396,7 @@ const Timetables = () => {
               return <option key={label} value={label}>{label}</option>;
             })}
           </SelectField>
-          {status === 'published' || submissionStatus === 'approved' ? (
+          {status === 'published' || status === 'approved' || submissionStatus === 'approved' ? (
             <div className="mt-3 space-y-3">
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
                 <p className="text-[13px] font-extrabold text-ink">{className}</p>
@@ -547,6 +548,7 @@ const Timetables = () => {
               disabled={
                 publishing ||
                 status === 'published' ||
+                status === 'approved' ||
                 submissionStatus === 'submitted' ||
                 submissionStatus === 'draft' ||
                 submissionStatus === 'rejected' ||
@@ -567,7 +569,7 @@ const Timetables = () => {
               >
                 {republishing ? 'Republishing…' : 'Republish'}
               </button>
-            ) : status === 'published' ? (
+            ) : status === 'published' || status === 'approved' ? (
               <button
                 type="button"
                 disabled={deactivating || submissionStatus !== 'approved'}
