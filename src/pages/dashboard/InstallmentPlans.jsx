@@ -28,7 +28,7 @@ import usePlanBuilder from '../../hooks/usePlanBuilder';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../hooks/useToast';
 import { getSchool } from '../../services/school';
-import { endOfThisMonth, firstOfNextMonth } from '../../services/paymentPlans';
+import { endOfThisMonth, firstOfNextMonth, adminAcceptPaymentPlan } from '../../services/paymentPlans';
 import { ROUTES } from '../../utils/constants';
 import { formatCedis, formatCount } from '../../utils/format';
 
@@ -438,6 +438,15 @@ const InstallmentPlans = () => {
               busyPlanId={drawerPlan?._id}
               onViewSchedule={setDrawerPlan}
               onChase={() => setBroadcastOpen(true)}
+              onAccept={async (plan) => {
+                try {
+                  await adminAcceptPaymentPlan(plan._id);
+                  toast.success('Plan accepted and activated.');
+                  plans.reload();
+                } catch (e) {
+                  toast.error(e.message || 'Could not accept plan.');
+                }
+              }}
               onSort={onSort}
               sortBy={plans.filters.sortBy}
               sortOrder={plans.filters.sortOrder}

@@ -49,6 +49,14 @@ export const COMPLIANCE_STATUSES = [
  * summing it in the browser would total twenty plans and label the result
  * "school-wide". Every headline figure on the dashboard comes from `summary`.
  */
+export const adminAcceptPaymentPlan = async (planId) => {
+  try {
+    const { data } = await api.post(`/payment-plans/${planId}/admin-accept`, {}, { timeout: 20000 });
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, 'Could not accept plan.');
+  }
+};
 export const getSchoolCompliance = async (schoolId, params = {}) => {
   if (!schoolId) throw new Error('A school must be in scope to read plan compliance.');
   try {

@@ -357,6 +357,7 @@ const PaymentModal = ({
   student,
   balance,
   initialAmount,
+  lockAmount = false,
   feesBreakdown = [],
   onSettled,
 }) => {
@@ -782,6 +783,7 @@ const PaymentModal = ({
                     autoComplete="off"
                     value={amountText}
                     onChange={(event) => setAmountText(event.target.value)}
+                    disabled={lockAmount}
                     aria-describedby="pay-amount-help pay-amount-error"
                     aria-invalid={Boolean(amountError && amountText)}
                     className={`min-h-[52px] w-full rounded-xl border-2 pl-[3.75rem] pr-3.5 text-[19px] font-extrabold tabular-nums text-slate-900 focus:outline-none ${
@@ -802,7 +804,7 @@ const PaymentModal = ({
                       {formatCedi(balance)}
                     </span>
                   </span>
-                  {initialAmount && initialAmount !== balance ? (
+                  {initialAmount && initialAmount !== balance && !lockAmount ? (
                     <button
                       type="button"
                       onClick={() => setAmountText(cediText(balance))}

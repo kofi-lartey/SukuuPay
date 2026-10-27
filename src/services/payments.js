@@ -44,6 +44,14 @@ export const recordManualPayment = async (payload) => {
     throw toApiError(error, 'The payment could not be recorded.');
   }
 };
+export const confirmManualPayment = async ({ referenceCode, amountReceived }) => {
+  try {
+    const { data } = await api.post('/admin/manual-payments/confirm', { referenceCode, amountReceived }, { timeout: 20000 });
+    return data?.data || null;
+  } catch (error) {
+    throw toApiError(error, 'Could not confirm payment.');
+  }
+};
 
 export const resendPaymentSms = async (paymentId) => {
   try {
@@ -53,8 +61,6 @@ export const resendPaymentSms = async (paymentId) => {
     throw toApiError(error, 'The SMS could not be resent.');
   }
 };
-
-/** The payment list, for the dashboard's recent-activity and the Payments module. */
 export const listPayments = async (params = {}) => {
   try {
     const { data } = await api.get('/payments', { params, timeout: 15000 });

@@ -141,6 +141,7 @@ const ComplianceTable = ({
   hasFilters,
   onView,
   onChase,
+  onAccept,
   onViewSchedule,
   busyPlanId,
   onSort,
@@ -271,6 +272,7 @@ const ComplianceTable = ({
                     busy={busyPlanId === plan._id}
                     onView={() => onViewSchedule(plan)}
                     onChase={() => onChase(plan)}
+                    onAccept={() => onAccept && onAccept(plan)}
                   />
                 </td>
               </tr>

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   CheckSquare,
   Users,
@@ -8,6 +8,9 @@ import {
   Link2,
   Check,
   LoaderCircle,
+  ChevronLeft,
+  ChevronRight,
+  Search,
 } from 'lucide-react';
 import { SelectField } from '../../common/FormField';
 import StudentAssignmentRow from './StudentAssignmentRow';
@@ -48,6 +51,8 @@ const TeacherAssignmentPanel = ({
   onSelectTeacher,
   busy,
   lastResult,
+  classroomOptions,
+  onPageChange,
 }) => {
   const [showClassAssignments, setShowClassAssignments] = useState(true);
   const [showRoleUI, setShowRoleUI] = useState(true);
@@ -58,6 +63,10 @@ const TeacherAssignmentPanel = ({
   const [attendance, setAttendance] = useState(true);
 
   const allSubjects = ALL_SUBJECTS;
+
+  const classroomOptionList = (Array.isArray(classroomOptions) ? classroomOptions : [])
+    .map((item) => (typeof item === 'string' ? item.trim() : String(item?.className || item?.name || '').trim()))
+    .filter(Boolean);
 
   const toggleSubject = (value) => {
     setSelectedSubjects((current) =>
@@ -72,10 +81,15 @@ const TeacherAssignmentPanel = ({
     setCustomSubjectName('');
   };
 
+  const [searchTerm, setSearchTerm] = useState((filters?.search || filters?.q || ''));
+  useEffect(() => {
+    setSearchTerm(filters?.search || filters?.q || '');
+  }, [filters?.search, filters?.q]);
+
   const filteredRows = useMemo(() => {
     let result = [...(page || [])];
-    if (filters.search) {
-      const term = filters.search.toLowerCase();
+    const term = (filters?.search || filters?.q || '').toLowerCase();
+    if (term) {
       result = result.filter(
         (row) =>
           row.name?.toLowerCase().includes(term) ||
@@ -83,18 +97,20 @@ const TeacherAssignmentPanel = ({
           row.parentPhone?.toLowerCase().includes(term)
       );
     }
-    if (filters.class) {
+    if (filters?.class) {
       result = result.filter((row) => row.studentClass === filters.class);
     }
-    if (filters.status) {
+    if (filters?.status && filters.status !== 'all') {
       result = result.filter((row) => row.status === filters.status);
     }
-    if (filters.gender) {
+    if (filters?.gender) {
       result = result.filter((row) => row.gender === filters.gender);
     }
-    if (filters.tag) {
+    if (filters?.tag) {
       if (filters.tag === 'unassigned') {
         result = result.filter((row) => !row.assignedToTeacher);
+      } else if (filters.tag === 'assigned') {
+        result = result.filter((row) => row.assignedToTeacher);
       } else {
         result = result.filter((row) => row.tag === filters.tag);
       }
@@ -106,6 +122,9 @@ const TeacherAssignmentPanel = ({
   const assignedCount = (page || []).filter((row) => row.assignedToTeacher).length;
 
   const classMediatedCount = (page || []).filter((row) => row.classMediated && row.assignedToTeacher).length;
+
+  const currentPage = pagination?.page || filters?.page || 1;
+  const totalPages = pagination?.pages || pagination?.totalPages || 1;
 
   const classes = Array.isArray(teacher?.assignedClasses) ? teacher.assignedClasses : [];
 
@@ -171,6 +190,22 @@ const TeacherAssignmentPanel = ({
                     <span className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-extrabold ${entry.attendance ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
                       {entry.attendance ? 'Attendance: yes' : 'Attendance: no'}
                     </span>
+                    {!entry.isClassTeacher && entry.subjects.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onAssignClass(entry.className, {
+                            role: 'subject',
+                            subjects: entry.subjects,
+                            canMarkAttendance: !entry.attendance,
+                          })
+                        }
+                        disabled={busy !== null}
+                        className="shrink-0 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-extrabold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        {entry.attendance ? 'Revoke attendance' : 'Reassign attendance'}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -264,14 +299,24 @@ const TeacherAssignmentPanel = ({
                   Assign class
                 </button>
                 {role === 'subject' && (
-                  <button
-                    type="button"
-                    onClick={() => onAssignClass(filters.class, { role, subjects: selectedSubjects, canMarkAttendance: false })}
-                    disabled={busy !== null}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[12.5px] font-extrabold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    Revoke attendance
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => onAssignClass(filters.class, { role, subjects: selectedSubjects, canMarkAttendance: false })}
+                      disabled={busy !== null}
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[12.5px] font-extrabold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      Revoke attendance
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onAssignClass(filters.class, { role, subjects: selectedSubjects, canMarkAttendance: true })}
+                      disabled={busy !== null || (role === 'subject' && selectedSubjects.length === 0)}
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[12.5px] font-extrabold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      Reassign attendance
+                    </button>
+                  </>
                 )}
               </>
             ) : (
@@ -279,6 +324,81 @@ const TeacherAssignmentPanel = ({
             )}
           </>
         )}
+      </div>
+
+      <div className="border-b border-slate-200 bg-white p-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+          <div className="relative lg:max-w-xs lg:flex-1">
+            <label htmlFor="teacher-assignment-search" className="mb-0.5 block text-[11px] font-semibold text-slate-700">
+              Search
+            </label>
+            <Search className="pointer-events-none absolute bottom-2.5 left-3 h-4 w-4 text-slate-400" aria-hidden="true" />
+            <input
+              id="teacher-assignment-search"
+              type="search"
+              value={searchTerm}
+              onChange={(event) => {
+                const value = event.target.value;
+                setSearchTerm(value);
+                onFilterChange?.({ q: value, page: 1 });
+              }}
+              placeholder="Student name, ID, or parent phone…"
+              className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-[13px] font-semibold text-ink placeholder:font-medium placeholder:text-slate-400 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-700/20"
+            />
+          </div>
+
+          <SelectField
+            label="Class"
+            value={filters?.class || ''}
+            onChange={(event) => onFilterChange?.({ class: event.target.value, page: 1 })}
+            className="lg:w-44"
+          >
+            <option value="">All Classes</option>
+            {classroomOptionList.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </SelectField>
+
+          <SelectField
+            label="Assignment"
+            value={filters?.tag || ''}
+            onChange={(event) => onFilterChange?.({ tag: event.target.value, page: 1 })}
+            className="lg:w-44"
+          >
+            <option value="">All</option>
+            <option value="assigned">Assigned</option>
+            <option value="unassigned">Unassigned</option>
+            <option value="CT">Class teacher (CT)</option>
+            <option value="ST">Subject teacher (ST)</option>
+          </SelectField>
+
+          <SelectField
+            label="Record status"
+            value={filters?.status || 'active'}
+            onChange={(event) => onFilterChange?.({ status: event.target.value, page: 1 })}
+            className="lg:w-40"
+          >
+            <option value="active">Active</option>
+            <option value="suspended">Suspended</option>
+            <option value="graduated">Graduated</option>
+            <option value="transferred">Transferred</option>
+            <option value="archived">Archived</option>
+            <option value="all">All Records</option>
+          </SelectField>
+
+          <SelectField
+            label="Gender"
+            value={filters?.gender || ''}
+            onChange={(event) => onFilterChange?.({ gender: event.target.value, page: 1 })}
+            className="lg:w-36"
+          >
+            <option value="">All</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </SelectField>
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto w-full">
@@ -360,6 +480,41 @@ const TeacherAssignmentPanel = ({
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3">
+        <p className="text-[12px] font-medium text-slate-500">
+          Page {currentPage} of {totalPages}
+          {pagination?.total ? ` · ${pagination.total} students` : ''}
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              const next = currentPage - 1;
+              if (onPageChange) onPageChange(next);
+              else onFilterChange?.({ page: next });
+            }}
+            disabled={currentPage <= 1 || loading}
+            aria-label="Previous page"
+            className="rounded-lg px-3 py-1.5 text-[13px] font-bold text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-40"
+          >
+            Previous
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const next = currentPage + 1;
+              if (onPageChange) onPageChange(next);
+              else onFilterChange?.({ page: next });
+            }}
+            disabled={currentPage >= totalPages || loading}
+            aria-label="Next page"
+            className="rounded-lg px-3 py-1.5 text-[13px] font-bold text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-40"
+          >
+            Next
+          </button>
+        </div>
       </div>
 
       <BulkAssignBar

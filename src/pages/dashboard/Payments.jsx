@@ -6,8 +6,9 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import PageHeader from '../../components/dashboard/PageHeader';
-import Button from '../../components/common/Button';
+import Modal from '../../components/common/Modal';
 import RecordManualPaymentDialog from '../../components/dashboard/RecordManualPaymentDialog';
+import ManualPaymentConfirmation from '../../components/dashboard/ManualPaymentConfirmation';
 import PaymentKpiRow from '../../components/payments/PaymentKpiRow';
 import PaymentFilterBar from '../../components/payments/PaymentFilterBar';
 import TransactionTable from '../../components/payments/TransactionTable';
@@ -18,7 +19,7 @@ import SettlementBand from '../../components/payments/SettlementBand';
 import useToast from '../../hooks/useToast';
 import { usePayments, usePaymentSummary } from '../../hooks/usePayments';
 import { useAuth } from '../../context/AuthContext';
-import { exportPayments } from '../../services/payments';
+import { exportPayments, confirmManualPayment } from '../../services/payments';
 import { formatCedi, formatCount } from '../../utils/format';
 
 /**
@@ -42,6 +43,8 @@ const Payments = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [confirmingManual, setConfirmingManual] = useState(false);
+  const [confirmingPayment, setConfirmingPayment] = useState(null);
   const [detailId, setDetailId] = useState(null);
   const [refundTarget, setRefundTarget] = useState(null);
   const [receiptId, setReceiptId] = useState(null);
@@ -205,6 +208,16 @@ const Payments = () => {
         summary={summary}
       />
 
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setConfirmingManual(true)}
+          className="rounded-xl bg-emerald-600 px-4 py-2 text-[13px] font-extrabold text-white hover:bg-emerald-700"
+        >
+          Confirm Manual MoMo Payment
+        </button>
+      </div>
+
       <TransactionTable
         rows={rows}
         loading={loading}
@@ -217,6 +230,10 @@ const Payments = () => {
         onOpenDetail={(payment) => setDetailId(payment.paymentId)}
         onViewReceipt={(payment) => setReceiptId(payment.paymentId)}
         onRefund={(payment) => setRefundTarget(payment)}
+        onConfirmManual={async (payment) => {
+          setConfirmingPayment(payment);
+          setConfirmingManual(true);
+        }}
         onClearFilters={clearFilters}
         hasFilters={hasFilters}
         canRefund={canRefund}
@@ -244,6 +261,13 @@ const Payments = () => {
         onClose={() => setRecording(false)}
         onRecorded={onRecorded}
       />
+
+      <Modal open={confirmingManual} onClose={() => { setConfirmingManual(false); setConfirmingPayment(null); }} title="Confirm Manual MoMo Payment">
+        <ManualPaymentConfirmation
+          initialReferenceCode={confirmingPayment?.reference || ''}
+          initialAmount={confirmingPayment?.amount || ''}
+        />
+      </Modal>
 
       <PaymentDetailDrawer
         paymentId={detailId}

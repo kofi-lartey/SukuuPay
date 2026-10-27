@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowDown, ArrowUp, Eye, Receipt, RotateCcw, Search } from 'lucide-react';
+import { ArrowDown, ArrowUp, CheckCircle2, Eye, Receipt, RotateCcw, Search } from 'lucide-react';
 import Card from '../dashboard/ui/Card';
 import Button from '../common/Button';
 import EmptyState from '../dashboard/EmptyState';
@@ -78,6 +78,7 @@ const TransactionTable = ({
   onOpenDetail,
   onViewReceipt,
   onRefund,
+  onConfirmManual,
   onClearFilters,
   hasFilters,
   canRefund,
@@ -325,6 +326,17 @@ const TransactionTable = ({
                               className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
                             >
                               <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                            </button>
+                          )}
+                          {payment.status === 'pending' && payment.provider === 'manual' && (
+                            <button
+                              type="button"
+                              onClick={() => onConfirmManual && onConfirmManual(payment)}
+                              aria-label={`Confirm ${payment.paymentId}`}
+                              title="Confirm manual payment"
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-emerald-600 transition-colors hover:bg-emerald-50"
+                            >
+                              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                             </button>
                           )}
                         </div>

@@ -9,6 +9,8 @@ import StudentRow from '../../components/parent/shared/StudentRow';
 import SectionLabel from '../../components/parent/shared/SectionLabel';
 import StatusPill from '../../components/parent/shared/StatusPill';
 import PaymentModal from '../../components/parent/PaymentModal';
+import ManualPaymentModal from '../../components/parent/ManualPaymentModal';
+import Modal from '../../components/common/Modal';
 import { SkeletonCard } from '../../components/parent/shared/Skeleton';
 
 const BalanceHero = ({ student, onPay }) => {
@@ -211,19 +213,37 @@ const RecentPayments = ({ token, payments, loading }) => {
 const Fees = () => {
   const { token, student, school, recentPayments, refresh } = useParentPay();
   const [paying, setPaying] = useState(false);
-  const { data: plan, isLoading: planLoading } = usePaymentPlan(token);
-
-  // The itemised bill rides on the portal payload when the school publishes
-  // one; the total is derived rather than trusted, so a missing line cannot
-  // silently change the figure a parent is about to act on.
+  const [manualPaying, setManualPaying] = useState(false);
   const feeLines = useMemo(() => student?.feesBreakdown || [], [student]);
   const total = feeLines.reduce((sum, line) => sum + (Number(line.amount) || 0), 0);
   const balance = Number(student?.balance) || 0;
+
+  const { data: plan, isLoading: planLoading } = usePaymentPlan(token);
+  const activePlan = plan?.plan || plan;
+  const isPlanActive = activePlan && activePlan.planStatus === 'active';
+  const nextInstallment = isPlanActive
+    ? (activePlan.installments || []).find((i) => i.status !== 'paid')
+    : null;
+  const installmentAmount = nextInstallment
+    ? Math.max((nextInstallment.amount || 0) - (nextInstallment.amountPaid || 0), 0)
+    : null;
+  const paymentAmount = isPlanActive && installmentAmount ? installmentAmount : balance;
+  const paymentLocked = Boolean(isPlanActive && installmentAmount);
 
   return (
     <div className="space-y-5">
       <StudentRow student={student} school={school} />
       <BalanceHero student={student} onPay={() => setPaying(true)} />
+
+      {balance > 0 ? (
+        <button
+          type="button"
+          onClick={() => setManualPaying(true)}
+          className="w-full rounded-xl border border-slate-200 bg-white py-3 text-[13px] font-extrabold text-slate-700 hover:bg-slate-50"
+        >
+          Pay via Manual MoMo (reference code)
+        </button>
+      ) : null}
 
       {feeLines.length ? <FeeBreakdown lines={feeLines} total={total} /> : null}
 
@@ -242,10 +262,22 @@ const Fees = () => {
         onClose={() => setPaying(false)}
         token={token}
         student={student}
-        balance={balance}
+        balance={paymentAmount}
+        initialAmount={paymentAmount}
+        lockAmount={paymentLocked}
         feesBreakdown={feeLines}
         onSettled={() => refresh()}
       />
+
+      <Modal open={manualPaying} onClose={() => setManualPaying(false)} title="Manual Mobile Money Payment">
+        <ManualPaymentModal
+          token={token}
+          student={student}
+              amount={paymentAmount}
+          schoolPhone={school?.phone || school?.momoNumber || 'school MoMo number'}
+          onClose={() => setManualPaying(false)}
+        />
+      </Modal>
     </div>
   );
 };

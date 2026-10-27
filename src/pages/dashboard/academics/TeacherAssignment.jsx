@@ -43,6 +43,7 @@ const TeacherAssignment = () => {
   const filters = useMemo(
     () => ({
       q: searchParams.get('q') || '',
+      search: searchParams.get('q') || '',
       class: searchParams.get('class') || '',
       status: searchParams.get('status') || 'active',
       gender: searchParams.get('gender') || '',

@@ -14,6 +14,9 @@ export const requestPaymentPlan = (token, payload) =>
 export const cancelPaymentPlan = (token, { reason }) =>
   apiClient.post(`/pay/${encodeURIComponent(token)}/plan/cancel`, { reason });
 
+export const initiateManualPayment = (token, payload) =>
+  apiClient.post(`/pay/${encodeURIComponent(token)}/manual-initiate`, payload);
+
 export const downloadReceiptPdf = async (token, paymentId) => {
   const response = await apiClient.get(
     `/pay/${encodeURIComponent(token)}/receipt/${encodeURIComponent(paymentId)}`,
