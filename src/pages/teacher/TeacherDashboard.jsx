@@ -99,7 +99,7 @@ const useGreeting = (serverGreeting, serverHour) => {
 const TeacherDashboard = () => {
   const { user } = useAuth();
   const { data, isLoading } = useTeacherDashboard();
-  const { data: schedule, isLoading: scheduleLoading } = useMySchedule();
+  const { data: schedule, isLoading: scheduleLoading, refetch: refetchSchedule } = useMySchedule();
   const { data: classes, isLoading: classesLoading } = useMyClasses();
 
   const toast = useToast();
@@ -116,6 +116,7 @@ const TeacherDashboard = () => {
         periodNumber: currentPeriod.period,
       });
       toast.success('You are marked present for this class.');
+      refetchSchedule();
     } catch (err) {
       toast.error(err?.message || 'Could not accept the class.');
     }

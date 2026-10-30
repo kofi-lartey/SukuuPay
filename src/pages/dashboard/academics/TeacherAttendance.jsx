@@ -121,7 +121,10 @@ const TeacherAttendance = () => {
   const attendanceByPeriod = useMemo(() => {
     const map = new Map();
     for (const row of attendance) {
-      map.set(`${String(row.teacherId)}|${row.periodNumber}`, row);
+      const teacherKey = row.teacherId && typeof row.teacherId === 'object' 
+        ? String(row.teacherId._id || row.teacherId) 
+        : String(row.teacherId || '');
+      map.set(`${teacherKey}|${row.periodNumber}`, row);
     }
     return map;
   }, [attendance]);
@@ -132,13 +135,17 @@ const TeacherAttendance = () => {
     const end = parsePeriodTime(period.endTime);
     if (start == null || end == null) return 'upcoming';
 
+    const periodTeacherKey = period.teacherId && typeof period.teacherId === 'object'
+      ? String(period.teacherId._id || period.teacherId)
+      : String(period.teacherId || '');
     const record = attendanceByPeriod.get(
-      `${String(period.teacherId)}|${period.period}`
+      `${periodTeacherKey}|${period.period}`
     );
 
     if (record) {
       if (record.status === 'missed') return 'missed';
       if (record.status === 'late') return 'late';
+      if (record.status === 'present' || record.status === 'attended') return 'accepted';
       return 'accepted';
     }
 

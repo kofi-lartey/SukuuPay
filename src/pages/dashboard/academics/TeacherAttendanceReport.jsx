@@ -34,6 +34,13 @@ const TeacherAttendanceReport = ({ className }) => {
   const kpis = data?.kpis || {};
   const students = data?.students || [];
   const registerLog = data?.registerLog || [];
+  const trend = Array.isArray(data?.trend) ? data.trend : [];
+
+  const maxTrend = trend.length ? Math.max(...trend.map((t) => t.rate), 100) : 100;
+  const monthLabels = {
+    '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr', '05': 'May', '06': 'Jun',
+    '07': 'Jul', '08': 'Aug', '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dec'
+  };
 
   return (
     <div className="space-y-5">
@@ -61,9 +68,38 @@ const TeacherAttendanceReport = ({ className }) => {
 
       <Card className="p-4">
         <h3 className="text-[14px] font-extrabold text-ink mb-3">Monthly Attendance Trend</h3>
-        <div className="h-40 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 text-sm">
-          Line chart placeholder
-        </div>
+        {loading ? (
+          <div className="h-40 flex items-center justify-center text-slate-400 text-sm">Loading...</div>
+        ) : trend.length === 0 ? (
+          <div className="h-40 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 text-sm">
+            No attendance data available
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="relative h-40 flex items-end gap-2">
+              {trend.map((t, i) => {
+                const height = Math.max(4, (t.rate / maxTrend) * 140);
+                const [year, month] = t.month.split('-');
+                const label = monthLabels[month] || month;
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                    <div className="text-[11px] font-bold text-emerald-700">{t.rate}%</div>
+                    <div
+                      className="w-full bg-gradient-to-t from-brand-600 to-brand-400 rounded-t"
+                      style={{ height: `${height}px` }}
+                      title={`${label} ${year}: ${t.rate}%`}
+                    />
+                    <div className="text-[10px] text-slate-500">{label}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100">
+              <span>Present+Late</span>
+              <span>Based on recorded attendance</span>
+            </div>
+          </div>
+        )}
       </Card>
 
       <Card className="p-4">

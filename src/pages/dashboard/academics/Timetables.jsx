@@ -80,14 +80,24 @@ const Timetables = () => {
   const [classes, setClasses] = useState([]);
   const [className, setClassName] = useState('');
   const [teacherAttendanceRecords, setTeacherAttendanceRecords] = useState([]);
+  const [teacherFilter, setTeacherFilter] = useState('');
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const loadTeacherAttendance = async () => {
+    if (activeTab !== 'attendance') return;
+    setAttendanceLoading(true);
+    try {
+      const mod = await import('../../../services/admin/academic');
+      const res = await mod.listTeacherAttendance({ className: className || undefined, teacherId: teacherFilter || undefined });
+      setTeacherAttendanceRecords(res?.records || []);
+    } catch {
+      setTeacherAttendanceRecords([]);
+    } finally {
+      setAttendanceLoading(false);
+    }
+  };
   useEffect(() => {
-    if (activeTab !== 'attendance' || !className) return;
-    import('../../../services/admin/academic').then(({ listTeacherAttendance }) => {
-      listTeacherAttendance({ className })
-        .then((res) => setTeacherAttendanceRecords(res?.records || []))
-        .catch(() => setTeacherAttendanceRecords([]));
-    });
-  }, [activeTab, className]);
+    loadTeacherAttendance();
+  }, [activeTab, className, teacherFilter]);
   const [term, setTerm] = useState(ACADEMIC_TERMS[0]);
   const [academicYear, setAcademicYear] = useState(defaultAcademicYear());
   const [days, setDays] = useState(emptyDays());
@@ -441,23 +451,70 @@ const Timetables = () => {
       )}
       {activeTab === 'attendance' && (
         <Card className="p-4">
-          <h3 className="text-[14px] font-extrabold text-ink mb-3">Teachers' Attendance</h3>
-          {teacherAttendanceRecords.length === 0 ? (
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-4">
+            <div>
+              <h3 className="text-[14px] font-extrabold text-ink">Teachers' Attendance</h3>
+              <p className="text-[12px] text-slate-500">View attendance records by class and teacher.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={className}
+                onChange={(e) => setClassName(e.target.value)}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-ink"
+              >
+                <option value="">All Classes</option>
+                {classes.map((c) => {
+                  const label = c.className || c.name || c._id;
+                  return <option key={label} value={label}>{label}</option>;
+                })}
+              </select>
+              <select
+                value={teacherFilter}
+                onChange={(e) => setTeacherFilter(e.target.value)}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-ink"
+              >
+                <option value="">All Teachers</option>
+                {reportTeachers.map((t) => (
+                  <option key={t._id} value={t._id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {attendanceLoading ? (
+            <p className="text-sm text-slate-400">Loading...</p>
+          ) : teacherAttendanceRecords.length === 0 ? (
             <p className="text-sm text-slate-400">No attendance records yet.</p>
           ) : (
-            <ul className="space-y-2">
-              {teacherAttendanceRecords.map((r, i) => (
-                <li key={i} className="flex items-center justify-between rounded-lg border border-slate-200 p-3">
-                  <div>
-                    <p className="text-[13px] font-extrabold text-ink">{r.teacherId?.name || 'Teacher'}</p>
-                    <p className="text-[11.5px] text-slate-500">{r.className} · {new Date(r.date).toLocaleDateString()}</p>
-                  </div>
-                  <span className={`text-[11px] font-extrabold ${r.status === 'attended' ? 'text-emerald-700' : 'text-rose-700'}`}>
-                    {r.status}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th className="px-3 py-2">Teacher</th>
+                    <th className="px-3 py-2">Class</th>
+                    <th className="px-3 py-2">Subject</th>
+                    <th className="px-3 py-2">Date</th>
+                    <th className="px-3 py-2">Period</th>
+                    <th className="px-3 py-2 text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {teacherAttendanceRecords.map((r, i) => (
+                    <tr key={r._id || i} className="hover:bg-slate-50">
+                      <td className="px-3 py-2 font-semibold text-ink">{r.teacherId?.name || 'Teacher'}</td>
+                      <td className="px-3 py-2 text-slate-600">{r.className}</td>
+                      <td className="px-3 py-2 text-slate-600">{r.subject || '—'}</td>
+                      <td className="px-3 py-2 text-slate-600">{r.date ? new Date(r.date).toLocaleDateString() : '—'}</td>
+                      <td className="px-3 py-2 text-slate-600">{r.periodNumber || '—'}</td>
+                      <td className="px-3 py-2 text-right">
+                        <span className={`text-[11px] font-extrabold ${r.status === 'late' ? 'text-amber-700' : r.status === 'missed' ? 'text-rose-700' : 'text-emerald-700'}`}>
+                          {r.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </Card>
       )}

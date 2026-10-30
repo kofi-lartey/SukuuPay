@@ -493,13 +493,13 @@ export const DASHBOARD_NAV = [
         roles: ['school_admin'],
         description: 'Build and publish class timetables for teachers and parents.',
       },
-      {
-        to: ROUTES.DASHBOARD_ACADEMICS_TEACHER_ATTENDANCE,
-        label: 'Teacher Attendance',
-        icon: 'Clock',
-        roles: ['school_admin'],
-        description: 'Monitor teacher presence during scheduled periods.',
-      },
+      // {
+      //   to: ROUTES.DASHBOARD_ACADEMICS_TEACHER_ATTENDANCE,
+      //   label: 'Teacher Attendance',
+      //   icon: 'Clock',
+      //   roles: ['school_admin'],
+      //   description: 'Monitor teacher presence during scheduled periods.',
+      // },
       {
         to: ROUTES.DASHBOARD_ACADEMICS_REPORTS,
         label: 'Report Cards',
