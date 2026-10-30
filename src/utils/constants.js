@@ -210,6 +210,7 @@ export const TEACHER_ROUTES = {
   schedule: '/teacher/schedule',
   timetables: '/teacher/timetables',
   notifications: '/teacher/notifications',
+  lms: '/teacher/lms',
   profile: '/teacher/profile',
 };
 

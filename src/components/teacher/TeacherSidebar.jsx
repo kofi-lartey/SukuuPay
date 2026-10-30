@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import {
   Bell,
+  BookOpen,
   Calendar,
   CalendarCheck,
   CalendarRange,
@@ -83,6 +84,13 @@ const NAV_ITEMS = [
     to: TEACHER_ROUTES.records,
     icon: ClipboardList,
     description: 'Compile and review report cards.',
+  },
+  {
+    key: 'lms',
+    label: 'LMS',
+    to: TEACHER_ROUTES.lms,
+    icon: BookOpen,
+    description: 'Study plans, lessons, resources, assessments.',
   },
   {
     key: 'notifications',

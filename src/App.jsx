@@ -22,6 +22,7 @@ import ResetPassword from './pages/auth/ResetPassword';
 import NewPassword from './pages/auth/NewPassword';
 import ParentLayout from './layouts/ParentLayout';
 import ParentHome from './pages/parent/Home';
+import StudentLms from './pages/pay/StudentLms';
 import ParentFees from './pages/parent/Fees';
 import ParentAttendance from './pages/parent/Attendance';
 import ParentRecords from './pages/parent/Records';
@@ -103,6 +104,7 @@ import ImpersonationHistory, {
 } from './pages/admin/impersonation/ImpersonationHistory';
 import TeacherLayout from './layouts/TeacherLayout';
 import TeacherDashboard from './pages/teacher/TeacherDashboard';
+import TeacherLms from './pages/dashboard/TeacherLms';
 import MyClasses from './pages/teacher/MyClasses';
 import ClassDetail from './pages/teacher/ClassDetail';
 import TakeAttendance from './pages/teacher/TakeAttendance';
@@ -454,6 +456,7 @@ function App() {
                 <Route path="schedule" element={<TeacherSchedule />} />
                 <Route path="timetables" element={<TeacherTimetables />} />
                 <Route path="notifications" element={<TeacherNotifications />} />
+                <Route path="lms" element={<TeacherLms />} />
                 <Route path="profile" element={<TeacherProfile />} />
               </Route>
             </Route>
@@ -500,6 +503,7 @@ function App() {
                 <Route path=":threadId" element={<ParentThread />} />
               </Route>
               <Route path=":token/notifications" element={<ParentNotifications />} />
+              <Route path=":token/lms" element={<StudentLms />} />
               <Route path=":token/profile" element={<ParentProfile />} />
               {/*
                 Kept last among the token's static children: the routes above
