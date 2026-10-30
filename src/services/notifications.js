@@ -85,16 +85,10 @@ export const listNotifications = async ({
 
 /** The badge count alone — one small request for the topbar. */
 export const fetchUnreadCount = async () => {
-  try {
-    const { data } = await api.get('/notifications', {
-      params: { read: 'false', perPage: 1, page: 1 },
-    });
-    return Number(data?.meta?.unreadCount) || 0;
-  } catch (error) {
-    // Never throws. A badge is not worth an error boundary, and a school admin whose
-    // session has just expired is handled by the axios interceptor, not here.
-    return 0;
-  }
+  const { data } = await api.get('/notifications', {
+    params: { read: 'false', perPage: 1, page: 1 },
+  });
+  return Number(data?.meta?.unreadCount) || 0;
 };
 
 /**

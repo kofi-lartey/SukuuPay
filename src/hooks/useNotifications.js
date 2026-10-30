@@ -59,9 +59,9 @@ export const useNotifications = ({ enabled = true } = {}) => {
     try {
       const unreadCount = await fetchUnreadCount();
       setMeta((current) => (current.unreadCount === unreadCount ? current : { ...current, unreadCount }));
-    } catch {
-      // `fetchUnreadCount` never throws. Left explicit so the intent survives a later
-      // edit to that function making it throw.
+      setError(null);
+    } catch (caught) {
+      setError(caught);
     }
   }, [enabled]);
 
