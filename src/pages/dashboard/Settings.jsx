@@ -20,6 +20,7 @@ import Card from '../../components/dashboard/ui/Card';
 import Badge from '../../components/dashboard/ui/Badge';
 import { Field, SelectField, FormAlert } from '../../components/common/FormField';
 import { useAuth } from '../../context/AuthContext';
+import { changePassword } from '../../services/auth';
 import { useToast } from '../../hooks/useToast';
 import {
   getSettings,
@@ -175,6 +176,8 @@ const Settings = () => {
   const section = SECTIONS.find((s) => s.id === active) || SECTIONS[0];
 
   const [profile, setProfile] = useState({});
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [academic, setAcademic] = useState({});
   const [notifications, setNotifications] = useState({});
 
@@ -951,8 +954,31 @@ const Settings = () => {
                  <DetailRow label="Email">{user?.email || '—'}</DetailRow>
                </div>
                <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                 <Field label="New password" type="password" value="" onChange={() => {}} />
-                 <Field label="Confirm password" type="password" value="" onChange={() => {}} />
+                 <Field label="New password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+                 <Field label="Confirm password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+               </div>
+               <div className="mt-5 flex justify-end">
+                 <button
+                   type="button"
+                   onClick={async () => {
+                     if (!newPassword || newPassword !== confirmPassword) {
+                       toast.error('Passwords do not match.');
+                       return;
+                     }
+                     try {
+                       await changePassword(newPassword);
+                       toast.success('Password updated.');
+                       setNewPassword('');
+                       setConfirmPassword('');
+                     } catch (error) {
+                       toast.error(error.message);
+                     }
+                   }}
+                   className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:opacity-50"
+                 >
+                   <Save className="h-4 w-4" aria-hidden="true" />
+                   Change password
+                 </button>
                </div>
                <p className="mt-3 text-[11px] font-medium text-slate-500">
                  Password change is applied directly without email verification.

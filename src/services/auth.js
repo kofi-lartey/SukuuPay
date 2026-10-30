@@ -177,6 +177,15 @@ export const resetPassword = async (token, password) => {
  * account has a school (`OnboardingGuard`, `Step1SchoolProfile`) should read it
  * from here rather than re-deriving the rule from `schoolId`.
  */
+export const changePassword = async (newPassword) => {
+  try {
+    const { data } = await api.post('/auth/change-password', { newPassword });
+    return data;
+  } catch (error) {
+    throw toError(error, 'Failed to change your password.');
+  }
+};
+
 export const getCurrentUser = async () => {
   const { data } = await api.get('/auth/me');
   return { user: data.user, onboarding: data.onboarding };
