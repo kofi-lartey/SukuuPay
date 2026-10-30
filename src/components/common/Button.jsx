@@ -1,6 +1,6 @@
 import React from 'react';
 
-const Button = ({ children, variant = 'primary', size = 'md', className = '', ...props }) => {
+const Button = ({ children, variant = 'primary', size = 'md', className = '', full = false, ...props }) => {
   const baseStyles = 'font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
   
   const variants = {
@@ -21,7 +21,7 @@ const Button = ({ children, variant = 'primary', size = 'md', className = '', ..
 
   return (
     <button
-      className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${full ? 'w-full' : ''} ${className}`}
       {...props}
     >
       {children}

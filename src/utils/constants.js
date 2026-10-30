@@ -233,6 +233,16 @@ export const ACADEMICS_ROUTES = {
   reports: '/dashboard/academics/reports',
 };
 
+export const ACCOUNTANT_ROUTES = {
+  dashboard: '/dashboard',
+  payments: '/dashboard/payments',
+  plans: '/dashboard/installment-plans',
+  reports: '/dashboard/reports',
+  settings: '/dashboard/settings',
+  sms: '/dashboard/sms-reminders',
+  smsPurchase: '/dashboard/sms-requests',
+};
+
 export const APP_NAME = 'SukuuPay';
 
 /**
@@ -364,6 +374,7 @@ export const DASHBOARD_NAV = [
         to: ROUTES.DASHBOARD_STUDENTS,
         label: 'Students',
         icon: 'Users',
+        roles: ['super_admin', 'school_admin', 'teacher'],
         description: 'Roster, imports, class transfers and parent contacts.',
       },
       {
@@ -436,6 +447,7 @@ export const DASHBOARD_NAV = [
         to: ROUTES.DASHBOARD_ACTIVITY,
         label: 'Activity Log',
         icon: 'ScrollText',
+        roles: ['super_admin', 'school_admin'],
         description: 'Who changed what, and when.',
       },
     ],
@@ -537,8 +549,7 @@ export const DASHBOARD_NAV = [
         // disabled — a rail full of dead entries trains people to ignore it.
         // This is presentation only: the server's `authorize` is the boundary,
         // and hiding an entry must never be the thing that enforces it.
-        roles: ['super_admin', 'school_admin'],
-        description: 'School profile, academic year, payments and billing.',
+        roles: ['super_admin', 'school_admin', 'accountant'],
       },
       {
         to: ROUTES.DASHBOARD_ADVERTISEMENTS,

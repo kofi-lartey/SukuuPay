@@ -115,8 +115,14 @@ const SECTIONS = [
     reason:
       'Nothing to configure here. Roles and access live in their own module, and the record of who did what lives in the Activity Log.',
   },
+  {
+    id: 'account',
+    label: 'Account',
+    blurb: 'Your email and password.',
+    icon: KeyRound,
+    writable: true,
+  },
 ];
-
 /** The read-only banner. Present on every non-writable section. */
 const ReadOnlyNotice = ({ reason }) => (
   <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -454,9 +460,12 @@ const Settings = () => {
           {formError && <FormAlert tone="error">{formError}</FormAlert>}
 
           {/* ── School Profile ── */}
-          {section.id === 'profile' && settings && (
-            <>
-              <Card>
+           {section.id === 'profile' && settings && (
+             <>
+               {user?.role === 'accountant' && (
+                 <ReadOnlyNotice reason="School profile is managed by the school administrator." />
+               )}
+               <Card>
                 <h2 className="text-base font-extrabold text-ink">{section.label}</h2>
                 <p className="mt-0.5 text-[13px] font-medium text-slate-500">{section.blurb}</p>
 
@@ -584,17 +593,19 @@ const Settings = () => {
                   />
                 </div>
 
-                <div className="mt-5 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={saveProfile}
-                    disabled={saving}
-                    className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:opacity-50"
-                  >
-                    <Save className="h-4 w-4" aria-hidden="true" />
-                    {saving ? 'Saving…' : 'Save profile'}
-                  </button>
-                </div>
+                {user?.role !== 'accountant' && (
+                  <div className="mt-5 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={saveProfile}
+                      disabled={saving}
+                      className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800 disabled:opacity-50"
+                    >
+                      <Save className="h-4 w-4" aria-hidden="true" />
+                      {saving ? 'Saving…' : 'Save profile'}
+                    </button>
+                  </div>
+                )}
               </Card>
 
               {/*
@@ -931,7 +942,25 @@ const Settings = () => {
             </Card>
           )}
 
-          {lastModified && (
+           {/* ── Account ── */}
+           {section.id === 'account' && (
+             <Card>
+               <h2 className="text-base font-extrabold text-ink">{section.label}</h2>
+               <p className="mt-0.5 text-[13px] font-medium text-slate-500">{section.blurb}</p>
+               <div className="mt-4">
+                 <DetailRow label="Email">{user?.email || '—'}</DetailRow>
+               </div>
+               <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                 <Field label="New password" type="password" value="" onChange={() => {}} />
+                 <Field label="Confirm password" type="password" value="" onChange={() => {}} />
+               </div>
+               <p className="mt-3 text-[11px] font-medium text-slate-500">
+                 Password change is applied directly without email verification.
+               </p>
+             </Card>
+           )}
+
+           {lastModified && (
             <p className="text-[11px] font-medium text-slate-400">Last modified {lastModified}</p>
           )}
         </div>
