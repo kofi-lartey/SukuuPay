@@ -21,15 +21,17 @@ const pageWindow = (page, totalPages) => {
 };
 
 const Pagination = ({ meta = {}, onPageChange, onPerPageChange, itemLabel = 'students' }) => {
-  const { page = 1, perPage = 20, total = 0, totalPages = 0 } = meta;
+  const safeMeta = meta || {};
+  const { page = 1, perPage = 20, total = 0, totalPages } = safeMeta;
 
   if (!total) return null;
 
   const first = (page - 1) * perPage + 1;
   const last = Math.min(page * perPage, total);
-  const pages = pageWindow(page, totalPages);
+  const calculatedTotalPages = totalPages || Math.max(1, Math.ceil(total / perPage));
+  const pages = pageWindow(page, calculatedTotalPages);
   const canPrev = page > 1;
-  const canNext = page < totalPages;
+  const canNext = page < calculatedTotalPages;
 
   return (
     <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">

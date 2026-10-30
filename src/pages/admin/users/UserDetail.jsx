@@ -483,7 +483,7 @@ const UserDetail = () => {
                 )}
 
                 <Pagination
-                  meta={trail.meta}
+                  meta={trail.meta || {}}
                   itemLabel="entries"
                   onPageChange={(page) => setTrailPage(page)}
                   onPerPageChange={(perPage) => {
