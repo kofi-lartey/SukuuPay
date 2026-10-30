@@ -167,9 +167,9 @@ const TeacherAssignmentPanel = ({
                 {Object.values(classes.reduce((acc, entry) => {
                   const key = entry.className;
                   if (!acc[key]) acc[key] = { className: entry.className, subjects: [], attendance: false, isClassTeacher: false };
-                  if (entry.subject) acc[key].subjects.push(entry.subject);
-                  if (entry.canMarkAttendance) acc[key].attendance = true;
-                  if (!entry.subject) acc[key].isClassTeacher = true;
+if (entry.subject) acc[key].subjects.push(entry.subject);
+                   if (entry.canMarkAttendance || !entry.subject) acc[key].attendance = true;
+                   if (!entry.subject) acc[key].isClassTeacher = true;
                   return acc;
                 }, {})).map((entry) => (
                   <div
