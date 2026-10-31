@@ -415,6 +415,8 @@ const Login = () => {
         <AuthLinks>
           <span className="text-slate-600 text-xs">New to SukuuPay?</span>
           <AsideLink to="/signup">Create a school account</AsideLink>
+          <span className="text-slate-400">·</span>
+          <AsideLink to="/student/login">Student login</AsideLink>
         </AuthLinks>
       </form>
     </AuthShell>

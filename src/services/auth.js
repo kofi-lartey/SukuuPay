@@ -18,9 +18,17 @@ const toError = (error, fallback) => {
   return wrapped;
 };
 
+export const studentLogin = async (studentId, password) => {
+  try {
+    const { data } = await api.post('/auth/student/login', { studentId, password });
+    storeTokens(data.tokens || {});
+    return { user: data.user, onboarding: data.onboarding, message: data.message };
+  } catch (error) {
+    throw toError(error, 'Invalid student ID or password');
+  }
+};
 export const login = async (email, password) => {
   try {
-    const { data } = await api.post('/auth/login', { email, password });
     storeTokens(data.tokens || {});
     // `onboarding` is the server's resolved link state (see `onboardingBlock` in
     // the auth controller). It travels with the login response so the app can

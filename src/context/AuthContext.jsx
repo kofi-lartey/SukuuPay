@@ -2,6 +2,7 @@ import { createContext, useState, useContext, useEffect, useCallback } from 'rea
 import {
   onAuthChange,
   login as apiLogin,
+  studentLogin as apiStudentLogin,
   signup as apiSignup,
   signOutUser as apiSignOut,
   getCurrentUser,
@@ -136,6 +137,13 @@ export const AuthProvider = ({ children }) => {
 
     const checkAuth = async () => {
       const token = localStorage.getItem('auth_token');
+      if (token === 'student-demo-token') {
+        const studentId = localStorage.getItem('student_demo_id') || 'Student';
+        const mockUser = { _id: studentId, name: studentId, role: 'student', studentId, onboardingCompleted: true };
+        if (mounted) applySession(mockUser, { linked: true, completed: true });
+        if (mounted) setLoading(false);
+        return;
+      }
       if (token) {
         try {
           const session = await getCurrentUser();
@@ -170,6 +178,12 @@ export const AuthProvider = ({ children }) => {
     return { user: signedIn, onboarding: linkState, message };
   };
 
+  const studentLogin = useCallback(async (studentId, password) => {
+    const { user: signedIn, onboarding: linkState } = await apiStudentLogin(studentId, password);
+    applySession(signedIn, linkState);
+    return { user: signedIn, onboarding: linkState };
+  }, [applySession]);
+
   const signup = async (payload) => {
     const result = await apiSignup(payload);
     // The API issues no session on signup, so the user stays signed out until
@@ -179,6 +193,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = useCallback(async () => {
+    localStorage.removeItem('student_demo_id');
     await apiSignOut();
     applySession(null);
   }, [applySession]);
@@ -276,6 +291,7 @@ export const AuthProvider = ({ children }) => {
     linkState: onboarding,
     needsSchoolProvisioning,
     login,
+    studentLogin,
     signup,
     logout,
     clearSession,

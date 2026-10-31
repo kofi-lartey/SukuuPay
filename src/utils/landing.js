@@ -1,4 +1,4 @@
-import { ROUTES, TEACHER_ROUTES } from './constants.js';
+import { ROUTES, TEACHER_ROUTES, STUDENT_ROUTES } from './constants.js';
 
 /**
  * Where a freshly authenticated account goes.
@@ -71,6 +71,7 @@ export const resolveLandingRoute = ({ onboarding, role, requested } = {}) => {
   }
 
   if (role === 'teacher') return TEACHER_ROUTES.dashboard;
+  if (role === 'student') return STUDENT_ROUTES.dashboard;
 
   return onboarding?.nextRoute || ROUTES.DASHBOARD;
 };

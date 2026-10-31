@@ -15,6 +15,7 @@ import Pricing from './pages/Pricing';
 import ForSchools from './pages/ForSchools';
 import Contact from './pages/Contact';
 import AdvertisementsHub from './pages/AdvertisementsHub';
+import StudentLogin from './pages/auth/StudentLogin';
 import Login from './pages/auth/Login';
 import Signup from './pages/auth/Signup';
 import VerifyEmail from './pages/auth/VerifyEmail';
@@ -102,6 +103,8 @@ import PlatformSettings from './pages/admin/settings/PlatformSettings';
 import ImpersonationHistory, {
   ImpersonationSessionDetail,
 } from './pages/admin/impersonation/ImpersonationHistory';
+import StudentLayout from './layouts/StudentLayout';
+import StudentGuard from './routes/StudentGuard';
 import TeacherLayout from './layouts/TeacherLayout';
 import TeacherDashboard from './pages/teacher/TeacherDashboard';
 import TeacherLms from './pages/dashboard/TeacherLms';
@@ -114,6 +117,20 @@ import TeacherNotifications from './pages/teacher/TeacherNotifications';
 import TeacherSchedule from './pages/teacher/TeacherSchedule';
 import TeacherTimetables from './pages/teacher/Timetables';
 import TeacherProfile from './pages/teacher/TeacherProfile';
+import StudentOverview from './pages/student/Dashboard';
+import StudentProfile from './pages/student/Profile';
+import StudentGrades from './pages/student/Grades';
+import StudentAttendance from './pages/student/Attendance';
+import StudentTimetable from './pages/student/Timetable';
+import StudentReportCards from './pages/student/ReportCards';
+import StudentFees from './pages/student/Fees';
+import StudentPaymentHistory from './pages/student/PaymentHistory';
+import StudentPlans from './pages/student/Plans';
+import StudentMessages from './pages/student/Messages';
+import StudentNotifications from './pages/student/Notifications';
+import StudentCommunity from './pages/student/Community';
+import StudentLmsPage from './pages/student/Lms';
+import StudentSettings from './pages/student/Settings';
 import { Terms, Privacy } from './pages/Legal';
 import NotFound from './pages/NotFound';
 
@@ -188,6 +205,7 @@ function App() {
               <Route path="/privacy" element={<Privacy />} />
 
               <Route path="/login" element={<Login />} />
+              <Route path="/student/login" element={<StudentLogin />} />
               <Route path="/signup" element={<Signup />} />
               {/* Both reset routes are listed: the previous exact-match check
                   missed `/reset-password/:token`, so the emailed reset link
@@ -458,6 +476,28 @@ function App() {
                 <Route path="notifications" element={<TeacherNotifications />} />
                 <Route path="lms" element={<TeacherLms />} />
                 <Route path="profile" element={<TeacherProfile />} />
+              </Route>
+            </Route>
+
+            {/*
+              The student portal — a sibling shell keyed by student account.
+            */}
+            <Route element={<StudentGuard />}>
+              <Route path="/student" element={<StudentLayout />}>
+                <Route index element={<StudentOverview />} />
+                <Route path="profile" element={<StudentProfile />} />
+                <Route path="grades" element={<StudentGrades />} />
+                <Route path="attendance" element={<StudentAttendance />} />
+                <Route path="timetable" element={<StudentTimetable />} />
+                <Route path="report-cards" element={<StudentReportCards />} />
+                <Route path="fees" element={<StudentFees />} />
+                <Route path="payment-history" element={<StudentPaymentHistory />} />
+                <Route path="plans" element={<StudentPlans />} />
+                <Route path="messages" element={<StudentMessages />} />
+                <Route path="notifications" element={<StudentNotifications />} />
+                <Route path="community" element={<StudentCommunity />} />
+                <Route path="lms" element={<StudentLmsPage />} />
+                <Route path="settings" element={<StudentSettings />} />
               </Route>
             </Route>
 

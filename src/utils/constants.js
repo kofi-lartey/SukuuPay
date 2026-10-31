@@ -197,6 +197,23 @@ export const PARENT_ROUTES = {
  * link built by hand in one place and by a factory in another is two paths that
  * will eventually disagree.
  */
+export const STUDENT_ROUTES = {
+  dashboard: '/student',
+  profile: '/student/profile',
+  grades: '/student/grades',
+  attendance: '/student/attendance',
+  timetable: '/student/timetable',
+  reportCards: '/student/report-cards',
+  fees: '/student/fees',
+  paymentHistory: '/student/payment-history',
+  plans: '/student/plans',
+  messages: '/student/messages',
+  notifications: '/student/notifications',
+  community: '/student/community',
+  lms: '/student/lms',
+  settings: '/student/settings',
+};
+
 export const TEACHER_ROUTES = {
   dashboard: '/teacher',
   classes: '/teacher/classes',
