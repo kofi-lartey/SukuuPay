@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { BookOpen, ClipboardList, ChevronRight, Eye, Pencil, Trash2, X } from "lucide-react";
 import { Upload } from "lucide-react";
-import StudyPlanBuilder from "../../components/lms/StudyPlanBuilder";
 import AssessmentAuthoringView from "../../components/lms/AssessmentAuthoringView";
 import GradingInterfaceView from "../../components/lms/GradingInterfaceView";
 import CourseUploadInterface from "../../components/lms/CourseUploadInterface";
@@ -64,14 +63,6 @@ export default function TeacherLms() {
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:border-emerald-300 transition-colors cursor-pointer group" onClick={() => setView("studyplans")}>
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-emerald-50 text-emerald-800 rounded-xl group-hover:bg-emerald-100"><BookOpen className="h-6 w-6" /></div>
-                <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-emerald-500" />
-              </div>
-              <h3 className="text-lg font-extrabold text-gray-900">Study Plans</h3>
-              <p className="text-sm text-gray-500 mt-1 mb-4">Create lessons, upload links, and build your term curriculum.</p>
-            </div>
             <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:border-emerald-300 transition-colors cursor-pointer group" onClick={() => { loadAssessments(); setView("assessments"); }}>
               <div className="flex items-center justify-between mb-4">
                 <div className="p-3 bg-amber-50 text-amber-700 rounded-xl group-hover:bg-amber-100"><ClipboardList className="h-6 w-6" /></div>
@@ -131,7 +122,7 @@ export default function TeacherLms() {
 
       {view === "authoring" && <AssessmentAuthoringView assessment={editingAssessment} onBack={() => { setEditingAssessment(null); setView("assessments"); }} onDone={() => { setEditingAssessment(null); loadAssessments(); setView("assessments"); }} />}
 
-      {view === "studyplans" && <StudyPlanBuilder onBack={() => setView("hub")} onSaved={() => setView("hub")} />}
+
       {view === "gradingList" && (
         <div className="max-w-5xl mx-auto space-y-4">
           <div className="flex items-center justify-between">
@@ -171,13 +162,16 @@ export default function TeacherLms() {
             <ul className="space-y-3">
               {studyPlans.map((p) => (
                 <li key={p._id} className="bg-white border border-gray-100 rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <div className="min-w-0">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {p.coverImage && <img src={p.coverImage} alt={p.title} className="h-12 w-16 object-cover rounded-lg" />}
+                    <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-bold text-gray-900">{p.title}</span>
                       <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">{p.className}</span>
                       <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full ${p.status === "published" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{p.status}</span>
                     </div>
                     <p className="text-xs text-gray-500 mt-1">{p.subject} · {p.term} {p.academicYear} · {(p.lessons || []).length} lessons · Updated {new Date(p.updatedAt).toLocaleDateString()}</p>
+                  </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <button onClick={() => setPreviewPlan(p)} className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900"><Eye className="w-3.5 h-3.5" />View as student</button>

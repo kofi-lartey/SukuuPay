@@ -26,6 +26,7 @@ const Lms = () => {
   const [expiresAt, setExpiresAt] = useState(null);
   const [previewAssessment, setPreviewAssessment] = useState(null);
   const [selectedCourse, setSelectedCourse] = useState(null);
+  const [feedbackAssessment, setFeedbackAssessment] = useState(null);
 
   const load = async () => {
     if (isDemo) {
@@ -235,7 +236,6 @@ const Lms = () => {
   const TABS = [
     { key: 'courses', label: 'Courses', icon: BookOpen, count: 0 },
     { key: 'assessments', label: 'Assessments', icon: ClipboardList, count: newAssessments },
-    { key: 'plans', label: 'Study Plans', icon: Calendar, count: newPlans },
   ];
 
   // "Courses" view maps study plans grouped; reuse studyPlans as course list proxy
@@ -271,18 +271,21 @@ const Lms = () => {
 
        {tab === 'courses' && (
         <div className="space-y-3">
-          {courseList.length === 0 && <p className="text-sm text-slate-500">No courses or study plans available yet.</p>}
+          {courseList.length === 0 && <p className="text-sm text-slate-500">No courses available yet.</p>}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {courseList.map((c) => (
-              <div key={c._id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-[13px] font-extrabold text-ink">{c.title}</p>
-                  {isNew(c.createdAt) && <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-md"><Sparkles className="h-3 w-3" />New</span>}
+              <div key={c._id} className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                {c.coverImage && <img src={c.coverImage} alt={c.title} className="h-32 w-full object-cover" />}
+                <div className="p-5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[13px] font-extrabold text-ink">{c.title}</p>
+                    {isNew(c.createdAt) && <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-md"><Sparkles className="h-3 w-3" />New</span>}
+                  </div>
+                  <p className="text-[11px] text-slate-400">{c.className} · {c.subject}</p>
+                  <p className="text-[12.5px] text-slate-600">{c.description}</p>
+                  <p className="text-[11px] text-slate-400">{(c.lessons || []).length} lessons</p>
+                  <button type="button" onClick={() => setSelectedCourse(c)} className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-brand-700 px-3 py-1.5 text-[11.5px] font-extrabold text-white hover:bg-brand-800">Open course</button>
                 </div>
-                <p className="text-[11px] text-slate-400">{c.className} · {c.subject}</p>
-                <p className="text-[12.5px] text-slate-600">{c.description}</p>
-                <p className="text-[11px] text-slate-400">{(c.lessons || []).length} lessons</p>
-                <button type="button" onClick={() => setSelectedCourse(c)} className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-brand-700 px-3 py-1.5 text-[11.5px] font-extrabold text-white hover:bg-brand-800">Open course</button>
               </div>
             ))}
           </div>
@@ -314,32 +317,6 @@ const Lms = () => {
         </div>
       )}
 
-      {tab === 'plans' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {studyPlans.length === 0 && <p className="text-sm text-slate-500">No study plans yet.</p>}
-          {studyPlans.map((p) => (
-            <div key={p._id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <p className="text-[13px] font-extrabold text-ink">{p.title}</p>
-                {isNew(p.createdAt) && <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-md"><Sparkles className="h-3 w-3" />New</span>}
-              </div>
-              <p className="text-[11px] text-slate-400 mt-0.5">{p.className} · {p.subject}</p>
-              <p className="text-[12.5px] text-slate-600 mt-2">{p.description}</p>
-              <ul className="mt-3 space-y-1">
-                {(p.lessons || []).map((l, idx) => (
-                  <li key={idx} className="flex items-center gap-2 text-[12.5px] text-slate-700">
-                    <PlayCircle className="h-3.5 w-3.5 text-slate-400" />
-                    {l.title}
-                    {(l.resourceLinks || []).map((r, j) => (
-                      <a key={j} href={r.url} target="_blank" rel="noreferrer" className="block text-emerald-700 text-xs">{r.title || r.url}</a>
-                    ))}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 };

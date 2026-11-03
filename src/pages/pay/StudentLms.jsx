@@ -101,7 +101,7 @@ export default function StudentLms() {
 
       <div className="flex gap-2 flex-wrap">
         <button type="button" onClick={() => setTab("plans")} className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[12.5px] font-bold transition ${tab === "plans" ? "bg-[#006837] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}>
-          <BookOpen className="h-4 w-4" /> Study Plans
+          <BookOpen className="h-4 w-4" /> Courses
           {newPlans > 0 && <span className={`ml-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-extrabold ${tab === "plans" ? "bg-white text-[#006837]" : "bg-rose-500 text-white"}`}>{newPlans}</span>}
         </button>
         <button type="button" onClick={() => setTab("assessments")} className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[12.5px] font-bold transition ${tab === "assessments" ? "bg-[#006837] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}>
@@ -112,18 +112,21 @@ export default function StudentLms() {
 
       {tab === "plans" && (
         <section className="space-y-3">
-          {studyPlans.length === 0 && <p className="text-sm text-gray-500">No study plans yet.</p>}
+          {studyPlans.length === 0 && <p className="text-sm text-gray-500">No courses yet.</p>}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {studyPlans.map((sp) => (
-              <div key={sp._id} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-extrabold text-gray-900">{sp.title}</h3>
-                  {isNew(sp.createdAt) && <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-md"><Sparkles className="h-3 w-3" />New</span>}
+              <div key={sp._id} className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden space-y-2">
+                {sp.coverImage && <img src={sp.coverImage} alt={sp.title} className="h-32 w-full object-cover" />}
+                <div className="p-5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-extrabold text-gray-900">{sp.title}</h3>
+                    {isNew(sp.createdAt) && <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-md"><Sparkles className="h-3 w-3" />New</span>}
+                  </div>
+                  <p className="text-xs text-gray-500">{sp.className} · {sp.subject}</p>
+                  <p className="text-sm text-gray-600">{sp.description}</p>
+                  <p className="text-xs text-gray-400">{(sp.lessons || []).length} lessons</p>
+                  <button onClick={() => setSelectedCourse(sp)} className="px-4 py-2 bg-[#006837] text-white rounded-xl font-semibold text-sm">Open course</button>
                 </div>
-                <p className="text-xs text-gray-500">{sp.className} · {sp.subject}</p>
-                <p className="text-sm text-gray-600">{sp.description}</p>
-                <p className="text-xs text-gray-400">{(sp.lessons || []).length} lessons</p>
-                <button onClick={() => setSelectedCourse(sp)} className="px-4 py-2 bg-[#006837] text-white rounded-xl font-semibold text-sm">Open course</button>
               </div>
             ))}
           </div>

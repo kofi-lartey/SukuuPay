@@ -83,16 +83,83 @@ function fromRows(kind, rows) {
     }));
   }
   if (kind === "studyplans") {
-    return filtered.map((r) => ({
-      title: pick(r, "title", "planTitle", "Study Plan Title"),
-      description: pick(r, "description"),
-      className: pick(r, "className", "targetClass", "Class"),
-      subject: pick(r, "subject", "Subject"),
-      term: pick(r, "term", "Term"),
-      academicYear: pick(r, "academicYear", "Academic Year", "year"),
-      status: pick(r, "status") || "draft",
-      lessons: (() => { try { return JSON.parse(pick(r, "lessons") || "[]"); } catch { return []; } })(),
-    }));
+    // Group rows by course so a multi-lesson CSV (one row per lesson) becomes one study plan.
+    const groups = new Map();
+    for (const r of filtered) {
+      const title = pick(r, "title", "courseTitle", "Course Title", "planTitle", "Study Plan Title") || "Untitled";
+      const key = title + "||" + pick(r, "className", "targetClass", "Class", "class");
+      if (!groups.has(key)) {
+        groups.set(key, {
+          title,
+          description: pick(r, "description", "Description"),
+          className: pick(r, "className", "targetClass", "Class", "class"),
+          subject: pick(r, "subject", "Subject"),
+          term: pick(r, "term", "Term"),
+          academicYear: pick(r, "academicYear", "Academic Year", "year"),
+          status: pick(r, "status") || "draft",
+          lessons: [],
+        });
+        // Handle combined "Term & Year" column
+        const combinedTY = pick(r, "Term & Year");
+        if (combinedTY && String(combinedTY).includes(",")) {
+          const parts = String(combinedTY).split(",");
+          if (!groups.get(key).term) groups.get(key).term = parts[0].trim();
+          if (!groups.get(key).academicYear) groups.get(key).academicYear = parts.slice(1).join(",").trim();
+        } else if (combinedTY && !groups.get(key).term) {
+          groups.get(key).term = String(combinedTY).trim();
+        }
+      }
+      const g = groups.get(key);
+      const lessonTitle = pick(r, "lessonTitle", "Lesson Title", "Lesson");
+      const lessonContent = pick(r, "lessonContent", "Lesson Content", "content");
+      const lessonNumber = pick(r, "lessonNumber", "Lesson Number");
+      const resourceLinks = [];
+      const rl = pick(r, "resourceLinks", "Resource Links", "resources");
+      if (rl) {
+        for (const u of String(rl).split(/[;,]/)) {
+          const u2 = u.trim();
+          if (u2) resourceLinks.push({ title: u2, url: u2 });
+        }
+      }
+      for (const col of ["Images", "Videos", "Documents"]) {
+        const v = pick(r, col);
+        if (v) {
+          for (const u of String(v).split(/[,;]/)) {
+            const u2 = u.trim();
+            if (u2) resourceLinks.push({ title: `${col}: ${u2}`, url: u2 });
+          }
+        }
+      }
+      if (lessonTitle || lessonContent) {
+        g.lessons.push({
+          title: lessonTitle || `Lesson ${g.lessons.length + 1}`,
+          content: lessonContent || "",
+          resourceLinks,
+          assessmentTitle: pick(r, "attachedAssessment", "Attached Assessment", "assessment"),
+          order: Number(lessonNumber) || g.lessons.length + 1,
+        });
+      }
+      // keep term/academicYear from "Term & Year" if combined
+      if (!g.term && g.academicYear && String(g.academicYear).includes(",")) {
+        const parts = String(g.academicYear).split(",");
+        g.term = parts[0].trim();
+        g.academicYear = parts.slice(1).join(",").trim();
+      }
+    }
+    // Normalize combined "Term & Year" values
+    for (const g of groups.values()) {
+      if (g.term && String(g.term).includes(",")) {
+        const parts = String(g.term).split(",");
+        g.term = parts[0].trim();
+        if (!g.academicYear) g.academicYear = parts.slice(1).join(",").trim();
+      }
+      if (g.academicYear && String(g.academicYear).includes(",")) {
+        const parts = String(g.academicYear).split(",");
+        if (!g.term) g.term = parts[0].trim();
+        g.academicYear = parts.slice(1).join(",").trim();
+      }
+    }
+    return Array.from(groups.values());
   }
   if (kind === "lessons") {
     return filtered.map((r) => ({
@@ -106,7 +173,7 @@ function fromRows(kind, rows) {
   return filtered;
 }
 
-export default function LmsBulkToolbar({ kind, onImported }) {
+export default function LmsBulkToolbar({ kind, onImported, onPrefill }) {
   const [status, setStatus] = useState("");
   const [format, setFormat] = useState("csv");
   const [classes, setClasses] = useState([]);
@@ -193,6 +260,12 @@ export default function LmsBulkToolbar({ kind, onImported }) {
 
   const confirmImport = async () => {
     if (!previewItems) return;
+    if (onPrefill) {
+      onPrefill(previewItems);
+      setPreviewItems(null);
+      setStatus(`Prefilled form with ${previewItems.length} item(s)`);
+      return;
+    }
     try {
       const r = await api.post("/teacher/lms/import", { kind, items: previewItems });
       setStatus(`Imported ${r.data.created} items${r.data.errors?.length ? " (" + r.data.errors.length + " errors)" : ""}`);
@@ -260,7 +333,12 @@ export default function LmsBulkToolbar({ kind, onImported }) {
                   </ul>
                 )}
                 {kind === "studyplans" && (
-                  <p className="text-gray-600 mt-1">{it.lessons?.length || 0} lessons</p>
+                  <div className="mt-1 space-y-0.5">
+                    <p className="text-gray-600">{it.lessons?.length || 0} lessons</p>
+                    {(it.lessons || []).map((l, li) => (
+                      <p key={li} className="text-[10px] text-gray-500">• {l.title || `Lesson ${li + 1}`}</p>
+                    ))}
+                  </div>
                 )}
               </div>
             ))}

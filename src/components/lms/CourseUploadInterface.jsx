@@ -5,11 +5,12 @@ import LmsBulkToolbar from "./LmsBulkToolbar";
 import RichTextEditor from "../common/RichTextEditor";
 
 export default function CourseUploadInterface({ onBack, onUpload, plan }) {
-  const [course, setCourse] = useState({ title: "", className: "", subject: "", description: "", term: "", academicYear: "" });
+  const [course, setCourse] = useState({ title: "", className: "", subject: "", description: "", term: "", academicYear: "", coverImage: "" });
   const [lessons, setLessons] = useState([{ title: "", content: "", resources: [], assessmentId: null }]);
   const [activeLesson, setActiveLesson] = useState(0);
   const [classes, setClasses] = useState([]);
   const [editingId, setEditingId] = useState(null);
+  const [coverError, setCoverError] = useState(false);
   const [assessments, setAssessments] = useState([]);
 
   useEffect(() => {
@@ -29,7 +30,7 @@ export default function CourseUploadInterface({ onBack, onUpload, plan }) {
 
   useEffect(() => {
     if (!plan) return;
-    setEditingId(plan._id);
+    setCoverError(false);
     setCourse({
       title: plan.title || "",
       className: plan.className || "",
@@ -37,6 +38,7 @@ export default function CourseUploadInterface({ onBack, onUpload, plan }) {
       description: plan.description || "",
       term: plan.term || "",
       academicYear: plan.academicYear || "",
+      coverImage: plan.coverImage || "",
     });
     const mapped = (plan.lessons || []).map((l) => ({
       title: l.title || "",
@@ -73,15 +75,16 @@ export default function CourseUploadInterface({ onBack, onUpload, plan }) {
   };
 
   const save = async () => {
+    const id = editingId || plan?._id;
     const payloadLessons = lessons.map((l) => ({
       title: l.title,
       content: l.content,
       resourceLinks: (l.resources || []).map((r) => ({ title: r.title, url: r.url })),
       assessmentId: l.assessmentId || null,
     }));
-    const body = { title: course.title, description: course.description, className: course.className, subject: course.subject, term: course.term, academicYear: course.academicYear, lessons: payloadLessons, status: "published" };
-    if (editingId) {
-      await api.put(`/teacher/lms/studyplans/${editingId}`, body);
+    const body = { title: course.title, description: course.description, className: course.className, subject: course.subject || course.className, term: course.term, academicYear: course.academicYear, coverImage: course.coverImage, lessons: payloadLessons, status: id ? (plan?.status || "published") : "published" };
+    if (id) {
+      await api.put(`/teacher/lms/studyplans/${id}`, body);
     } else {
       await api.post("/teacher/lms/studyplans", body);
     }
@@ -96,8 +99,28 @@ export default function CourseUploadInterface({ onBack, onUpload, plan }) {
         <div className="flex items-center justify-between">
           <button onClick={onBack} className="flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-900"><ArrowLeft className="w-4 h-4" /><span>Back</span></button>
           <h1 className="text-xl font-bold text-gray-900">{editingId ? "Edit Course Materials" : "Upload Course Materials"}</h1>
-          <button onClick={save} className="px-5 py-2 bg-[#006837] text-white rounded-lg text-sm font-semibold hover:bg-emerald-900 flex items-center space-x-2"><Upload className="w-4 h-4" /><span>Publish Course</span></button>
-          <LmsBulkToolbar kind="studyplans" onImported={() => {}} />
+          <button onClick={save} className="px-5 py-2 bg-[#006837] text-white rounded-lg text-sm font-semibold hover:bg-emerald-900 flex items-center space-x-2"><Upload className="w-4 h-4" /><span>{editingId ? "Save Changes" : "Publish Course"}</span></button>
+          <LmsBulkToolbar kind="studyplans" onPrefill={(items) => {
+            const it = (items || [])[0];
+            if (!it) return;
+            setCourse({
+              title: it.title || "",
+              className: it.className || "",
+              subject: it.subject || "",
+              description: it.description || "",
+              term: it.term || "",
+              academicYear: it.academicYear || "",
+              coverImage: it.coverImage || "",
+            });
+            const mapped = (it.lessons || []).map((l) => ({
+              title: l.title || "",
+              content: l.content || "",
+              resources: (l.resourceLinks || []).map((r) => ({ title: r.title || "", url: r.url || "" })),
+              assessmentId: l.assessmentId || (assessments.find((a) => a.title === l.assessmentTitle)?._id) || null,
+            }));
+            setLessons(mapped.length ? mapped : [{ title: "", content: "", resources: [], assessmentId: null }]);
+            setActiveLesson(0);
+          }} />
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
@@ -133,10 +156,19 @@ export default function CourseUploadInterface({ onBack, onUpload, plan }) {
               </div>
             </div>
           </div>
-          <div>
-            <label className="text-xs font-bold text-gray-500 uppercase">Description</label>
-            <textarea value={course.description} onChange={(e) => setCourse({ ...course, description: e.target.value })} rows={3} className="w-full mt-1 p-3 border border-gray-200 rounded-xl text-sm" placeholder="Brief course description..." />
-          </div>
+           <div>
+             <label className="text-xs font-bold text-gray-500 uppercase">Description</label>
+             <textarea value={course.description} onChange={(e) => setCourse({ ...course, description: e.target.value })} rows={3} className="w-full mt-1 p-3 border border-gray-200 rounded-xl text-sm" placeholder="Brief course description..." />
+           </div>
+           <div>
+             <label className="text-xs font-bold text-gray-500 uppercase">Cover Image URL</label>
+             <input value={course.coverImage} onChange={(e) => { setCourse({ ...course, coverImage: e.target.value }); setCoverError(false); }} className="w-full mt-1 p-3 border border-gray-200 rounded-xl text-sm" placeholder="https://..." />
+             {course.coverImage && (coverError ? (
+               <div className="mt-2 h-40 w-full flex items-center justify-center rounded-xl border border-dashed border-gray-300 text-xs text-gray-400">Image preview unavailable</div>
+             ) : (
+               <img src={course.coverImage} alt="cover" className="mt-2 h-40 w-full object-contain rounded-xl border border-gray-200 bg-gray-50" onError={() => setCoverError(true)} />
+             ))}
+           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
