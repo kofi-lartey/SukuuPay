@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { ArrowLeft, Plus, X, BookOpen, Upload, ChevronRight } from "lucide-react";
 import api from "../../services/api";
 import LmsBulkToolbar from "./LmsBulkToolbar";
+import RichTextEditor from "../common/RichTextEditor";
 
 export default function StudyPlanBuilder({ onBack, onSaved }) {
   const [form, setForm] = useState({ title: "", description: "", className: "", subject: "", term: "", academicYear: "" });
@@ -117,7 +118,7 @@ export default function StudyPlanBuilder({ onBack, onSaved }) {
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">Content</label>
-                <textarea value={draft.content} onChange={(e) => setDraft({ ...draft, content: e.target.value })} rows={8} className="w-full mt-1 p-3 border border-gray-200 rounded-xl text-sm" placeholder="Write lesson content..." />
+                <RichTextEditor value={draft.content} onChange={(html) => setDraft({ ...draft, content: html })} placeholder="Write lesson content..." />
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">Resource URL</label>

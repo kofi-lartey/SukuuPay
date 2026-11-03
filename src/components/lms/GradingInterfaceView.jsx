@@ -5,11 +5,13 @@ import api from "../../services/api";
 export default function GradingInterfaceView({ submissionId, onBack, onNext }) {
   const [submission, setSubmission] = useState(null);
   const [marks, setMarks] = useState({});
+  const [graded, setGraded] = useState(false);
 
   useEffect(() => {
     if (!submissionId) return;
     api.get(`/teacher/lms/submissions/${submissionId}`).then((r) => {
       setSubmission(r.data.data);
+      setGraded(r.data.data?.status === 'graded');
       const m = {};
       (r.data.data?.answers || []).forEach((a) => { m[a.questionId] = a.scoreAwarded || 0; });
       setMarks(m);
@@ -17,7 +19,7 @@ export default function GradingInterfaceView({ submissionId, onBack, onNext }) {
   }, [submissionId]);
 
   const grade = async () => {
-    if (!submission) return;
+    if (!submission || graded) return;
     const answers = (submission.answers || []).map((a) => {
       const q = (submission.assessmentId?.questions || []).find((x) => String(x._id) === String(a.questionId));
       if (q?.type !== "essay") return null;
@@ -25,8 +27,9 @@ export default function GradingInterfaceView({ submissionId, onBack, onNext }) {
     }).filter(Boolean);
     const totalScore = answers.reduce((s, a) => s + (a.scoreAwarded || 0), 0);
     await api.post(`/teacher/lms/submissions/${submission._id}/grade`, { totalScore, answers, feedback: "" });
-    if (onNext) onNext();
-    else if (onBack) onBack();
+    const r = await api.get(`/teacher/lms/submissions/${submission._id}`);
+    setSubmission(r.data.data);
+    setGraded(true);
   };
 
   if (!submission) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
@@ -47,16 +50,16 @@ export default function GradingInterfaceView({ submissionId, onBack, onNext }) {
           </div>
         </div>
         <div className="flex items-center space-x-6 text-xs">
-          <button onClick={grade} className="bg-[#006837] text-white px-4 py-2 rounded-xl font-medium hover:bg-emerald-900">Finish Grading</button>
+          <button onClick={grade} disabled={graded} className={`px-4 py-2 rounded-xl font-medium ${graded ? 'bg-slate-300 text-slate-600 cursor-not-allowed' : 'bg-[#006837] text-white hover:bg-emerald-900'}`}>{graded ? 'Graded' : 'Finish Grading'}</button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-7 space-y-4">
-          {(submission.answers || []).map((a, idx) => {
-            const q = (assessment?.questions || []).find((x) => String(x._id) === String(a.questionId));
+          {(assessment?.questions || []).map((q, idx) => {
+            const a = (submission.answers || []).find((x) => String(x.questionId) === String(q._id)) || {};
             return (
-              <div key={a.questionId} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+              <div key={q._id || idx} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
                 <div className="flex justify-between items-center border-b border-gray-100 pb-3">
                   <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${q?.type === "essay" ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}`}>
                     Question {idx + 1} • {q?.type === "essay" ? "Essay" : "Multiple Choice"}
@@ -64,8 +67,8 @@ export default function GradingInterfaceView({ submissionId, onBack, onNext }) {
                   <span className="text-xs text-gray-400 font-medium">Max Score: {q?.points || 0} pts</span>
                 </div>
                 <p className="text-sm font-semibold text-gray-800 leading-snug">{q?.questionText}</p>
-                <div className="bg-gray-50 p-4 rounded-xl text-xs leading-relaxed text-gray-700 whitespace-pre-wrap">{a.studentAnswer}</div>
-                {q?.type === "multiple_choice" && <p className="text-xs text-gray-500">Correct: {q.correctAnswer} • {a.isCorrect ? "✓ Correct" : "✗ Incorrect"}</p>}
+                <div className="bg-gray-50 p-4 rounded-xl text-xs leading-relaxed text-gray-700 whitespace-pre-wrap">{a.studentAnswer || "No answer"}</div>
+                {q?.type === "multiple_choice" && <p className="text-xs text-gray-500">Correct: {q.correctAnswer} • {a.isCorrect ? "✓ Correct" : "✗ Incorrect"} • {a.scoreAwarded || 0} pts</p>}
               </div>
             );
           })}
@@ -96,14 +99,14 @@ export default function GradingInterfaceView({ submissionId, onBack, onNext }) {
                         <input type="number" max={q.points} value={marks[a.questionId] || 0} onChange={(e) => setMarks({ ...marks, [a.questionId]: Number(e.target.value) })} className="w-16 text-2xl font-extrabold text-[#006837] bg-transparent outline-none text-center" />
                         <span className="text-gray-400 text-lg font-light">/ {q.points}</span>
                       </div>
-                      <textarea id={`fb-${a.questionId}`} rows={3} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs leading-relaxed outline-none focus:border-[#006837]" placeholder="Teacher Feedback" />
+                      <textarea id={`fb-${a.questionId}`} rows={3} defaultValue={a.teacherFeedback || ""} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs leading-relaxed outline-none focus:border-[#006837]" placeholder="Teacher Feedback" />
                     </div>
                   );
                 })}
               </div>
             </div>
-            <button onClick={grade} className="w-full bg-[#006837] hover:bg-emerald-900 text-white font-semibold py-3 rounded-xl text-xs flex items-center justify-center space-x-2 shadow-lg shadow-emerald-900/10">
-              <span>Save & Next Student</span>
+            <button onClick={grade} disabled={graded} className={`w-full text-white font-semibold py-3 rounded-xl text-xs flex items-center justify-center space-x-2 shadow-lg ${graded ? 'bg-slate-400 cursor-not-allowed' : 'bg-[#006837] hover:bg-emerald-900 shadow-emerald-900/10'}`}>
+              <span>{graded ? 'Graded' : 'Finish Grading'}</span>
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>

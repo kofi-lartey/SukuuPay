@@ -34,32 +34,15 @@ export default function AssessmentPreview({ assessment, onStart, onBack }) {
               <p className="text-xs text-gray-500">Essay</p>
             </div>
             <div className="p-4 bg-gray-50 rounded-xl text-center">
-              <p className="text-2xl font-bold text-gray-900">{assessment?.dueDate ? new Date(assessment.dueDate).toLocaleDateString() : "-"}</p>
-              <p className="text-xs text-gray-500">Due Date</p>
+              <p className="text-2xl font-bold text-gray-900">{assessment?.durationMinutes ? `${assessment.durationMinutes}m` : "∞"}</p>
+              <p className="text-xs text-gray-500">Time Limit</p>
             </div>
           </div>
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
-          <h3 className="font-bold text-gray-900 flex items-center space-x-2"><FileText className="w-5 h-5 text-emerald-700" /><span>Question Preview</span></h3>
-          <div className="space-y-3">
-            {questions.map((q, i) => (
-              <div key={i} className="p-4 border border-gray-200 rounded-xl">
-                <div className="flex items-start justify-between">
-                  <p className="text-sm font-semibold text-gray-900">Q{i + 1}. {q.questionText}</p>
-                  <span className="text-xs text-gray-500">{q.points} pts</span>
-                </div>
-                {q.type === "multiple_choice" && (
-                  <ul className="mt-2 space-y-1">
-                    {(q.options || []).filter(Boolean).map((o, j) => (
-                      <li key={j} className="text-xs text-gray-600">• {o}</li>
-                    ))}
-                  </ul>
-                )}
-                {q.type === "essay" && <p className="mt-2 text-xs text-gray-500 italic">Essay response required</p>}
-              </div>
-            ))}
-          </div>
+          <h3 className="font-bold text-gray-900 flex items-center space-x-2"><FileText className="w-5 h-5 text-emerald-700" /><span>Assessment Details</span></h3>
+          <p className="text-sm text-gray-600">This assessment contains {questions.length} questions. Click "Start Assessment" to begin. Questions will be shown one at a time.</p>
         </div>
 
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start space-x-3">

@@ -188,6 +188,30 @@ const StudentOverview = () => {
 
           </div>
 
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">Learning</p>
+              <BookOpen className="h-4 w-4 text-slate-400" />
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-xl bg-slate-50 p-2">
+                <p className="text-[15px] font-extrabold text-ink">2</p>
+                <p className="text-[10px] text-slate-500">Courses</p>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-2">
+                <p className="text-[15px] font-extrabold text-ink">2</p>
+                <p className="text-[10px] text-slate-500">Pending</p>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-2">
+                <p className="text-[15px] font-extrabold text-ink">1</p>
+                <p className="text-[10px] text-slate-500">New Plans</p>
+              </div>
+            </div>
+            <Link to={STUDENT_ROUTES.lms} className="mt-3 flex items-center justify-center w-full rounded-xl bg-slate-100 py-2 text-[12px] font-extrabold text-slate-700 hover:bg-slate-200">
+              Open LMS
+            </Link>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-[15px] font-extrabold text-ink mb-3">Parent / Guardian</h2>

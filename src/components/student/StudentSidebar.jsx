@@ -26,8 +26,8 @@ const NAV_ITEMS = [
   { key: 'fees', label: 'Fees', to: STUDENT_ROUTES.fees, icon: CreditCard, description: 'Fee balance and payment history.' },
   { key: 'messages', label: 'Messages', to: STUDENT_ROUTES.messages, icon: MessageSquare, description: 'Messages from your school.' },
   { key: 'community', label: 'Community', to: STUDENT_ROUTES.community, icon: Users, description: 'School-wide community.' },
-  { key: 'lms', label: 'LMS', to: STUDENT_ROUTES.lms, icon: BookOpen, description: 'Courses and learning materials.' },
-  { key: 'notifications', label: 'Notifications', to: STUDENT_ROUTES.notifications, icon: Bell, description: 'Your notifications.' },
+  { key: 'lms', label: 'LMS', to: STUDENT_ROUTES.lms, icon: BookOpen, description: 'Courses and learning materials.', badge: 3 },
+  { key: 'notifications', label: 'Notifications', to: STUDENT_ROUTES.notifications, icon: Bell, description: 'Your notifications.', badge: 4 },
 ];
 
 const initialsOf = (name) =>
@@ -71,6 +71,11 @@ const StudentSidebar = ({ user, variant = 'fixed', className = '', onClose }) =>
         >
           <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
           <span className="truncate">{item.label}</span>
+          {item.badge ? (
+            <span className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-extrabold text-white">
+              {item.badge}
+            </span>
+          ) : null}
         </NavLink>
       </li>
     );

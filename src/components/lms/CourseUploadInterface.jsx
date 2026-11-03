@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, Upload, FileText, Folder, Plus, Trash2, Image, Video, File } from "lucide-react";
+import { ArrowLeft, Upload, FileText, Folder, Plus, Trash2, Image, Video, File, ClipboardList } from "lucide-react";
 import api from "../../services/api";
 import LmsBulkToolbar from "./LmsBulkToolbar";
+import RichTextEditor from "../common/RichTextEditor";
 
-export default function CourseUploadInterface({ onBack, onUpload }) {
+export default function CourseUploadInterface({ onBack, onUpload, plan }) {
   const [course, setCourse] = useState({ title: "", className: "", subject: "", description: "", term: "", academicYear: "" });
-  const [lessons, setLessons] = useState([{ title: "", content: "", resources: [] }]);
+  const [lessons, setLessons] = useState([{ title: "", content: "", resources: [], assessmentId: null }]);
   const [activeLesson, setActiveLesson] = useState(0);
   const [classes, setClasses] = useState([]);
+  const [editingId, setEditingId] = useState(null);
+  const [assessments, setAssessments] = useState([]);
 
   useEffect(() => {
     api.get("/teacher/classes").then((r) => {
@@ -19,6 +22,31 @@ export default function CourseUploadInterface({ onBack, onUpload }) {
       }
     }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    api.get("/teacher/lms/assessments").then((r) => setAssessments(r.data.data || [])).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!plan) return;
+    setEditingId(plan._id);
+    setCourse({
+      title: plan.title || "",
+      className: plan.className || "",
+      subject: plan.subject || "",
+      description: plan.description || "",
+      term: plan.term || "",
+      academicYear: plan.academicYear || "",
+    });
+    const mapped = (plan.lessons || []).map((l) => ({
+      title: l.title || "",
+      content: l.content || "",
+      resources: (l.resourceLinks || []).map((r) => ({ title: r.title || "", url: r.url || "" })),
+      assessmentId: l.assessmentId || null,
+    }));
+    setLessons(mapped.length ? mapped : [{ title: "", content: "", resources: [] }]);
+    setActiveLesson(0);
+  }, [plan]);
 
   const selectedClass = classes.find((c) => c.className === course.className);
   const subjectOptions = selectedClass?.subjects && selectedClass.subjects.length ? selectedClass.subjects : null;
@@ -45,7 +73,18 @@ export default function CourseUploadInterface({ onBack, onUpload }) {
   };
 
   const save = async () => {
-    await api.post("/teacher/lms/studyplans", { title: course.title, description: course.description, className: course.className, subject: course.subject, term: course.term, academicYear: course.academicYear, lessons, status: "published" });
+    const payloadLessons = lessons.map((l) => ({
+      title: l.title,
+      content: l.content,
+      resourceLinks: (l.resources || []).map((r) => ({ title: r.title, url: r.url })),
+      assessmentId: l.assessmentId || null,
+    }));
+    const body = { title: course.title, description: course.description, className: course.className, subject: course.subject, term: course.term, academicYear: course.academicYear, lessons: payloadLessons, status: "published" };
+    if (editingId) {
+      await api.put(`/teacher/lms/studyplans/${editingId}`, body);
+    } else {
+      await api.post("/teacher/lms/studyplans", body);
+    }
     if (onUpload) onUpload();
   };
 
@@ -56,7 +95,7 @@ export default function CourseUploadInterface({ onBack, onUpload }) {
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <button onClick={onBack} className="flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-900"><ArrowLeft className="w-4 h-4" /><span>Back</span></button>
-          <h1 className="text-xl font-bold text-gray-900">Upload Course Materials</h1>
+          <h1 className="text-xl font-bold text-gray-900">{editingId ? "Edit Course Materials" : "Upload Course Materials"}</h1>
           <button onClick={save} className="px-5 py-2 bg-[#006837] text-white rounded-lg text-sm font-semibold hover:bg-emerald-900 flex items-center space-x-2"><Upload className="w-4 h-4" /><span>Publish Course</span></button>
           <LmsBulkToolbar kind="studyplans" onImported={() => {}} />
         </div>
@@ -127,7 +166,7 @@ export default function CourseUploadInterface({ onBack, onUpload }) {
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">Lesson Content</label>
-                <textarea value={current.content} onChange={(e) => updateLesson(activeLesson, { content: e.target.value })} rows={10} className="w-full mt-1 p-3 border border-gray-200 rounded-xl text-sm font-mono" placeholder="Write lesson content here..." />
+                <RichTextEditor value={current.content} onChange={(html) => updateLesson(activeLesson, { content: html })} placeholder="Write lesson content here..." />
               </div>
             </div>
 
@@ -146,7 +185,18 @@ export default function CourseUploadInterface({ onBack, onUpload }) {
                   </div>
                 ))}
               </div>
-              <div className="flex items-center space-x-4 text-xs text-gray-400 pt-2 border-t border-gray-100">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-3">
+              <h3 className="font-bold text-gray-900 flex items-center space-x-2"><ClipboardList className="w-5 h-5 text-emerald-700" /><span>Attached Assessment</span></h3>
+              <select value={current.assessmentId || ""} onChange={(e) => updateLesson(activeLesson, { assessmentId: e.target.value || null })} className="w-full p-3 border border-gray-200 rounded-xl text-sm">
+                <option value="">None</option>
+                {assessments.filter((a) => a.attachedToLesson && (!course.className || a.className === course.className)).map((a) => (
+                  <option key={a._id} value={a._id}>{a.title} ({a.status})</option>
+                ))}
+              </select>
+              {current.assessmentId && <p className="text-xs text-emerald-700">Assessment attached to this lesson.</p>}
+            </div>
+
+            <div className="flex items-center space-x-4 text-xs text-gray-400 pt-2 border-t border-gray-100">
                 <span className="flex items-center space-x-1"><Image className="w-3.5 h-3.5" /><span>Images</span></span>
                 <span className="flex items-center space-x-1"><Video className="w-3.5 h-3.5" /><span>Videos</span></span>
                 <span className="flex items-center space-x-1"><File className="w-3.5 h-3.5" /><span>Documents</span></span>

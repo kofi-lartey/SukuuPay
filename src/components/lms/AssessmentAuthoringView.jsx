@@ -5,7 +5,7 @@ import api from "../../services/api";
 import LmsBulkToolbar from "./LmsBulkToolbar";
 
 export default function AssessmentAuthoringView({ assessment, onDone, onBack }) {
-  const [form, setForm] = useState({ title: "", className: "", subject: "", dueDate: "", instructions: "" });
+  const [form, setForm] = useState({ title: "", className: "", subject: "", dueDate: "", durationMinutes: "", instructions: "", attachedToLesson: false });
   const [questions, setQuestions] = useState([]);
   const [importedPreview, setImportedPreview] = useState(null);
   const fileInputRef = useRef(null);
@@ -29,7 +29,9 @@ export default function AssessmentAuthoringView({ assessment, onDone, onBack }) 
         className: assessment.className || "",
         subject: assessment.subject || "",
         dueDate: assessment.dueDate ? new Date(assessment.dueDate).toISOString().slice(0, 16) : "",
+        durationMinutes: assessment.durationMinutes || "",
         instructions: assessment.instructions || "",
+        attachedToLesson: !!assessment.attachedToLesson,
       });
       setQuestions(assessment.questions || []);
     }
@@ -85,9 +87,9 @@ export default function AssessmentAuthoringView({ assessment, onDone, onBack }) 
   const saveDraft = async () => {
     try {
       if (assessment?._id) {
-        await api.put(`/teacher/lms/assessments/${assessment._id}`, { ...form, questions, status: "draft" });
+        await api.put(`/teacher/lms/assessments/${assessment._id}`, { ...form, durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : 0, questions, status: "draft" });
       } else {
-        await api.post("/teacher/lms/assessments", { ...form, questions, status: "draft" });
+        await api.post("/teacher/lms/assessments", { ...form, durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : 0, questions, status: "draft" });
       }
       alert("Draft saved");
       if (onDone) onDone();
@@ -98,11 +100,24 @@ export default function AssessmentAuthoringView({ assessment, onDone, onBack }) 
   const publish = async () => {
     try {
       if (assessment?._id) {
-        await api.put(`/teacher/lms/assessments/${assessment._id}`, { ...form, questions, status: "published" });
+        await api.put(`/teacher/lms/assessments/${assessment._id}`, { ...form, durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : 0, questions, status: "published", attachedToLesson: false });
       } else {
-        await api.post("/teacher/lms/assessments", { ...form, questions, status: "published" });
+        await api.post("/teacher/lms/assessments", { ...form, durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : 0, questions, status: "published", attachedToLesson: false });
       }
       alert("Published");
+      if (onDone) onDone();
+    } catch (e) {
+      alert("Publish failed: " + (e?.response?.data?.message || e.message));
+    }
+  };
+  const publishToLesson = async () => {
+    try {
+      if (assessment?._id) {
+        await api.put(`/teacher/lms/assessments/${assessment._id}`, { ...form, durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : 0, questions, status: "published", attachedToLesson: true });
+      } else {
+        await api.post("/teacher/lms/assessments", { ...form, durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : 0, questions, status: "published", attachedToLesson: true });
+      }
+      alert("Published to lesson");
       if (onDone) onDone();
     } catch (e) {
       alert("Publish failed: " + (e?.response?.data?.message || e.message));
@@ -143,6 +158,10 @@ export default function AssessmentAuthoringView({ assessment, onDone, onBack }) 
           <div>
             <label className="text-xs text-gray-500 block mb-1">Submission Deadline</label>
             <input type="datetime-local" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs font-medium" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">Time Limit (minutes, 0 = none)</label>
+            <input type="number" min="0" value={form.durationMinutes} onChange={(e) => setForm({ ...form, durationMinutes: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs font-medium" placeholder="0" />
           </div>
         </div>
         <div>
@@ -241,6 +260,10 @@ export default function AssessmentAuthoringView({ assessment, onDone, onBack }) 
             <button onClick={saveDraft} className="w-full px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">Save Draft</button>
             <button onClick={publish} className="w-full px-5 py-2 bg-[#006837] text-white rounded-lg text-sm font-semibold hover:bg-emerald-900 transition-all flex items-center justify-center space-x-1.5">
               <span>Publish to Students</span>
+              <Send className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={publishToLesson} className="w-full px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-all flex items-center justify-center space-x-1.5">
+              <span>Publish to Lesson</span>
               <Send className="w-3.5 h-3.5" />
             </button>
           </div>

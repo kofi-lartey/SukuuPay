@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LogOut, Menu, User } from 'lucide-react';
+import { Bell, LogOut, Menu, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { STUDENT_ROUTES } from '../../utils/constants';
+
+const UNREAD_NOTIFICATIONS = 4;
 
 const TITLE_BY_ROUTE = (pathname) => {
   const exact = [
@@ -44,6 +46,18 @@ const StudentTopBar = ({ onOpenNav, navOpen = false }) => {
         </button>
         <h1 className="min-w-0 flex-1 truncate text-[15px] font-extrabold tracking-tight text-ink">{title}</h1>
         <div className="ml-auto flex shrink-0 items-center gap-2">
+          <Link
+            to={STUDENT_ROUTES.notifications}
+            aria-label="Notifications"
+            className="relative flex h-9 w-9 items-center justify-center rounded-xl text-slate-600 transition-colors hover:bg-slate-100"
+          >
+            <Bell className="h-5 w-5" aria-hidden="true" />
+            {UNREAD_NOTIFICATIONS > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-extrabold text-white">
+                {UNREAD_NOTIFICATIONS}
+              </span>
+            )}
+          </Link>
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}
