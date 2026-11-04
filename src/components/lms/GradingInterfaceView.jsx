@@ -68,6 +68,14 @@ export default function GradingInterfaceView({ submissionId, onBack, onNext }) {
                 </div>
                 <p className="text-sm font-semibold text-gray-800 leading-snug">{q?.questionText}</p>
                 <div className="bg-gray-50 p-4 rounded-xl text-xs leading-relaxed text-gray-700 whitespace-pre-wrap">{a.studentAnswer || "No answer"}</div>
+                {q?.type === "essay" && (q.keywords || []).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {(q.keywords || []).map((kw, ki) => {
+                      const hit = (a.studentAnswer || "").toLowerCase().includes(String(kw).toLowerCase());
+                      return <span key={ki} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${hit ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-400'}`}>{kw}</span>;
+                    })}
+                  </div>
+                )}
                 {q?.type === "multiple_choice" && <p className="text-xs text-gray-500">Correct: {q.correctAnswer} • {a.isCorrect ? "✓ Correct" : "✗ Incorrect"} • {a.scoreAwarded || 0} pts</p>}
               </div>
             );

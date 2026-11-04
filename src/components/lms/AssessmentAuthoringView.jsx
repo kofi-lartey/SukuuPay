@@ -196,7 +196,6 @@ export default function AssessmentAuthoringView({ assessment, onDone, onBack }) 
                       <p className="font-semibold text-gray-900">Q{i + 1}. {q.questionText || "(no prompt)"}</p>
                       <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded">{q.type === "essay" ? "Essay" : "Multiple Choice"} · {q.points} pts</span>
                     </div>
-                    {q.type === "multiple_choice" && (
                       <ul className="space-y-0.5 text-gray-600">
                         {(q.options || []).map((o, oi) => (
                           <li key={oi} className={o === q.correctAnswer ? "text-emerald-700 font-semibold" : ""}>• {o} {o === q.correctAnswer ? "✓" : ""}</li>
@@ -228,6 +227,12 @@ export default function AssessmentAuthoringView({ assessment, onDone, onBack }) 
                   <label className="text-xs font-semibold text-gray-500 block mb-1">Stem / Prompt</label>
                   <input value={q.questionText} onChange={(e) => updateQuestion(index, { questionText: e.target.value })} type="text" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-xs" />
                 </div>
+                {q.type === "essay" && (
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 block mb-1">Essay keywords (comma-separated, for student hints)</label>
+                    <input value={(q.keywords || []).join(", ")} onChange={(e) => updateQuestion(index, { keywords: e.target.value.split(",").map((k) => k.trim()).filter(Boolean) })} type="text" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-xs" placeholder="e.g. photosynthesis, chlorophyll" />
+                  </div>
+                )}
                 {q.type === "multiple_choice" && (
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-gray-500 block">Answer Options</label>

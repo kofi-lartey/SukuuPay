@@ -57,32 +57,61 @@ export default function StudentLms() {
           <p className="text-xs text-gray-500">{c.className} · {c.subject} · {c.term} {c.academicYear}</p>
           <p className="text-sm text-gray-600">{c.description}</p>
           <div className="space-y-4">
-            {(c.lessons || []).map((l, i) => {
-              const linkedAssessment = l.assessmentId ? (assessments || []).find((a) => String(a._id) === String(l.assessmentId)) : null;
-              return (
-              <div key={i} className="rounded-2xl border border-gray-100 p-4 space-y-2">
-                <p className="text-sm font-extrabold text-gray-900">{i + 1}. {l.title}</p>
-                {l.content && <div className="text-xs text-gray-600 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: l.content }} />}
-                {(l.resourceLinks || []).length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-[11px] font-bold text-gray-500 uppercase">Resources</p>
-                    {(l.resourceLinks || []).map((r, j) => (
-                      <ResourcePreview key={j} resource={r} />
-                    ))}
-                  </div>
-                )}
-                {linkedAssessment && (
-                  <div className="pt-2 border-t border-gray-100">
-                    {linkedAssessment.submission ? (
-                      <p className="text-xs text-emerald-700 font-semibold">Assessment: {linkedAssessment.title} — {linkedAssessment.submission.status} · Score {linkedAssessment.submission.totalScore}</p>
+            {(() => {
+              const lessons = c.lessons || [];
+              let canAccess = true;
+              return lessons.map((l, i) => {
+                const linkedAssessment = l.assessmentId ? (assessments || []).find((a) => String(a._id) === String(l.assessmentId)) : null;
+                const isLocked = !canAccess;
+                const sub = linkedAssessment?.submission;
+                const totalPts = linkedAssessment ? (linkedAssessment.questions || []).reduce((s, q) => s + (q.points || 0), 0) : 0;
+                const passed = !linkedAssessment || (!!sub && totalPts > 0 && (sub.totalScore || 0) >= 0.5 * totalPts);
+                if (linkedAssessment && !passed) canAccess = false;
+                return (
+                  <div key={i} className={`rounded-2xl border p-4 space-y-2 ${isLocked ? 'border-gray-200 bg-gray-50 opacity-60' : 'border-gray-100'}`}>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-extrabold text-gray-900">{i + 1}. {l.title}</p>
+                      {isLocked && <span className="text-[10px] font-bold text-gray-500">Locked</span>}
+                    </div>
+                    {isLocked ? (
+                      <p className="text-xs text-gray-500">Complete the previous assessment with at least 50% to unlock.</p>
                     ) : (
-                      <button onClick={() => { setPreviewAssessment(linkedAssessment); setView("preview"); }} className="px-4 py-2 bg-[#006837] text-white rounded-xl font-semibold text-sm">Take assessment: {linkedAssessment.title}</button>
+                      <>
+                        {l.content && <div className="text-xs text-gray-600 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: l.content }} />}
+                        {(l.resourceLinks || []).length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-[11px] font-bold text-gray-500 uppercase">Resources</p>
+                            {(l.resourceLinks || []).map((r, j) => (
+                              <ResourcePreview key={j} resource={r} />
+                            ))}
+                          </div>
+                        )}
+                        {linkedAssessment && (
+                          <div className="pt-2 border-t border-gray-100 space-y-2">
+                            {sub ? (
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`text-[11.5px] font-bold px-2 py-1 rounded-full ${passed ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                  {passed ? 'Passed' : 'Failed'}: {sub.totalScore ?? 0}/{totalPts} ({totalPts ? Math.round(((sub.totalScore || 0) / totalPts) * 100) : 0}%)
+                                </span>
+                                {!passed && (
+                                  <button onClick={() => { setPreviewAssessment(linkedAssessment); setView("preview"); }} className="px-4 py-2 bg-rose-600 text-white rounded-xl font-semibold text-sm">Retake assessment</button>
+                                )}
+                                {sub.status === 'graded' && (
+                                  <button onClick={() => { setPreviewAssessment(linkedAssessment); setView("preview"); }} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-semibold text-sm">View feedback</button>
+                                )}
+                              </div>
+                            ) : (
+                              <button onClick={() => { setPreviewAssessment(linkedAssessment); setView("preview"); }} className="px-4 py-2 bg-[#006837] text-white rounded-xl font-semibold text-sm">Take assessment: {linkedAssessment.title}</button>
+                            )}
+                            {!passed && sub && <p className="text-xs text-rose-600">You need at least 50% to pass and unlock the next lesson.</p>}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
-                )}
-              </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
         </div>
       </div>
@@ -144,7 +173,11 @@ export default function StudentLms() {
                   {isNew(a.createdAt) && !a.submission && <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-md"><Sparkles className="h-3 w-3" />New</span>}
                 </div>
                 <p className="text-xs text-gray-500">{a.className} · {a.subject} · Due {a.dueDate ? new Date(a.dueDate).toLocaleString() : "-"}</p>
-                {a.submission && <p className="text-sm text-emerald-700 mt-1 flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> Score: {a.submission.totalScore} · {a.submission.status}</p>}
+                {a.submission && (a.submission.resultsReleased ? (
+                  <p className="text-sm text-emerald-700 mt-1 flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> Score: {a.submission.totalScore} · {a.submission.status}</p>
+                ) : (
+                  <p className="text-sm text-amber-700 mt-1 flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Grading in progress</p>
+                ))}
               </div>
               {!a.submission ? (
                 <button onClick={() => { setPreviewAssessment(a); setView("preview"); }} className="px-4 py-2 bg-[#006837] text-white rounded-xl font-semibold shrink-0">Preview</button>

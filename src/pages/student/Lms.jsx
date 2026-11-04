@@ -147,7 +147,11 @@ const Lms = () => {
           <h2 className="text-xl font-extrabold text-ink">{a.title}</h2>
           <p className="text-xs text-slate-500 mt-1">{a.className} · {a.subject}</p>
           <div className="mt-3 flex items-center gap-3">
-            <span className="text-[12px] font-extrabold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full">Score: {sub.totalScore ?? 0} / {(a.questions || []).reduce((s, q) => s + (q.points || 0), 0)}</span>
+            {sub.resultsReleased ? (
+              <span className="text-[12px] font-extrabold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full">Score: {sub.totalScore ?? 0} / {(a.questions || []).reduce((s, q) => s + (q.points || 0), 0)}</span>
+            ) : (
+              <span className="text-[12px] font-extrabold text-amber-700 bg-amber-100 px-3 py-1 rounded-full">Grading in progress</span>
+            )}
             <span className="text-[12px] font-extrabold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">{sub.status}</span>
           </div>
         </div>
@@ -197,32 +201,61 @@ const Lms = () => {
           <p className="text-[11px] text-slate-400">{c.className} · {c.subject} · {c.term} {c.academicYear}</p>
           <p className="text-[12.5px] text-slate-600">{c.description}</p>
           <div className="space-y-4">
-            {(c.lessons || []).map((l, idx) => {
-              const linkedAssessment = l.assessmentId ? (data?.assessments || []).find((a) => String(a._id) === String(l.assessmentId)) : null;
-              return (
-              <div key={idx} className="rounded-2xl border border-slate-100 p-4 space-y-2">
-                <p className="text-[13px] font-extrabold text-ink">{idx + 1}. {l.title}</p>
-                {l.content && <div className="text-[12.5px] text-slate-700 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: l.content }} />}
-                {(l.resourceLinks || []).length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase">Resources</p>
-                    {(l.resourceLinks || []).map((r, j) => (
-                      <ResourcePreview key={j} resource={r} />
-                    ))}
-                  </div>
-                )}
-                {linkedAssessment && (
-                  <div className="pt-2 border-t border-slate-100">
-                    {linkedAssessment.submission ? (
-                      <p className="text-xs text-emerald-700 font-semibold">Assessment: {linkedAssessment.title} — {linkedAssessment.submission.status} · Score {linkedAssessment.submission.totalScore}</p>
+            {(() => {
+              const lessons = c.lessons || [];
+              let canAccess = true;
+              return lessons.map((l, idx) => {
+                const linkedAssessment = l.assessmentId ? (data?.assessments || []).find((a) => String(a._id) === String(l.assessmentId)) : null;
+                const isLocked = !canAccess;
+                const sub = linkedAssessment?.submission;
+                const totalPts = linkedAssessment ? (linkedAssessment.questions || []).reduce((s, q) => s + (q.points || 0), 0) : 0;
+                const passed = !linkedAssessment || (!!sub && totalPts > 0 && (sub.totalScore || 0) >= 0.5 * totalPts);
+                if (linkedAssessment && !passed) canAccess = false;
+                return (
+                  <div key={idx} className={`rounded-2xl border p-4 space-y-2 ${isLocked ? 'border-slate-200 bg-slate-50 opacity-60' : 'border-slate-100'}`}>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[13px] font-extrabold text-ink">{idx + 1}. {l.title}</p>
+                      {isLocked && <span className="text-[10px] font-bold text-slate-500">Locked</span>}
+                    </div>
+                    {isLocked ? (
+                      <p className="text-xs text-slate-500">Complete the previous assessment with at least 50% to unlock.</p>
                     ) : (
-                      <button type="button" onClick={() => { setPreviewAssessment(linkedAssessment); setView('preview'); }} className="inline-flex items-center gap-1.5 rounded-xl bg-brand-700 px-3 py-1.5 text-[11.5px] font-extrabold text-white hover:bg-brand-800">Take assessment: {linkedAssessment.title}</button>
+                      <>
+                        {l.content && <div className="text-[12.5px] text-slate-700 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: l.content }} />}
+                        {(l.resourceLinks || []).length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-[11px] font-bold text-slate-500 uppercase">Resources</p>
+                            {(l.resourceLinks || []).map((r, j) => (
+                              <ResourcePreview key={j} resource={r} />
+                            ))}
+                          </div>
+                        )}
+                        {linkedAssessment && (
+                          <div className="pt-2 border-t border-slate-100 space-y-2">
+                            {sub ? (
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`text-[11.5px] font-bold px-2 py-1 rounded-full ${passed ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                  {passed ? 'Passed' : 'Failed'}: {sub.totalScore ?? 0}/{totalPts} ({totalPts ? Math.round(((sub.totalScore || 0) / totalPts) * 100) : 0}%)
+                                </span>
+                                {!passed && (
+                                  <button type="button" onClick={() => { setPreviewAssessment(linkedAssessment); setView('preview'); }} className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-[11.5px] font-extrabold text-white hover:bg-rose-700">Retake assessment</button>
+                                )}
+                                {sub.status === 'graded' && (
+                                  <button type="button" onClick={() => { setFeedbackAssessment(linkedAssessment); setView('feedback'); }} className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-1.5 text-[11.5px] font-extrabold text-slate-700 hover:bg-slate-200">View feedback</button>
+                                )}
+                              </div>
+                            ) : (
+                              <button type="button" onClick={() => { setPreviewAssessment(linkedAssessment); setView('preview'); }} className="inline-flex items-center gap-1.5 rounded-xl bg-brand-700 px-3 py-1.5 text-[11.5px] font-extrabold text-white hover:bg-brand-800">Take assessment: {linkedAssessment.title}</button>
+                            )}
+                            {!passed && sub && <p className="text-xs text-rose-600">You need at least 50% to pass and unlock the next lesson.</p>}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
-                )}
-              </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
         </div>
       </div>
@@ -306,7 +339,11 @@ const Lms = () => {
                 <p className="text-[11px] text-slate-400">{a.className} · {a.subject}</p>
                 <p className="text-[11px] text-amber-600 mt-0.5 flex items-center gap-1"><Clock className="h-3 w-3" />Due {a.dueDate ? new Date(a.dueDate).toLocaleString() : '-'}</p>
                 {a.durationMinutes > 0 && <p className="text-[11px] text-blue-600 mt-0.5 flex items-center gap-1"><Clock className="h-3 w-3" />Time limit: {a.durationMinutes} min</p>}
-                {a.submission && <p className="text-[11.5px] text-emerald-700 mt-1 flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> Score: {a.submission.totalScore} / {(a.questions || []).reduce((s, q) => s + (q.points || 0), 0)} · {a.submission.status}</p>}
+                {a.submission && (a.submission.resultsReleased ? (
+                  <p className="text-[11.5px] text-emerald-700 mt-1 flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> Score: {a.submission.totalScore} / {(a.questions || []).reduce((s, q) => s + (q.points || 0), 0)} · {a.submission.status}</p>
+                ) : (
+                  <p className="text-[11.5px] text-amber-700 mt-1 flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Grading in progress</p>
+                ))}
               </div>
               {!a.submission ? (
                 <button type="button" onClick={() => { setPreviewAssessment(a); setView('preview'); }} className="rounded-xl bg-brand-700 px-3 py-1.5 text-[11.5px] font-extrabold text-white hover:bg-brand-800 shrink-0">Open</button>
