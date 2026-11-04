@@ -1,7 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User, Lock, Bell, Download, Trash2, Camera, Eye, EyeOff, Check, AlertCircle } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { useStudentDashboard } from '../../hooks/useStudentDashboard';
 
 const Settings = () => {
+  const { user } = useAuth();
+  const isDemo = typeof window !== 'undefined' && localStorage.getItem('auth_token') === 'student-demo-token';
+  const { data } = useStudentDashboard(!isDemo);
+  const prefilled = useRef(false);
+
   const [tab, setTab] = useState('profile');
   const [name, setName] = useState('Student');
   const [bio, setBio] = useState('');
@@ -16,6 +23,18 @@ const Settings = () => {
   const [showPw, setShowPw] = useState(false);
   const [saved, setSaved] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState('');
+
+  useEffect(() => {
+    if (prefilled.current) return;
+    const p = data?.profile || {};
+    const hasData = data || user;
+    if (!hasData) return;
+    prefilled.current = true;
+    setName(p.name || user?.name || 'Student');
+    setEmail(p.email || user?.email || '');
+    setPhone(p.phone || user?.phone || '');
+    setBio(p.bio || '');
+  }, [data, user]);
 
   const tabs = [
     { key: 'profile', label: 'Profile', icon: User },

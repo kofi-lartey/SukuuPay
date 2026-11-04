@@ -5,6 +5,7 @@ import { getStudentLms, startStudentLmsAssessment, submitStudentLmsAssessment } 
 import { BookOpen, ClipboardList, PlayCircle, CheckCircle2, Clock, ChevronRight, Calendar, Sparkles, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { STUDENT_ROUTES } from '../../utils/constants';
 import AssessmentPreview from '../../components/lms/AssessmentPreview';
+import StudentQuizView from '../../components/lms/StudentQuizView';
 import ResourcePreview from "../../components/lms/ResourcePreview";
 
 const isNew = (date) => {
