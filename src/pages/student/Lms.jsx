@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getStudentLms, startStudentLmsAssessment, submitStudentLmsAssessment } from '../../services/student';
 import api from '../../services/api';
-import { BookOpen, ClipboardList, PlayCircle, CheckCircle2, Clock, ChevronRight, Calendar, Sparkles, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { BookOpen, ClipboardList, PlayCircle, CheckCircle2, Clock, ChevronRight, Calendar, Sparkles, Loader2, AlertCircle, RefreshCw, Video } from 'lucide-react';
 import { STUDENT_ROUTES } from '../../utils/constants';
 import AssessmentPreview from '../../components/lms/AssessmentPreview';
 import StudentQuizView from '../../components/lms/StudentQuizView';
@@ -271,7 +271,7 @@ const Lms = () => {
       <div className="space-y-4 max-w-6xl mx-auto">
         <button type="button" onClick={() => setMeetingRoom(null)} className="text-sm text-slate-600 hover:text-slate-900">← Back</button>
         <div className="aspect-video w-full overflow-hidden rounded-xl border border-slate-200 bg-black">
-          <iframe src={`https://meet.jit.si/${encodeURIComponent(meetingRoom)}`} className="w-full h-full" allow="camera; microphone; fullscreen; display-capture" />
+          <iframe src={`https://meet.jit.si/${encodeURIComponent(meetingRoom)}#config.prejoinPageEnabled=false`} className="w-full h-full" allow="camera; microphone; fullscreen; display-capture" />
         </div>
       </div>
     );
@@ -285,6 +285,7 @@ const Lms = () => {
   const TABS = [
     { key: 'courses', label: 'Courses', icon: BookOpen, count: 0 },
     { key: 'assessments', label: 'Assessments', icon: ClipboardList, count: newAssessments },
+    { key: 'meetings', label: 'Join Class Meeting', icon: Video, count: meetings.length },
   ];
 
   // "Courses" view maps study plans grouped; reuse studyPlans as course list proxy
@@ -298,17 +299,6 @@ const Lms = () => {
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight text-ink">Learning (LMS)</h1>
             <p className="text-[13px] font-semibold text-slate-500">Courses, assessments and study plans from your teachers</p>
-            {meetings.length > 0 && (
-              <div className="mt-3 space-y-2">
-                <p className="text-[12px] font-bold text-slate-700">Live classes</p>
-                {meetings.map((m) => (
-                  <button key={m._id} type="button" onClick={() => setMeetingRoom(m.roomName)} className="block w-full text-left rounded-xl bg-teal-600 text-white px-3 py-2 text-[12px] font-bold hover:bg-teal-700">
-                    Join: {m.title} ({m.className})
-                  </button>
-                ))}
-              </div>
-            )}
-            <button type="button" onClick={() => setMeetingRoom(`SukuuPay-${(data?.student?.class || 'class').replace(/\s+/g,'-')}`)} className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-teal-600 px-3 py-1.5 text-[11.5px] font-extrabold text-white hover:bg-teal-700">Join class meeting</button>
           </div>
         </div>
         <Link to={STUDENT_ROUTES.notifications} className="relative inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-[12px] font-bold text-slate-700 hover:bg-slate-200">
@@ -376,6 +366,21 @@ const Lms = () => {
               ) : (
                 <button type="button" onClick={() => { setFeedbackAssessment(a); setView('feedback'); }} className="rounded-xl bg-slate-100 px-3 py-1.5 text-[11.5px] font-extrabold text-slate-700 hover:bg-slate-200 shrink-0">View feedback</button>
               )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'meetings' && (
+        <div className="space-y-3">
+          {meetings.length === 0 && <p className="text-sm text-slate-500">No live classes right now.</p>}
+          {meetings.map((m) => (
+            <div key={m._id} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm gap-3">
+              <div className="min-w-0">
+                <p className="text-[13px] font-extrabold text-ink">{m.title}</p>
+                <p className="text-[11px] text-slate-400">{m.className} · Live</p>
+              </div>
+              <button type="button" onClick={() => window.open(`https://meet.jit.si/${encodeURIComponent(m.roomName)}#config.prejoinPageEnabled=false`, '_blank')} className="rounded-xl bg-teal-600 px-3 py-1.5 text-[11.5px] font-extrabold text-white hover:bg-teal-700 shrink-0">Join</button>
             </div>
           ))}
         </div>

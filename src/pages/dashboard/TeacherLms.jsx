@@ -269,15 +269,15 @@ export default function TeacherLms() {
               <button onClick={async () => {
                 try {
                   const r = await api.post("/teacher/lms/meetings", { className: meetingClass, title: meetingTitle || "Live class" });
-                  setMeetingRoom(r.data.data.roomName);
                   setMeetings((p) => [r.data.data, ...p]);
+                  window.open(`https://meet.jit.si/${encodeURIComponent(r.data.data.roomName)}#config.prejoinPageEnabled=false`, '_blank');
                 } catch (e) { alert(e?.response?.data?.message || "Failed"); }
               }} className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold">Create & Start</button>
             </div>
           </div>
           {meetingRoom && (
             <div className="aspect-video w-full overflow-hidden rounded-xl border border-gray-200 bg-black">
-              <iframe src={`https://meet.jit.si/${encodeURIComponent(meetingRoom)}`} className="w-full h-full" allow="camera; microphone; fullscreen; display-capture" />
+              <iframe src={`https://meet.jit.si/${encodeURIComponent(meetingRoom)}#config.prejoinPageEnabled=false`} className="w-full h-full" allow="camera; microphone; fullscreen; display-capture" />
             </div>
           )}
           {meetings.length > 0 && (
@@ -285,9 +285,12 @@ export default function TeacherLms() {
               <h2 className="text-sm font-bold mb-2">Active meetings</h2>
               <ul className="space-y-1 text-xs">
                 {meetings.map((m) => (
-                  <li key={m._id} className="flex justify-between">
+                  <li key={m._id} className="flex justify-between items-center">
                     <span>{m.title} · {m.className}</span>
-                    <button onClick={() => setMeetingRoom(m.roomName)} className="text-teal-700 font-semibold">Open</button>
+                    <div className="flex gap-2">
+                      <button onClick={() => window.open(`https://meet.jit.si/${encodeURIComponent(m.roomName)}#config.prejoinPageEnabled=false`, '_blank')} className="text-teal-700 font-semibold">Open</button>
+                      <button onClick={async () => { if (!window.confirm("Remove this meeting?")) return; try { await api.delete(`/teacher/lms/meetings/${m._id}`); setMeetings((p) => p.filter((x) => x._id !== m._id)); if (meetingRoom === m.roomName) setMeetingRoom(null); } catch (e) { alert("Delete failed"); } }} className="text-rose-700 font-semibold">Remove</button>
+                    </div>
                   </li>
                 ))}
               </ul>
