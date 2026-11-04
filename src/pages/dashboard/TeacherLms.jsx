@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { BookOpen, ClipboardList, ChevronRight, Eye, Pencil, Trash2, X } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { BookOpen, ClipboardList, ChevronRight, Eye, Pencil, Trash2, X, Video } from "lucide-react";
 import { Upload } from "lucide-react";
 import AssessmentAuthoringView from "../../components/lms/AssessmentAuthoringView";
 import GradingInterfaceView from "../../components/lms/GradingInterfaceView";
@@ -17,9 +17,31 @@ export default function TeacherLms() {
   const [editingAssessment, setEditingAssessment] = useState(null);
   const [studyPlans, setStudyPlans] = useState([]);
   const [loadingPlans, setLoadingPlans] = useState(false);
+  const [teacherClasses, setTeacherClasses] = useState([]);
   const [editingPlan, setEditingPlan] = useState(null);
   const [previewPlan, setPreviewPlan] = useState(null);
+  const [meetingClass, setMeetingClass] = useState("");
+  const [meetingTitle, setMeetingTitle] = useState("");
+  const [meetings, setMeetings] = useState([]);
+  const [meetingRoom, setMeetingRoom] = useState(null);
+  const [gradebook, setGradebook] = useState([]);
+  const [loadingGradebook, setLoadingGradebook] = useState(false);
 
+  useEffect(() => {
+    api.get("/teacher/classes").then((r) => {
+      let cls = r.data.data?.classes || [];
+      if (!cls.length) {
+        api.get("/teacher/classes/available").then((r2) => {
+          const c = (r2.data.data?.classes || []).map((x) => ({ className: x.className }));
+          setTeacherClasses(c);
+          if (c.length) setMeetingClass(c[0].className);
+        }).catch(() => {});
+      } else {
+        setTeacherClasses(cls);
+        if (cls.length) setMeetingClass(cls[0].className);
+      }
+    }).catch(() => {});
+  }, []);
   const loadAssessments = async () => {
     const r = await api.get("/teacher/lms/assessments");
     setAssessments(r.data.data || []);
@@ -35,6 +57,15 @@ export default function TeacherLms() {
     }
   };
 
+  const loadGradebook = async () => {
+    setLoadingGradebook(true);
+    try {
+      const r = await api.get("/teacher/lms/gradebook");
+      setGradebook(r.data.data || []);
+    } finally {
+      setLoadingGradebook(false);
+    }
+  };
   const openGrading = async (a) => {
     setSelectedAssessment(a);
     const r = await api.get(`/teacher/lms/assessments/${a._id}/submissions`);
@@ -87,13 +118,21 @@ export default function TeacherLms() {
               <h3 className="text-lg font-extrabold text-gray-900">Course Upload</h3>
               <p className="text-sm text-gray-500 mt-1 mb-4">Upload materials, manage curriculum, organize lessons.</p>
             </div>
-            <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:border-emerald-300 transition-colors cursor-pointer group" onClick={() => setView("bulk")}>
+            <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:border-emerald-300 transition-colors cursor-pointer group" onClick={() => { setMeetingRoom("SukuuPay-Meeting"); setView("meeting"); }}>
               <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-purple-50 text-purple-700 rounded-xl group-hover:bg-purple-100"><Upload className="h-6 w-6" /></div>
-                <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-purple-500" />
+                <div className="p-3 bg-teal-50 text-teal-700 rounded-xl group-hover:bg-teal-100"><Video className="h-6 w-6" /></div>
+                <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-teal-500" />
               </div>
-              <h3 className="text-lg font-extrabold text-gray-900">Bulk Import/Export</h3>
-              <p className="text-sm text-gray-500 mt-1 mb-4">Import or export lessons, plans, assessments.</p>
+              <h3 className="text-lg font-extrabold text-gray-900">Meetings</h3>
+              <p className="text-sm text-gray-500 mt-1 mb-4">Start a live video class (WebRTC).</p>
+            </div>
+            <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:border-emerald-300 transition-colors cursor-pointer group" onClick={() => { loadGradebook(); setView("gradebook"); }}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-indigo-50 text-indigo-700 rounded-xl group-hover:bg-indigo-100"><ClipboardList className="h-6 w-6" /></div>
+                <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-indigo-500" />
+              </div>
+              <h3 className="text-lg font-extrabold text-gray-900">Gradebook</h3>
+              <p className="text-sm text-gray-500 mt-1 mb-4">Tabular view of student grades per assessment.</p>
             </div>
           </div>
         </div>
@@ -214,7 +253,93 @@ export default function TeacherLms() {
           </div>
         </div>
       )}
-      {view === "bulk" && <BulkLmsManager onBack={() => setView("hub")} />}
+      {view === "meeting" && (
+        <div className="max-w-6xl mx-auto space-y-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl font-bold">Live Meeting (WebRTC)</h1>
+            <button onClick={() => { setMeetingRoom(null); setView("hub"); }} className="text-xs text-gray-500">← Back</button>
+          </div>
+          <div className="bg-white border border-gray-100 rounded-xl p-4 space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <select value={meetingClass} onChange={(e) => setMeetingClass(e.target.value)} className="p-2 border border-gray-200 rounded-lg text-sm">
+                <option value="">Select class</option>
+                {teacherClasses.map((c) => <option key={c.className} value={c.className}>{c.className}</option>)}
+              </select>
+              <input value={meetingTitle} onChange={(e) => setMeetingTitle(e.target.value)} placeholder="Meeting title" className="p-2 border border-gray-200 rounded-lg text-sm" />
+              <button onClick={async () => {
+                try {
+                  const r = await api.post("/teacher/lms/meetings", { className: meetingClass, title: meetingTitle || "Live class" });
+                  setMeetingRoom(r.data.data.roomName);
+                  setMeetings((p) => [r.data.data, ...p]);
+                } catch (e) { alert(e?.response?.data?.message || "Failed"); }
+              }} className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold">Create & Start</button>
+            </div>
+          </div>
+          {meetingRoom && (
+            <div className="aspect-video w-full overflow-hidden rounded-xl border border-gray-200 bg-black">
+              <iframe src={`https://meet.jit.si/${encodeURIComponent(meetingRoom)}`} className="w-full h-full" allow="camera; microphone; fullscreen; display-capture" />
+            </div>
+          )}
+          {meetings.length > 0 && (
+            <div className="bg-white border border-gray-100 rounded-xl p-4">
+              <h2 className="text-sm font-bold mb-2">Active meetings</h2>
+              <ul className="space-y-1 text-xs">
+                {meetings.map((m) => (
+                  <li key={m._id} className="flex justify-between">
+                    <span>{m.title} · {m.className}</span>
+                    <button onClick={() => setMeetingRoom(m.roomName)} className="text-teal-700 font-semibold">Open</button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+      {view === "gradebook" && (
+        <div className="max-w-6xl mx-auto space-y-6">
+          <div className="flex items-center justify-between">
+            <button onClick={() => setView("hub")} className="text-xs text-gray-500">← Back</button>
+          </div>
+          {loadingGradebook ? (
+            <p className="text-sm text-gray-500">Loading...</p>
+          ) : gradebook.length === 0 ? (
+            <div className="bg-white border border-gray-100 rounded-xl p-6 text-center text-sm text-gray-500">No data.</div>
+          ) : (
+            gradebook.map((cls) => (
+              <div key={cls.className} className="bg-white border border-gray-100 rounded-xl p-4 overflow-x-auto">
+                <h2 className="text-lg font-bold mb-3">{cls.className}</h2>
+                <table className="min-w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left p-2 font-bold">Student</th>
+                      {cls.assessments.map((a) => (
+                        <th key={a._id} className="text-center p-2 font-bold">{a.title}<br /><span className="text-[10px] text-gray-400">/{a.totalPoints}</span></th>
+                      ))}
+                      <th className="text-center p-2 font-bold">Cumulative</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cls.rows.map((r) => (
+                      <tr key={r.studentId} className="border-b border-gray-100">
+                        <td className="p-2 font-semibold">{r.studentName}</td>
+                        {cls.assessments.map((a) => {
+                          const g = r.grades[String(a._id)];
+                          return (
+                            <td key={a._id} className="text-center p-2">
+                              {g && g.score != null ? `${g.score}/${g.total}` : (g?.status === 'not_taken' ? '—' : '...')}
+                            </td>
+                          );
+                        })}
+                        <td className="text-center p-2 font-bold">{r.cumulative != null ? `${r.cumulative}%` : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }

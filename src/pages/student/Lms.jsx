@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getStudentLms, startStudentLmsAssessment, submitStudentLmsAssessment } from '../../services/student';
+import api from '../../services/api';
 import { BookOpen, ClipboardList, PlayCircle, CheckCircle2, Clock, ChevronRight, Calendar, Sparkles, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { STUDENT_ROUTES } from '../../utils/constants';
 import AssessmentPreview from '../../components/lms/AssessmentPreview';
@@ -26,6 +27,8 @@ const Lms = () => {
   const [taking, setTaking] = useState(null);
   const [expiresAt, setExpiresAt] = useState(null);
   const [previewAssessment, setPreviewAssessment] = useState(null);
+  const [meetingRoom, setMeetingRoom] = useState(null);
+  const [meetings, setMeetings] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [feedbackAssessment, setFeedbackAssessment] = useState(null);
 
@@ -42,6 +45,7 @@ const Lms = () => {
       const res = await getStudentLms();
       const payload = res?.data?.data || res?.data || null;
       setData(payload);
+      try { const mr = await api.get('/student/lms/meetings'); setMeetings(mr.data.data || []); } catch {}
       const courses = payload?.studyPlans || [];
       if (courses.length && !selected) {
         setSelected(courses[0]);
@@ -262,6 +266,17 @@ const Lms = () => {
     );
   }
 
+  if (meetingRoom) {
+    return (
+      <div className="space-y-4 max-w-6xl mx-auto">
+        <button type="button" onClick={() => setMeetingRoom(null)} className="text-sm text-slate-600 hover:text-slate-900">← Back</button>
+        <div className="aspect-video w-full overflow-hidden rounded-xl border border-slate-200 bg-black">
+          <iframe src={`https://meet.jit.si/${encodeURIComponent(meetingRoom)}`} className="w-full h-full" allow="camera; microphone; fullscreen; display-capture" />
+        </div>
+      </div>
+    );
+  }
+
   const studyPlans = data?.studyPlans || [];
   const assessments = (data?.assessments || []).filter((a) => !a.attachedToLesson);
   const newPlans = studyPlans.filter((p) => isNew(p.createdAt)).length;
@@ -283,6 +298,17 @@ const Lms = () => {
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight text-ink">Learning (LMS)</h1>
             <p className="text-[13px] font-semibold text-slate-500">Courses, assessments and study plans from your teachers</p>
+            {meetings.length > 0 && (
+              <div className="mt-3 space-y-2">
+                <p className="text-[12px] font-bold text-slate-700">Live classes</p>
+                {meetings.map((m) => (
+                  <button key={m._id} type="button" onClick={() => setMeetingRoom(m.roomName)} className="block w-full text-left rounded-xl bg-teal-600 text-white px-3 py-2 text-[12px] font-bold hover:bg-teal-700">
+                    Join: {m.title} ({m.className})
+                  </button>
+                ))}
+              </div>
+            )}
+            <button type="button" onClick={() => setMeetingRoom(`SukuuPay-${(data?.student?.class || 'class').replace(/\s+/g,'-')}`)} className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-teal-600 px-3 py-1.5 text-[11.5px] font-extrabold text-white hover:bg-teal-700">Join class meeting</button>
           </div>
         </div>
         <Link to={STUDENT_ROUTES.notifications} className="relative inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-[12px] font-bold text-slate-700 hover:bg-slate-200">

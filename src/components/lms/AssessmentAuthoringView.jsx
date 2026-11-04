@@ -201,7 +201,6 @@ export default function AssessmentAuthoringView({ assessment, onDone, onBack }) 
                           <li key={oi} className={o === q.correctAnswer ? "text-emerald-700 font-semibold" : ""}>• {o} {o === q.correctAnswer ? "✓" : ""}</li>
                         ))}
                       </ul>
-                    )}
                     {q.syllabusRef && <p className="text-[10px] text-gray-400">Syllabus: {q.syllabusRef}</p>}
                     {q.rubricStandard && <p className="text-[10px] text-gray-400">Rubric: {q.rubricStandard}</p>}
                   </div>
