@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import api from "../../services/api";
-import { BookOpen, ClipboardList, Clock, Sparkles, CheckCircle2, PlayCircle } from "lucide-react";
+import { BookOpen, ClipboardList, Clock, Sparkles, CheckCircle2, PlayCircle, Video } from "lucide-react";
 import StudyPlanCreator from "../../components/lms/StudyPlanCreator";
 import AssessmentPreview from "../../components/lms/AssessmentPreview";
 import ResourcePreview from "../../components/lms/ResourcePreview";
@@ -21,11 +21,15 @@ export default function StudentLms() {
   const [taking, setTaking] = useState(null);
   const [expiresAt, setExpiresAt] = useState(null);
   const [selectedCourse, setSelectedCourse] = useState(null);
+  const [meetings, setMeetings] = useState([]);
 
   const load = () => {
-    api.get(`/pay/${encodeURIComponent(token)}/lms`)
-      .then((r) => setData(r.data.data))
-      .catch(() => setError("Could not load LMS"));
+     api.get(`/pay/${encodeURIComponent(token)}/lms`)
+       .then((r) => setData(r.data.data))
+       .catch(() => setError("Could not load LMS"));
+     api.get(`/pay/${encodeURIComponent(token)}/lms/meetings`)
+       .then((r) => setMeetings(r.data.data || []))
+       .catch(() => {});
   };
   useEffect(load, [token]);
 
@@ -137,6 +141,9 @@ export default function StudentLms() {
           <ClipboardList className="h-4 w-4" /> Assessments
           {newAssessments > 0 && <span className={`ml-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-extrabold ${tab === "assessments" ? "bg-white text-[#006837]" : "bg-rose-500 text-white"}`}>{newAssessments}</span>}
         </button>
+        <button type="button" onClick={() => setTab("meetings")} className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[12.5px] font-bold transition ${tab === "meetings" ? "bg-[#006837] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}>
+          <Video className="h-4 w-4" /> Join Class Meeting
+        </button>
       </div>
 
       {tab === "plans" && (
@@ -188,6 +195,21 @@ export default function StudentLms() {
           ))}
         </section>
       )}
+      {tab === "meetings" && (
+        <section className="space-y-3">
+          {meetings.length === 0 && <p className="text-sm text-gray-500">No live classes right now.</p>}
+          {meetings.map((m) => (
+            <div key={m._id} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="font-extrabold text-gray-900">{m.title}</h3>
+                <p className="text-xs text-gray-500">{m.className} · Live</p>
+              </div>
+              <button onClick={() => window.open(`https://meet.jit.si/${encodeURIComponent(m.roomName)}#config.prejoinPageEnabled=false`, '_blank')} className="px-4 py-2 bg-teal-600 text-white rounded-xl font-semibold text-sm">Join</button>
+            </div>
+          ))}
+        </section>
+      )}
+
     </div>
   );
 }

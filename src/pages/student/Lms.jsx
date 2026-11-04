@@ -373,6 +373,10 @@ const Lms = () => {
 
       {tab === 'meetings' && (
         <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-slate-500">Live classes for your class.</p>
+            <button type="button" onClick={async () => { try { const mr = await api.get('/student/lms/meetings'); setMeetings(mr.data.data || []); } catch {} }} className="text-xs text-teal-700 font-semibold">Refresh</button>
+          </div>
           {meetings.length === 0 && <p className="text-sm text-slate-500">No live classes right now.</p>}
           {meetings.map((m) => (
             <div key={m._id} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm gap-3">
