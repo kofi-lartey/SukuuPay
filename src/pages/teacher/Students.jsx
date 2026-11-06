@@ -181,11 +181,11 @@ const TeacherStudents = () => {
                                     <a href={a.url} target="_blank" rel="noreferrer">
                                       <img src={a.url} alt={a.originalName || 'image'} className="max-h-48 rounded-xl cursor-pointer hover:opacity-90" />
                                     </a>
-                                  ) : String(a.mimeType || '').includes('pdf') ? (
-                                    <a href={a.url} target="_blank" rel="noreferrer" className="block">
-                                      <iframe src={a.url} title={a.originalName || 'pdf'} className="w-full h-64 rounded-xl border pointer-events-none" />
-                                    </a>
-                                  ) : (
+                              ) : String(a.mimeType || '').includes('pdf') ? (
+                                <a href={a.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold underline">
+                                  📄 {a.originalName || 'Open PDF'}
+                                </a>
+                              ) : (
                                     <a href={a.url} target="_blank" rel="noreferrer" download={a.originalName || undefined} className="text-xs underline">
                                       {a.originalName || 'Attachment'}
                                     </a>
