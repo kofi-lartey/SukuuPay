@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Lock, Bell, Download, Trash2, Camera, Eye, EyeOff, Check, AlertCircle } from 'lucide-react';
+import { User, Lock, Bell, Download, Trash2, Camera, Eye, EyeOff, Check, AlertCircle, Hash } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useStudentDashboard } from '../../hooks/useStudentDashboard';
 
@@ -51,6 +51,13 @@ const Settings = () => {
 
   const strength = newPw.length >= 8 && /[A-Z]/.test(newPw) && /\d/.test(newPw) ? 'strong' : newPw.length >= 6 ? 'medium' : 'weak';
 
+  const profile = data?.profile || {};
+  const previewImage = profile?.image || user?.image || user?.avatar || null;
+  const previewName = name || profile?.name || user?.name || 'Student';
+  const previewId = profile?.studentId || user?.studentId || user?._id || 'Not assigned';
+  const previewClass = profile?.studentClass || user?.className || user?.studentClass || '';
+  const previewTerm = profile?.term || '';
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       <div className="flex items-center gap-3">
@@ -60,6 +67,35 @@ const Settings = () => {
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-ink">Settings</h1>
           <p className="text-[13px] font-semibold text-slate-500">Manage your profile and account</p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-4">
+          {previewImage ? (
+            <img src={previewImage} alt={previewName} className="h-16 w-16 rounded-2xl object-cover border border-slate-200" />
+          ) : (
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-100 text-brand-700 font-extrabold text-xl">
+              {String(previewName).charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-400">Profile Preview</p>
+            <h2 className="text-[16px] font-extrabold text-ink truncate">{previewName}</h2>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-700">
+                <Hash className="h-3 w-3" /> {previewId}
+              </span>
+              {previewClass && (
+                <span className="inline-flex items-center gap-1 rounded-lg bg-brand-50 px-2 py-0.5 text-[11px] font-bold text-brand-700">
+                  <User className="h-3 w-3" /> {previewClass}
+                </span>
+              )}
+              {previewTerm && (
+                <span className="text-[11px] font-semibold text-slate-500">{previewTerm}</span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

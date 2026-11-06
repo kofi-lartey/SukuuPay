@@ -108,8 +108,15 @@ export const clearSession = () => {
     area?.removeItem?.(REFRESH_TOKEN_KEY);
   }
 
-  if (typeof window !== 'undefined' && window.location?.pathname !== '/login') {
-    window.location.href = '/login';
+  if (typeof window !== 'undefined' && window.location?.pathname) {
+    const path = window.location.pathname;
+    // Student sessions live under /student and authenticate against the student
+    // login page; sending a student to the staff login (or vice-versa) is what
+    // produced the redirect loop when a session was cleared mid-flight.
+    const loginPath = path.startsWith('/student') ? '/student/login' : '/login';
+    if (path !== loginPath) {
+      window.location.href = loginPath;
+    }
   }
 };
 

@@ -4,10 +4,27 @@ const TOKEN_KEYS = ['auth_token', 'refresh_token'];
 
 const storeTokens = ({ accessToken, refreshToken }) => {
   if (accessToken) localStorage.setItem('auth_token', accessToken);
+  else {
+    localStorage.removeItem('auth_token');
+    sessionStorage.removeItem('auth_token');
+  }
   if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
+  else {
+    // A login that issues no refresh token (e.g. student self-service) must not
+    // inherit a stale refresh token from a previous session in either store —
+    // otherwise a later 401 spends a token the server has already forgotten and
+    // the session is dropped on the floor.
+    localStorage.removeItem('refresh_token');
+    sessionStorage.removeItem('refresh_token');
+  }
 };
 
-export const clearTokens = () => TOKEN_KEYS.forEach((key) => localStorage.removeItem(key));
+export const clearTokens = () => {
+  for (const key of TOKEN_KEYS) {
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  }
+};
 
 /** Axios rejects with a plain `message`; the API also returns a structured body. */
 const toError = (error, fallback) => {

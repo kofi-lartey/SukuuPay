@@ -173,12 +173,14 @@ export const AuthProvider = ({ children }) => {
   }, [applySession]);
 
   const login = async (email, password) => {
+    clearTokens();
     const { user: signedIn, onboarding: linkState, message } = await apiLogin(email, password);
     applySession(signedIn, linkState);
     return { user: signedIn, onboarding: linkState, message };
   };
 
   const studentLogin = useCallback(async (studentId, password) => {
+    clearTokens();
     const { user: signedIn, onboarding: linkState } = await apiStudentLogin(studentId, password);
     applySession(signedIn, linkState);
     return { user: signedIn, onboarding: linkState };
