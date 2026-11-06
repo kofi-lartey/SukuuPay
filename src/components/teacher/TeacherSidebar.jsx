@@ -44,6 +44,13 @@ const NAV_ITEMS = [
     description: 'Your classes, today’s register and what needs a mark.',
   },
   {
+    key: 'students',
+    label: 'My Students',
+    to: TEACHER_ROUTES.students,
+    icon: Users,
+    description: 'Students assigned to you, and messaging.',
+  },
+  {
     key: 'classes',
     label: 'My Classes',
     to: TEACHER_ROUTES.classes,

@@ -229,6 +229,7 @@ export const TEACHER_ROUTES = {
   notifications: '/teacher/notifications',
   lms: '/teacher/lms',
   profile: '/teacher/profile',
+  students: '/teacher/students',
 };
 
 /**

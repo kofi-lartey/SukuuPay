@@ -109,6 +109,7 @@ import TeacherLayout from './layouts/TeacherLayout';
 import TeacherDashboard from './pages/teacher/TeacherDashboard';
 import TeacherLms from './pages/dashboard/TeacherLms';
 import MyClasses from './pages/teacher/MyClasses';
+import TeacherStudents from './pages/teacher/Students';
 import ClassDetail from './pages/teacher/ClassDetail';
 import TakeAttendance from './pages/teacher/TakeAttendance';
 import EnterGrades from './pages/teacher/EnterGrades';
@@ -464,6 +465,7 @@ function App() {
               <Route path="/teacher" element={<TeacherLayout />}>
                 <Route index element={<TeacherDashboard />} />
                 <Route path="classes" element={<MyClasses />} />
+                <Route path="students" element={<TeacherStudents />} />
                 <Route path="classes/:className" element={<ClassDetail />} />
                 <Route path="attendance" element={<TakeAttendance />} />
                 <Route path="attendance/:className" element={<TakeAttendance />} />
