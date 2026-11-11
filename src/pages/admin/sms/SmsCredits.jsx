@@ -82,15 +82,18 @@ const CREDIT_PROVIDERS = ['arke', 'moolre'];
 const MAX_UNITS = 1000000;
 
 const AWAITING_APPROVAL = 'awaiting_approval';
+const AWAITING_VERIFICATION = 'awaiting_verification';
 const STATUS_TONE = {
   awaiting_payment: 'amber',
+  awaiting_verification: 'purple',
   awaiting_approval: 'blue',
   approved: 'green',
   rejected: 'red',
   cancelled: 'slate',
 };
 const TABS = [
-  { key: AWAITING_APPROVAL, label: 'Needs approval' },
+  { key: AWAITING_VERIFICATION, label: 'Needs verification' },
+  { key: AWAITING_APPROVAL, label: 'Awaiting approval' },
   { key: 'all', label: 'All' },
   { key: 'approved', label: 'Approved' },
   { key: 'rejected', label: 'Declined' },
@@ -117,7 +120,7 @@ const SmsCredits = () => {
   const [poolLoading, setPoolLoading] = useState(true);
   const [poolError, setPoolError] = useState(null);
   const [queue, setQueue] = useState({ rows: [], meta: null, loading: true });
-  const [reqStatus, setReqStatus] = useState(AWAITING_APPROVAL);
+  const [reqStatus, setReqStatus] = useState(AWAITING_VERIFICATION);
   const [reqPage, setReqPage] = useState(1);
   const [busyId, setBusyId] = useState(null);
   const [rejecting, setRejecting] = useState(null);
@@ -359,12 +362,13 @@ const SmsCredits = () => {
         <div className="space-y-2">{[0, 1].map((key) => (<Card key={key} padding="p-4"><div className="h-4 w-48 animate-pulse rounded bg-slate-100" /><div className="mt-2.5 h-3 w-64 animate-pulse rounded bg-slate-100" /></Card>))}</div>
       ) : null}
       {!queue.loading && queue.rows.length === 0 ? (
-        <EmptyState icon={Package} title={reqStatus === AWAITING_APPROVAL ? 'Nothing waiting' : 'No requests here'} description={reqStatus === AWAITING_APPROVAL ? 'No school is waiting for approval right now.' : 'Try another tab to see the rest of the history.'} />
+        <EmptyState icon={Package} title={reqStatus === AWAITING_APPROVAL || reqStatus === AWAITING_VERIFICATION ? 'Nothing waiting' : 'No requests here'} description={reqStatus === AWAITING_VERIFICATION ? 'No manual payment is waiting for verification right now.' : reqStatus === AWAITING_APPROVAL ? 'No school is waiting for approval right now.' : 'Try another tab to see the rest of the history.'} />
       ) : null}
 
       <ul className="space-y-2">
         {queue.rows.map((row) => {
-          const isWaiting = row.status === AWAITING_APPROVAL;
+          const isWaiting = row.status === AWAITING_APPROVAL || row.status === AWAITING_VERIFICATION;
+          const isManual = row.payment?.method === 'manual';
           const isDeclined = row.status === 'rejected' && !row.refundedAt;
           const busy = busyId === row.requestId;
           return (
@@ -372,22 +376,30 @@ const SmsCredits = () => {
               <Card padding="p-4" className={isWaiting ? 'border-blue-200' : ''}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2"><Badge tone={STATUS_TONE[row.status] || 'slate'}>{row.status}</Badge><span className="font-mono text-[11px] text-slate-400">{row.requestId}</span></div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone={STATUS_TONE[row.status] || 'slate'}>{row.status}</Badge>
+                      {isManual ? <Badge tone="slate">Manual</Badge> : <Badge tone="slate">MoMo</Badge>}
+                      <span className="font-mono text-[11px] text-slate-400">{row.requestId}</span>
+                    </div>
                     <p className="mt-2 text-[14px] font-extrabold text-ink">{row.schoolId?.name || 'Unknown school'}</p>
                     <p className="mt-1 text-[13px] font-semibold text-slate-600">{formatCount(row.units)} SMS · <span className="tabular-nums font-extrabold text-ink">{formatCedis(row.totalPes)}</span> · {formatCedis(row.unitPricePes)} each</p>
                     <p className="mt-1 text-[12px] font-semibold text-slate-500">Requested by {row.requestedBy?.firstName || '—'} {row.requestedBy?.lastName || ''} · {new Date(row.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-500">
                       <Badge tone={row.payment?.status === 'completed' ? 'green' : 'slate'}>{row.payment?.status || 'pending'}</Badge>
+                      {row.payment?.reference ? <span className="font-mono">Pay ref: {row.payment.reference}</span> : null}
+                      {row.payment?.submittedReference ? <span className="font-mono">Submitted: {row.payment.submittedReference}</span> : null}
                       {row.payment?.phoneNumber ? <span className="tabular-nums">{row.payment.phoneNumber}</span> : null}
                       {row.payment?.financialTransactionId ? <span className="font-mono">{row.payment.financialTransactionId}</span> : null}
                     </div>
+                    {row.payment?.proofNote ? <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-[12px] font-semibold text-slate-700">Note: {row.payment.proofNote}</p> : null}
                     {row.rejectionReason ? <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-[12px] font-semibold text-red-800">Declined: {row.rejectionReason}</p> : null}
                     {row.refundedAt ? <p className="mt-2 text-[12px] font-bold text-emerald-700">Refunded{row.refundReference ? ` · ${row.refundReference}` : ''}</p> : null}
                     {isWaiting && pool && row.units > pool.availableUnits ? <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-800">Only {formatCount(pool.availableUnits)} units are left in the pool. Top up before approving this.</p> : null}
+                    {row.status === AWAITING_VERIFICATION ? <p className="mt-2 text-[12px] font-semibold text-violet-700">Verify the submitted payment reference externally, then approve to release credit.</p> : null}
                   </div>
                   <div className="flex shrink-0 flex-col gap-2">
                     {isWaiting ? (<>
-                      <Button onClick={() => onApprove(row)} disabled={busy || !pool || row.units > pool.availableUnits} icon={CheckCircle2}>{busy ? 'Working…' : 'Approve'}</Button>
+                      <Button onClick={() => onApprove(row)} disabled={busy || !pool || row.units > pool.availableUnits} icon={CheckCircle2}>{busy ? 'Working…' : (row.status === AWAITING_VERIFICATION ? 'Verify & approve' : 'Approve')}</Button>
                       <Button variant="secondary" onClick={() => { setRejecting(row); setReason(''); setReasonError(null); }} disabled={busy} icon={XCircle}>Decline</Button>
                     </>) : null}
                     {isDeclined ? <Button variant="secondary" onClick={() => { setRefunding(row); setRefundReference(''); }} disabled={busy}>Record refund</Button> : null}

@@ -7,6 +7,7 @@ const TONES = {
   red: 'bg-red-50 text-red-700',
   rose: 'bg-rose-50 text-rose-700',
   blue: 'bg-blue-50 text-blue-700',
+  purple: 'bg-violet-50 text-violet-700',
   slate: 'bg-slate-100 text-slate-600',
   ink: 'bg-ink text-white',
   mtn: 'bg-momo-mtn-soft text-momo-mtn-ink',
