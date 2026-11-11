@@ -180,7 +180,7 @@ const SchoolStudentsTab = ({ school }) => {
           { label: 'On the roster', value: formatCount(totals.totalRoster) },
           { label: 'Fully cleared', value: formatCount(totals.fullyCleared) },
           { label: 'Overdue', value: formatCount(totals.overdueStudents) },
-          { label: 'Outstanding', value: formatCedi(totals.outstanding) },
+          { label: 'Outstanding', value: formatCedis(totals.outstanding) },
         ].map((tile) => (
           <Card key={tile.label} padding="p-4">
             <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
