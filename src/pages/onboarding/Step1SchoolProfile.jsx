@@ -60,6 +60,13 @@ const EMPTY = {
 const GHANA_PHONE = /^(0[2-5]\d{8}|233[2-5]\d{8})$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
+/** Normalise a Ghana phone for validation and submission: strip spaces/hyphens/+,
+ * and drop the redundant leading 0 after the country prefix (+2330… → 233…). */
+const normalisePhone = (phone) => {
+  const digits = String(phone || '').replace(/[\s-+]/g, '');
+  return digits.startsWith('2330') ? '233' + digits.slice(4) : digits;
+};
+
 const validate = (form) => {
   const errors = {};
 
@@ -74,7 +81,7 @@ const validate = (form) => {
   }
   if (form.motto.length > 200) errors.motto = 'Keep the motto to 200 characters or fewer.';
 
-  const digits = form.phone.replace(/[\s-]/g, '');
+  const digits = normalisePhone(form.phone);
   if (!digits) errors.phone = 'Enter a contact phone number.';
   else if (!GHANA_PHONE.test(digits)) {
     errors.phone = 'Use a Ghana number, e.g. 0241234567 or 233241234567.';
@@ -118,7 +125,7 @@ const toPayload = (form) => {
   const payload = {
     name: form.name.trim(),
     type: form.type,
-    phone: form.phone.replace(/[\s-]/g, ''),
+    phone: normalisePhone(form.phone),
     email: form.email.trim().toLowerCase(),
     address: form.address.trim(),
     city: form.city.trim(),
@@ -435,6 +442,7 @@ const mode = schoolId ? 'edit' : 'create';
 
   const [form, setForm] = useState(EMPTY);
   const [logoUrl, setLogoUrl] = useState('');
+  const [previewLogoUrl, setPreviewLogoUrl] = useState('');
   const [logoBusy, setLogoBusy] = useState(false);
   /**
    * The chosen image while there is no school to attach it to.
@@ -486,7 +494,7 @@ const mode = schoolId ? 'edit' : 'create';
     const hydrate = async () => {
       const draft = getStepDraft('school-profile');
       if (draft) setForm((current) => ({ ...current, ...draft.form }));
-      if (draft?.logoUrl) setLogoUrl(draft.logoUrl);
+      if (draft?.logoUrl && !String(draft.logoUrl).startsWith('blob:')) setLogoUrl(draft.logoUrl);
       if (draft?.location) {
         setLocation((current) => ({ ...current, ...draft.location }));
       }
@@ -559,6 +567,7 @@ const mode = schoolId ? 'edit' : 'create';
   useEffect(
     () => () => {
       if (localPreviewRef.current) URL.revokeObjectURL(localPreviewRef.current);
+      if (previewLogoUrl.startsWith('blob:')) URL.revokeObjectURL(previewLogoUrl);
     },
     []
   );
@@ -583,7 +592,7 @@ const mode = schoolId ? 'edit' : 'create';
     setStepDraft('school-profile', {
       form,
       location,
-      logoUrl,
+      logoUrl: logoUrl.startsWith('blob:') ? '' : logoUrl,
       savedAt: new Date().toISOString(),
     });
   }, [form, location, hydrated, logoUrl, setStepDraft]);
@@ -736,7 +745,7 @@ useEffect(() => {
     if (localPreviewRef.current) URL.revokeObjectURL(localPreviewRef.current);
     const previewUrl = URL.createObjectURL(file);
     localPreviewRef.current = previewUrl;
-    setLogoUrl(previewUrl);
+    setPreviewLogoUrl(previewUrl);
 
     if (!schoolId) {
       setPendingLogoFile(file);
@@ -747,7 +756,10 @@ useEffect(() => {
     setLogoBusy(true);
     try {
       const url = await uploadSchoolLogo(file, schoolId);
-      if (url) setLogoUrl(url);
+      if (url) {
+        setLogoUrl(url);
+        setPreviewLogoUrl('');
+      }
       toast.success('Logo uploaded.');
     } catch (error) {
       toast.error(error.message || 'The logo could not be uploaded.');
@@ -834,10 +846,11 @@ useEffect(() => {
             {formError && <FormAlert tone="error">{formError}</FormAlert>}
 
             <LogoPicker
-              logoUrl={logoUrl}
+              logoUrl={previewLogoUrl || logoUrl}
               busy={logoBusy || saving}
               onSelect={handleLogo}
               onClear={() => {
+                setPreviewLogoUrl('');
                 setLogoUrl('');
                 setPendingLogoFile(null);
                 if (localPreviewRef.current) {
@@ -1041,20 +1054,48 @@ useEffect(() => {
             </div>
 
             {mode === 'create' && (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[12px] font-medium leading-snug text-slate-600">
-                  Setting up a school someone else registered?{' '}
-                  <button
-                    type="button"
-                    onClick={() => setJoinOpen(true)}
-                    className="font-bold text-brand-700 underline"
+              <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-soft sm:p-6">
+                <div className="flex items-start gap-3 mb-4">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+                    <Globe className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <h2 className="text-[15px] font-extrabold tracking-tight text-ink">Contact &amp; support</h2>
+                    <p className="mt-0.5 text-[12px] font-medium leading-snug text-slate-500">
+                      Get help with setup or reach out to the SukuuPay team.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <a
+                    href="https://sukuupay.gh"
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-center hover:bg-slate-50 transition-colors"
                   >
-                    Join with a school code
-                  </button>
-                </p>
-                <p className="text-[11px] font-semibold text-slate-400">
-                  Draft saves automatically
-                </p>
+                    <Globe className="h-4 w-4 text-slate-400" aria-hidden="true" />
+                    <span className="text-[12px] font-medium text-slate-600">Website</span>
+                  </a>
+
+                  <a
+                    href="mailto:alpheaus.gberbie.freelance@gmail.com"
+                    className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-center hover:bg-slate-50 transition-colors"
+                  >
+                    <Mail className="h-4 w-4 text-slate-400" aria-hidden="true" />
+                    <span className="text-[12px] font-medium text-slate-600">Email</span>
+                  </a>
+
+                  <a
+                    href="https://wa.me/233557655008"
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-center hover:bg-slate-50 transition-colors"
+                  >
+                    <Phone className="h-4 w-4 text-slate-400" aria-hidden="true" />
+                    <span className="text-[12px] font-medium text-slate-600">WhatsApp</span>
+                  </a>
+                </div>
               </div>
             )}
           </div>
@@ -1074,7 +1115,7 @@ useEffect(() => {
           // The component holds no copy of its own, so this is the whole
           // synchronisation mechanism — there is nothing to fall out of step.
           name={form.name}
-          logoUrl={logoUrl}
+          logoUrl={previewLogoUrl || logoUrl}
           city={form.city}
           region={form.region}
           address={form.address}

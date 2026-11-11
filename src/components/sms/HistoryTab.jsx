@@ -427,7 +427,7 @@ const HistoryTab = ({
         {messagesMeta?.statusCounts && (
           <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-4 py-2.5">
             <CheckCheck className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
-            {Object.entries(messagesMeta.statusCounts).map(([status, count]) => (
+            {Object.entries(messagesMeta.statusCounts || {}).map(([status, count]) => (
               <Badge key={status} tone={STATUS_TONES[status] || 'slate'}>
                 {formatCount(count)} {STATUS_LABELS[status]?.toLowerCase() || status}
               </Badge>

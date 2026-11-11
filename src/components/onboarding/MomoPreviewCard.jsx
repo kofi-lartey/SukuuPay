@@ -5,9 +5,9 @@ import { SMS_SEGMENT_LENGTH } from '../../utils/constants';
 
 /** Renders `{token}` placeholders so the preview never shows a raw merge field. */
 const resolveTemplate = (template, values) =>
-  Object.entries(values).reduce(
+  Object.entries(values || {}).reduce(
     (out, [key, value]) => out.replaceAll(`{${key}}`, value == null || value === '' ? '—' : String(value)),
-    template
+    template || ''
   );
 
 /**

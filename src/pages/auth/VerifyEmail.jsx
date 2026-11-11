@@ -11,6 +11,7 @@ import {
 } from '../../components/auth/OnboardingAside';
 import OtpInput from '../../components/auth/CodeInput';
 import { useAuth } from '../../context/AuthContext';
+import { Field, FormAlert } from '../../components/common/FormField';
 
 const RESEND_COOLDOWN = 60;
 const CODE_LENGTH = 6;

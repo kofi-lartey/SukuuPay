@@ -173,6 +173,26 @@ export const decideJoinRequest = async (requestId, decision, note) => {
   }
 };
 
+/**
+ * `POST /schools/me/subscription/payment` — initiate a manual subscription
+ * payment. The school selects a paid tier, the endpoint creates a pending
+ * `ManualPayment` and suspends the subscription until an administrator
+ * approves it.
+ *
+ * Returns `{ referenceCode, payeePhone, expectedAmount, manualPaymentId }`.
+ */
+export const initiateSubscriptionPayment = async ({ plan, monthlyFee }) => {
+  try {
+    const { data } = await api.post("/schools/me/subscription/payment", {
+      plan,
+      monthlyFee,
+    });
+    return data.data || data;
+  } catch (error) {
+    throw toApiError(error, "We could not start your payment. Please try again.");
+  }
+};
+
 export default {
   getSchool,
   updateSchool,
@@ -182,4 +202,5 @@ export default {
   listJoinRequests,
   decideJoinRequest,
   updatePayoutAccount,
+  initiateSubscriptionPayment,
 };

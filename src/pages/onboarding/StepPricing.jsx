@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowUpRight, Check, Receipt, Sparkles } from 'lucide-react';
 import { useStepChrome } from './OnboardingStepContext';
 import { listStudents } from '../../services/students';
+import { initiateSubscriptionPayment } from '../../services/school';
 import { PRICING_PLANS, ROUTES, planForRoster } from '../../utils/constants';
 
 const GHS = (amount) => `GH₵ ${amount.toLocaleString('en-GH')}`;
@@ -35,9 +36,11 @@ const GHS = (amount) => `GH₵ ${amount.toLocaleString('en-GH')}`;
  */
 const StepPricing = () => {
   const { register } = useStepChrome();
+  const navigate = useNavigate();
 
   const [rosterTotal, setRosterTotal] = useState(null);
   const [loaded, setLoaded] = useState(false);
+  const [payingPlan, setPayingPlan] = useState(null);
 
   /**
    * Roster size, for sizing a tier against.
@@ -161,19 +164,21 @@ const StepPricing = () => {
               </ul>
 
               {/*
-                Deliberately a link to the public pricing page rather than a
-                `<Link>` into the wizard: this is the marketing page's content, and
-                the admin can come back — the wizard keeps its progress in
-                localStorage and `OnboardingGuard` sends them to the furthest
-                unlocked step.
+                Pay via Mobile Money for this tier. The endpoint creates a
+                pending `ManualPayment`, suspends the subscription, and returns
+                a reference code. The school pays `05576655008` and an
+                administrator approves before access activates.
               */}
-              <Link
-                to={ROUTES.PRICING}
+              <button
+                onClick={() => {
+                  setPayingPlan(plan.name);
+                  navigate(`${ROUTES.MANUAL_PAYMENT}?plan=${plan.name.toLowerCase()}&monthlyFee=${plan.monthly * 100}`);
+                }}
                 className="mt-5 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-4 py-2.5 text-[13px] font-bold text-slate-700 transition-colors hover:bg-slate-50"
               >
-                Compare all plans
+                Pay via Mobile Money
                 <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-              </Link>
+              </button>
             </div>
           );
         })}

@@ -311,12 +311,12 @@ const SchoolOverviewTab = ({ school, record, onEditMarkup }) => {
             Feature flags
           </p>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {(record?.featureFlags || {}).length === 0 ? (
+            {Object.keys(record?.featureFlags || {}).length === 0 ? (
               <span className="text-[12px] font-semibold text-slate-400">
                 The server reported no flags for this school.
               </span>
             ) : (
-              Object.entries(record.featureFlags).map(([flag, on]) => (
+              Object.entries(record?.featureFlags || {}).map(([flag, on]) => (
                 <Badge key={flag} tone={on ? 'green' : 'slate'}>
                   {flag}
                 </Badge>

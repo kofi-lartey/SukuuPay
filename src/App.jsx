@@ -15,6 +15,7 @@ import Pricing from './pages/Pricing';
 import ForSchools from './pages/ForSchools';
 import Contact from './pages/Contact';
 import AdvertisementsHub from './pages/AdvertisementsHub';
+import ManualPayment from './pages/ManualPayment';
 import StudentLogin from './pages/auth/StudentLogin';
 import Login from './pages/auth/Login';
 import Signup from './pages/auth/Signup';
@@ -77,6 +78,7 @@ import SchoolCreate from './pages/admin/schools/SchoolCreate';
 import UsersList from './pages/admin/users/UsersList';
 import UserDetail from './pages/admin/users/UserDetail';
 import PaymentsList from './pages/admin/payments/PaymentsList';
+import SubscriptionPayments from './pages/admin/payments/SubscriptionPayments';
 import PaymentDetail from './pages/admin/payments/PaymentDetail';
 import FinanceOverview from './pages/admin/finance/FinanceOverview';
 import LedgerList from './pages/admin/finance/LedgerList';
@@ -202,6 +204,7 @@ function App() {
               <Route path="/for-schools" element={<ForSchools />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/advertisements" element={<AdvertisementsHub />} />
+              <Route path="/manual-payment" element={<ManualPayment />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
 
@@ -385,6 +388,7 @@ function App() {
                 <Route path="users/:userId" element={<UserDetail />} />
 
                 <Route path="payments" element={<PaymentsList />} />
+                <Route path="payments/subscription-pending" element={<SubscriptionPayments />} />
                 <Route path="payments/:paymentId" element={<PaymentDetail />} />
 
                 <Route path="finance" element={<FinanceOverview />} />

@@ -1837,3 +1837,23 @@ export default {
   reviewSchoolAd,
   deleteSchoolAd,
 };
+
+/** `GET /admin/manual-payments/subscription/pending` — pending subscription payments awaiting admin approval. */
+export const listPendingSubscriptionPayments = async () => {
+  try {
+    const { data } = await api.get('/admin/manual-payments/subscription/pending');
+    return data.data || data;
+  } catch (error) {
+    throw toApiError(error, 'We could not load the pending payments.');
+  }
+};
+
+/** `PUT /admin/manual-payments/subscription/:id/approve` — approve a pending subscription payment. */
+export const approveSubscriptionPayment = async (id) => {
+  try {
+    const { data } = await api.put(`/admin/manual-payments/subscription/${id}/approve`);
+    return data.data || data;
+  } catch (error) {
+    throw toApiError(error, 'We could not approve that payment.');
+  }
+};

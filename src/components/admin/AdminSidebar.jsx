@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   Activity,
   Building2,
+  CreditCard,
   Eye,
   FileBarChart,
   Gauge,
@@ -39,6 +40,7 @@ import { LogoMark } from '../common/Logo';
 const ICONS = {
   Activity,
   Building2,
+  CreditCard,
   Eye,
   FileBarChart,
   Gauge,

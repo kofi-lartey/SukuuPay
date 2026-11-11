@@ -8,17 +8,18 @@ import React from 'react';
  * marketing `PhoneMockup` stays specialised; this one is the reusable shell the
  * onboarding wizard renders its SMS preview in.
  *
- * `heightClass` exists for the Step 1 receipt preview, which is `position: sticky`
- * and therefore has to fit the viewport between the 80px Navbar and the bottom
- * action bar. It defaults to the fixed height Step 4 relies on, so changing it
- * there is a deliberate act rather than a side effect of Step 1 needing room.
+ * On mobile the frame sizes to the viewport instead of a fixed height, so the
+ * whole handset — bezel, notch, screen, home indicator — stays visible between
+ * the Navbar and the bottom action bar, and long previews scroll inside the
+ * screen rather than being clipped. `heightClass` exists for the Step 1 receipt
+ * preview, which overrides this with its own sticky-friendly sizing.
  */
 const PhonePreview = ({
   children,
   label = 'Phone preview',
   footer,
   className = '',
-  heightClass = 'min-h-[520px]',
+  heightClass = 'h-auto max-h-[calc(100dvh-14rem)] lg:h-[520px]',
 }) => (
   <div
     className={`relative mx-auto w-full max-w-[300px] rounded-[2.5rem] border-[9px] border-slate-900 bg-slate-900 shadow-phone ${className}`}
@@ -46,8 +47,9 @@ const PhonePreview = ({
           `h-auto` — which is exactly how the Step 1 receipt preview sizes itself
           to its content. An `auto` basis is content-sized by definition, so the
           frame fits its receipt either way, while still growing to fill the fixed
-          520px Step 4 relies on. */}
-      <div className="flex-auto overflow-hidden">{children}</div>
+          520px Step 4 relies on. `overflow-y-auto` lets long previews scroll
+          inside the handset on mobile instead of being cut off at the frame edge. */}
+      <div className="flex-auto overflow-y-auto">{children}</div>
 
       {footer && (
         <div className="border-t border-slate-200 bg-white px-4 py-2.5 text-center text-[10px] font-semibold text-slate-400">

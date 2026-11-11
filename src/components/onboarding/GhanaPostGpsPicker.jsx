@@ -1,10 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Check, Copy, ExternalLink, MapPin } from 'lucide-react';
 import { FormAlert } from '../common/FormField';
 import {
   AREA_CODE_SUGGESTIONS,
   composeDigitalAddress,
   isValidDigitalAddress,
+  toParts,
 } from '../../utils/ghanaPostGps';
 
 /**
@@ -24,31 +25,18 @@ import {
  * gracefully; an incomplete dropdown does not.
  */
 const GhanaPostGpsPicker = ({ value, onChange, error, touched }) => {
-  const parts = useMemo(() => {
-    // `[-\s]*`, not `[-\s]?`: matches the backend normaliser, so a value pasted
-    // as "GA - 183 - 8164" populates the segments instead of landing in the
-    // numeric field as one long string.
-    const match = String(value || '')
-      .trim()
-      .match(/^([A-Za-z]{2})[-\s]*(\d{3})[-\s]*(\d{4})$/);
-    if (match) {
-      return { areaCode: match[1].toUpperCase(), postalCode: match[2], uniqueAddress: match[3] };
-    }
-    return { areaCode: '', postalCode: String(value || ''), uniqueAddress: '' };
+  // Local draft for editing: the segmented inputs are controlled by this so a
+  // partial entry (e.g. just "GA") stays on screen instead of being wiped.
+  const [draft, setDraft] = useState(() => toParts(value));
+
+  // Re-seed the draft when the parent supplies a new value (e.g. form restore),
+  // but never clobber a mid-edit draft — the parent only updates on commit.
+  useEffect(() => {
+    setDraft(toParts(value));
   }, [value]);
 
-  // A value that does not parse is kept verbatim in the numeric field rather than
-  // discarded, so opening the form to change a different field cannot erase a
-  // school's existing address. The error below then explains why it is not a
-  // valid digital address, instead of the value silently vanishing on save.
-  const isLegacy = value && !isValidDigitalAddress(value);
-
-  const emit = (patch) => {
-    const next = { ...parts, ...patch };
-    onChange(composeDigitalAddress(next) ?? '');
-  };
-
   const complete = isValidDigitalAddress(value);
+  const isLegacy = value && !complete;
   const showError = error || (touched && isLegacy ? 'That is not a valid digital address.' : '');
 
   const copy = async () => {
@@ -58,6 +46,20 @@ const GhanaPostGpsPicker = ({ value, onChange, error, touched }) => {
       // Clipboard is permission-gated. The value is visible and selectable, so a
       // failed copy is not worth an error.
     }
+  };
+
+  const emit = (patch) => {
+    const next = { ...draft, ...patch };
+    setDraft(next);
+    const composed = composeDigitalAddress(next);
+    if (composed) {
+      // All three segments complete — commit the canonical address to the form.
+      onChange(composed);
+    } else if (!next.areaCode && !next.postalCode && !next.uniqueAddress) {
+      // User cleared every segment — propagate the empty so the form clears too.
+      onChange('');
+    }
+    // Partial entry: keep editing locally; do not clobber the parent value.
   };
 
   return (
@@ -91,8 +93,15 @@ const GhanaPostGpsPicker = ({ value, onChange, error, touched }) => {
       <div className="flex items-end gap-1.5">
         <Segment
           label="Area code"
-          value={parts.areaCode}
-          onChange={(next) => emit({ areaCode: next.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2) })}
+          value={draft.areaCode}
+          onChange={(event) =>
+            emit({
+              areaCode: event.target.value
+                .toUpperCase()
+                .replace(/[^A-Z]/g, '')
+                .slice(0, 2),
+            })
+          }
           placeholder="GA"
           maxLength={2}
           className="w-[4.5rem]"
@@ -105,8 +114,9 @@ const GhanaPostGpsPicker = ({ value, onChange, error, touched }) => {
         </span>
         <Segment
           label="Post office zone"
-          value={parts.postalCode}
-          onChange={(next) => emit({ postalCode: next.replace(/\D/g, '').slice(0, 3) })}
+          value={draft.postalCode}
+          onChange={(event) =>
+            emit({ postalCode: event.target.value.replace(/\D/g, '').slice(0, 3) })}
           placeholder="183"
           inputMode="numeric"
           maxLength={3}
@@ -117,8 +127,9 @@ const GhanaPostGpsPicker = ({ value, onChange, error, touched }) => {
         </span>
         <Segment
           label="Digital address"
-          value={parts.uniqueAddress}
-          onChange={(next) => emit({ uniqueAddress: next.replace(/\D/g, '').slice(0, 4) })}
+          value={draft.uniqueAddress}
+          onChange={(event) =>
+            emit({ uniqueAddress: event.target.value.replace(/\D/g, '').slice(0, 4) })}
           placeholder="8164"
           inputMode="numeric"
           maxLength={4}

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import DashboardSidebar from './DashboardSidebar';
 import DashboardTopbar from './DashboardTopbar';
 import LegalLinks from '../common/LegalLinks';
@@ -8,6 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useDashboardOverview } from '../../hooks/useDashboardOverview';
 import { deriveEntitlements } from '../../hooks/useEntitlements';
 import { getSmsCredit } from '../../services/dashboard';
+import { ROUTES } from '../../utils/constants';
 
 /**
  * An `ErrorBoundary` that clears itself when the route changes.
@@ -127,6 +128,19 @@ const DashboardLayout = () => {
     () => deriveEntitlements(data?.school || {}),
     [data?.school?.subscription?.plan, data?.school?.subscription?.featureFlags]
   );
+
+  // Redirect an expired trial to the manual-payment page so the school can
+  // select a paid tier and await admin approval. The backend middleware also
+  // expires trials on each request, but the client needs to send the user
+  // somewhere sensible before any module tries to render.
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!school?.subscription) return undefined;
+    if (school.subscription.status === 'expired') {
+      navigate(`${ROUTES.MANUAL_PAYMENT}?plan=starter&monthlyFee=16500`, { replace: true });
+    }
+    return undefined;
+  }, [navigate, school?.subscription?.status]);
 
   // Navigating with the drawer open must close it, or it hangs over the module
   // the user just asked for. Mirrors the marketing navbar's drawer.

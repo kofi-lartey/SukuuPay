@@ -94,7 +94,7 @@ const ReceiptPreview = ({
      */
     <aside
       aria-hidden="true"
-      className="order-first sticky top-16 self-start lg:order-none lg:top-24"
+      className="order-first self-start lg:order-none lg:sticky lg:top-24"
     >
       <div className="mx-auto mb-2 flex w-fit items-center gap-2 lg:mb-3 lg:w-auto lg:justify-start">
         <FileCheck2 className="h-4 w-4 text-brand-700" />

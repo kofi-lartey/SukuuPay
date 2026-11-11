@@ -6,6 +6,7 @@ export const ROUTES = {
   FOR_SCHOOLS: '/for-schools',
   ADVERTISEMENTS: '/advertisements',
   CONTACT: '/contact',
+  MANUAL_PAYMENT: '/manual-payment',
   LOGIN: '/login',
   SIGNUP: '/signup',
   VERIFY_EMAIL: '/verify-email',
@@ -63,6 +64,7 @@ export const ROUTES = {
   ADMIN_CONTENT_NEW: '/admin/content/new',
   ADMIN_SETTINGS: '/admin/settings',
   ADMIN_PAYMENTS: '/admin/payments',
+  ADMIN_SUBSCRIPTION_PAYMENTS: '/admin/payments/subscription-pending',
   ADMIN_FINANCE: '/admin/finance',
   ADMIN_SMS: '/admin/sms',
   ADMIN_ANNOUNCEMENTS: '/admin/announcements',
@@ -762,6 +764,12 @@ export const ADMIN_NAV = [
         description: 'Every payment taken on the platform, and refunds.',
       },
       {
+        to: ROUTES.ADMIN_SUBSCRIPTION_PAYMENTS,
+        label: 'Subscription payments',
+        icon: 'CreditCard',
+        description: 'Schools that paid via Mobile Money and await approval.',
+      },
+      {
         to: ROUTES.ADMIN_FINANCE,
         label: 'Finance',
         icon: 'Wallet',
@@ -1207,7 +1215,10 @@ export const PRICING_PLANS = [
       'Instant downloadable PDF receipts',
       'Basic LMS: lesson library & assignments',
     ],
-    cta: { label: 'Get Started', to: ROUTES.SIGNUP },
+    cta: {
+      label: 'Get Started',
+      to: `${ROUTES.MANUAL_PAYMENT}?plan=starter&monthlyFee=16500`,
+    },
   },
   {
     name: 'Growth',
@@ -1226,7 +1237,10 @@ export const PRICING_PLANS = [
       'LMS quizzes & grading',
       'LMS analytics',
     ],
-    cta: { label: 'Get Started with Growth', to: ROUTES.SIGNUP },
+    cta: {
+      label: 'Get Started with Growth',
+      to: `${ROUTES.MANUAL_PAYMENT}?plan=growth&monthlyFee=27500`,
+    },
   },
   {
     name: 'Campus',
@@ -1245,7 +1259,10 @@ export const PRICING_PLANS = [
       'Custom SMS Sender ID branding (e.g. ACHIMOTA-SCH)',
       'LMS multi-campus content & API',
     ],
-    cta: { label: 'Contact Campus Sales', to: ROUTES.CONTACT },
+    cta: {
+      label: 'Contact Campus Sales',
+      to: `${ROUTES.MANUAL_PAYMENT}?plan=campus&monthlyFee=44000`,
+    },
   },
 ];
 

@@ -68,9 +68,9 @@ const AtRiskSchoolsPanel = ({ state }) => {
         before the operator starts reading rows. Without it a list of 30 badges is 30
         facts and no pattern.
       */}
-      {total > 0 && summary.byReason && (
+      {total > 0 && summary?.byReason && (
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {Object.entries(summary.byReason).map(([code, count]) => (
+          {Object.entries(summary.byReason || {}).map(([code, count]) => (
             <Badge key={code} tone={atRiskReason(code).tone}>
               {`${atRiskReason(code).label}: ${formatCount(count)}`}
             </Badge>
