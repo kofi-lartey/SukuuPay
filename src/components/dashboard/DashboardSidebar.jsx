@@ -73,9 +73,9 @@ const ICONS = {
  * `fixed` is a sticky column with its own scroll, `drawer` is the same content in
  * an overlay with a close button.
  */
-const DashboardSidebar = ({ user, school, variant = 'fixed', className = '', onClose }) => {
+const DashboardSidebar = ({ user, school, variant = 'fixed', className = '', onClose, enabled }) => {
   const { pathname } = useLocation();
-  const groups = visibleDashboardNav(user?.role);
+  const groups = visibleDashboardNav(user?.role, enabled || new Set());
   const isDrawer = variant === 'drawer';
 
   return (

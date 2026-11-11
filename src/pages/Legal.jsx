@@ -32,11 +32,11 @@ import { COMPANY_ADDRESS, HELPDESK_PHONE, ROUTES } from '../utils/constants';
  *
  * No regulatory status is asserted anywhere. "Compliant" is a claim about a
  * relationship with a regulator that only the company can make, and the contact
- * page's "Bank of Ghana / GhIPSS compliant" badge is not repeated here for that
- * reason. Nor is a data residency claim: see the hosting section, which states
- * what is actually true — that records live on infrastructure we operate or
- * contract — rather than asserting a country the Atlas cluster's region should
- * be checked against before it is committed to.
+ * page's reference to compliance badges has been removed for that reason. Nor
+ * is a data residency claim: see the hosting section, which states what is
+ * actually true — that records live on infrastructure we operate or contract —
+ * rather than asserting a country the Atlas cluster's region should be checked
+ * against before it is committed to.
  */
 
 /**

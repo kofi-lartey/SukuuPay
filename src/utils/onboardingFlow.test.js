@@ -17,11 +17,11 @@ describe('joinsSchoolByCode — the roles that skip the setup wizard', () => {
     const joining = SIGNUP_ROLES.some((role) => role.value === 'school_admin')
       ? SIGNUP_ROLES.filter((role) => !role.canCreateSchool).map((role) => role.value)
       : [];
-    assert.deepEqual(joining.sort(), ['accountant', 'teacher', 'viewer']);
+    assert.deepEqual(joining.sort(), ['accountant', 'teacher']);
   });
 
   it('is true for the three joining roles', () => {
-    for (const role of ['accountant', 'teacher', 'viewer']) {
+    for (const role of ['accountant', 'teacher']) {
       assert.equal(joinsSchoolByCode(role), true, `${role} joins a school by code`);
     }
   });

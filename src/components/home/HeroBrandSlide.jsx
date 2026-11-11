@@ -33,8 +33,8 @@ const AVATARS = [
 
 const TRUST_POINTS = [
   { icon: CheckCircle2, label: 'Zero parent surcharge' },
-  { icon: Zap, label: 'Instant GhIPSS bank sweeps' },
-  { icon: ShieldCheck, label: '100% BoG Compliant' },
+  { icon: Zap, label: 'Instant collections' },
+  { icon: ShieldCheck, label: '100% SukuuPay Compliant' },
 ];
 
 /**

@@ -82,6 +82,8 @@ export const useDashboardOverview = (schoolId) => {
           name: s.name || '',
           city: s.city || '',
           schoolCode: s.schoolCode || '',
+          subscription: s.subscription || {},
+          featureFlags: s.featureFlags || {},
         };
         next.term = {
           term,

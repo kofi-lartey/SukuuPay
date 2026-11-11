@@ -31,7 +31,7 @@ import {
  */
 const METRICS = [
   { value: 'MTN · Telecel · AT', label: 'Mobile money', tone: 'text-amber-300' },
-  { value: 'GhIPSS', label: 'Settlement', tone: 'text-white' },
+  { value: 'Local', label: 'Settlement', tone: 'text-white' },
   { value: 'Termly', label: 'Billing cycle', tone: 'text-emerald-300' },
 ];
 
@@ -181,7 +181,7 @@ export const LoginAside = () => (
     description="Reconcile mobile money payments, chase arrears and issue receipts without touching cash."
     features={[
       { icon: Fingerprint, label: 'Verified identity with rotating session tokens' },
-      { icon: RefreshCw, label: 'Settlements sweep to your GhIPSS account as they clear' },
+      { icon: RefreshCw, label: 'Collections reconcile against student balances automatically' },
       { icon: MessageSquare, label: 'SMS and WhatsApp arrears nudges from the same dashboard' },
     ]}
   />

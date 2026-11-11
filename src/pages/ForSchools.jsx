@@ -107,7 +107,7 @@ const ForSchools = () => (
       {/* Compliance strip */}
       <div className="mb-16 grid grid-cols-1 gap-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-soft sm:p-8 md:grid-cols-3">
         {[
-          { icon: ShieldCheck, label: 'Bank of Ghana / GhIPSS compliant settlement' },
+          { icon: ShieldCheck, label: 'Secure collections and settlement' },
           { icon: CheckCircle2, label: 'NCA-registered SMS sender ID' },
           { icon: Lock, label: 'Act 843 data protection compliant' },
         ].map(({ icon: Icon, label }) => (

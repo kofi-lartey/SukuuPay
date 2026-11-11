@@ -37,8 +37,7 @@ const AuthShell = ({ aside, eyebrow, title, description, children }) => (
           {/* <p className="mt-6 flex items-start gap-1.5 border-t border-slate-100 pt-4 text-[11px] font-medium leading-relaxed text-slate-500">
             <ShieldCheck className="mt-px h-3.5 w-3.5 shrink-0 text-brand-700" />
             <span>
-              Regulated under Bank of Ghana fintech guidelines &bull; GhIPSS Direct Clearing
-              &bull; Act 843 Data Protection Compliant
+              Act 843 Data Protection Compliant
             </span>
           </p> */}
         </section>

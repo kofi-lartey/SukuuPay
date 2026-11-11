@@ -39,7 +39,7 @@ const Features = () => {
           <div className="flex flex-wrap items-center justify-center gap-6 mt-6 text-xs sm:text-sm font-medium text-slate-500">
             <div className="flex items-center gap-1.5">
               <ShieldCheck size={16} className="text-brand-700" />
-              <span>BoG & GhIPSS Compliant</span>
+              <span>SukuuPay Compliant</span>
             </div>
             <span className="text-slate-300">•</span>
             <div className="flex items-center gap-1.5">
@@ -195,7 +195,7 @@ const Features = () => {
             </div>
           </div>
 
-          {/* Card 6: Real-Time Financial Dashboard */}
+{/* Card 6: Real-Time Financial Dashboard */}
           <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-100 shadow-soft hover:shadow-md transition-shadow flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-4">
@@ -203,17 +203,17 @@ const Features = () => {
                   <BarChart3 size={24} />
                 </div>
                 <span className="text-[11px] font-bold uppercase px-2.5 py-1 bg-brand-50 text-brand-800 rounded-md">
-                  Auto Sweeps
+                  Growth+
                 </span>
               </div>
               <h3 className="text-xl font-bold text-ink mb-2 font-display">
                 Real-Time Financial Dashboard
               </h3>
               <p className="text-slate-600 text-sm leading-relaxed mb-6">
-                Monitor every cedi collected, track grade-level compliance, and automate daily GhIPSS sweeps to your school bank account.
+                Monitor every cedi collected, track grade-level compliance, and forecast cash flow with installment and arrears analytics.
               </p>
             </div>
-            
+
             {/* Mockup Preview Inside Card */}
             <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 flex items-center justify-between">
               <div>

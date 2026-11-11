@@ -200,10 +200,10 @@ const PlanProjection = ({
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
           <ShieldCheck className="h-[18px] w-[18px]" aria-hidden="true" />
         </span>
-        <div>
-          <p className="text-[13px] font-extrabold text-ink">Bank of Ghana &amp; GhIPSS Compliant</p>
+<div>
+          <p className="text-[13px] font-extrabold text-ink">SukuuPay Compliant</p>
           <p className="mt-0.5 text-[12px] font-medium leading-relaxed text-slate-500">
-            Protected escrow clearing guarantees zero reconciliation leakage between
+            Collections reconcile against student balances with zero leakage between
             MTN MoMo, Telecel Cash, and school accounts.
             {term && academicYear ? ` Applies to ${term} (${academicYear}) at ${schoolName}.` : ''}
           </p>

@@ -741,7 +741,7 @@ export const archiveSchool = async (schoolId) => {
  * `Backend/src/validators/userValidators.js`, which is the server's copy of the
  * same rule; they must agree, or a role this UI offers is one the API rejects.
  */
-export const ASSIGNABLE_ROLES = ['school_admin', 'accountant', 'teacher', 'viewer'];
+export const ASSIGNABLE_ROLES = ['school_admin', 'accountant', 'teacher'];
 
 /** Every status a user account can hold. */
 export const USER_STATUSES = ['active', 'invited', 'suspended', 'deactivated'];

@@ -61,8 +61,8 @@ const CollectionsCard = ({ term, seriesFor }) => {
             Collections This Term (Weekly)
           </h3>
           <p className="mt-1 max-w-md text-[13px] font-medium leading-snug text-slate-500">
-            Automated Mobile Money settlements reconciled directly via Bank of Ghana
-            switch
+            Automated Mobile Money settlements reconciled directly against student
+            balances
           </p>
         </div>
 

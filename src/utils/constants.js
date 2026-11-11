@@ -36,7 +36,7 @@ export const ROUTES = {
   ONBOARDING: '/onboarding',
   // The one onboarding screen for roles that join a school instead of creating
   // one: a school-code field and a waiting room. The server names it as
-  // `nextRoute` for `accountant`, `teacher` and `viewer` (see `SCHOOL_JOIN_ROLES`
+  // `nextRoute` for `accountant` and `teacher` (see `SCHOOL_JOIN_ROLES`
   // in `Backend/src/config/constants.js`); the wizard's five steps are not
   // reachable for those roles at all.
   ONBOARDING_JOIN_SCHOOL: '/onboarding/join-school',
@@ -406,6 +406,7 @@ export const DASHBOARD_NAV = [
         to: ROUTES.DASHBOARD_PLANS,
         label: 'Installment Plans',
         icon: 'CalendarClock',
+        feature: 'installments',
         description: 'Split a student bill into dated installments.',
       },
     ],
@@ -536,6 +537,7 @@ export const DASHBOARD_NAV = [
         label: 'Report Cards',
         icon: 'FileText',
         roles: ['school_admin'],
+        feature: 'lmsQuizzes',
         description: 'Write the head remark, and publish or unpublish reports.',
       },
     ],
@@ -611,10 +613,15 @@ export const DASHBOARD_NAV = [
  * safe failure direction: a nav that flickers as it loads is worse than one
  * that briefly shows an entry the guard would refuse anyway.
  */
-export const canAccessNavItem = (role, item) => {
+export const canAccessNavItem = (role, item, features) => {
   if (!item?.roles) return true;
   if (!role) return true;
-  return item.roles.includes(role);
+  if (!item.roles.includes(role)) return false;
+  // Feature-gated module: requires the entitlement the plan unlocks.
+  if (item.feature && features && typeof features.has === 'function') {
+    if (!features.has(item.feature)) return false;
+  }
+  return true;
 };
 
 /**
@@ -625,16 +632,16 @@ export const canAccessNavItem = (role, item) => {
  * lists, and a second implementation is how one of them ends up hiding entries
  * the other shows.
  */
-export const visibleNav = (nav, role) =>
+export const visibleNav = (nav, role, features) =>
   nav
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => canAccessNavItem(role, item)),
+      items: group.items.filter((item) => canAccessNavItem(role, item, features)),
     }))
     .filter((group) => group.items.length > 0);
 
 /** Flattens `DASHBOARD_NAV` to a single list, honouring role visibility. */
-export const visibleDashboardNav = (role) => visibleNav(DASHBOARD_NAV, role);
+export const visibleDashboardNav = (role, features) => visibleNav(DASHBOARD_NAV, role, features);
 
 /**
  * Whether `pathname` is inside `item`'s module.
@@ -949,16 +956,10 @@ export const SIGNUP_ROLES = [
     description: 'Student records and class information.',
     canCreateSchool: false,
   },
-  {
-    value: 'viewer',
-    label: 'Viewer',
-    description: 'Read-only access to reports and records.',
-    canCreateSchool: false,
-  },
 ];
 
 /** Mirrors the `role` enum on the User model. */
-export const USER_ROLES = ['super_admin', 'school_admin', 'accountant', 'teacher', 'viewer'];
+export const USER_ROLES = ['super_admin', 'school_admin', 'accountant', 'teacher'];
 
 // ── ID Card constants ─────────────────────────────────────────────────────────
 
@@ -1016,7 +1017,6 @@ export const ROLE_LABELS = {
   school_admin: 'School administrator',
   accountant: 'School bursar',
   teacher: 'Teacher',
-  viewer: 'Viewer',
 };
 
 /** `ROLE_LABELS[role]`, with a truthful fallback for an unknown or absent role. */
@@ -1205,8 +1205,7 @@ export const PRICING_PLANS = [
       'All MoMo networks (MTN, Telecel, AT)',
       'Automated SMS fee reminders',
       'Instant downloadable PDF receipts',
-      'Basic bursar collections dashboard',
-      'Email and WhatsApp support',
+      'Basic LMS: lesson library & assignments',
     ],
     cta: { label: 'Get Started', to: ROUTES.SIGNUP },
   },
@@ -1219,16 +1218,13 @@ export const PRICING_PLANS = [
     monthly: 275,
     termNote: 'Billed GHS 750 per term (save 10% vs monthly)',
     highlight: true,
-    highlightNote: {
-      label: 'Direct Bank Sweep',
-      value: 'Daily T+0',
-    },
     features: [
+      'Everything in Starter, plus:',
       'Structured installment plans (2–6 tranches)',
       'Installment compliance & arrears dashboard',
       'Cash flow forecasting & velocity analytics',
-      'Automated GhIPSS daily bank sweeps to GCB/Ecobank',
-      'Priority Bursar WhatsApp support',
+      'LMS quizzes & grading',
+      'LMS analytics',
     ],
     cta: { label: 'Get Started with Growth', to: ROUTES.SIGNUP },
   },
@@ -1241,11 +1237,13 @@ export const PRICING_PLANS = [
     monthly: 440,
     termNote: 'Billed GHS 1,200 per term (dedicated infrastructure)',
     features: [
+      'Everything in Growth, plus:',
       'Multi-campus & multi-signatory financial controls',
       'Custom audit reports & MoE compliance exports',
       'Dedicated school success account manager',
       'SIS & School ERP API integration',
       'Custom SMS Sender ID branding (e.g. ACHIMOTA-SCH)',
+      'LMS multi-campus content & API',
     ],
     cta: { label: 'Contact Campus Sales', to: ROUTES.CONTACT },
   },

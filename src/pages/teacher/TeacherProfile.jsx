@@ -3,6 +3,7 @@ import { Bell, BookOpen, CalendarCheck, ChevronRight, KeyRound, LogOut, Users } 
 import { Link } from 'react-router-dom';
 import AvatarUpload from '../../components/common/AvatarUpload';
 import { Field } from '../../components/common/FormField';
+import { roleLabel } from '../../utils/constants';
 import { useAuth } from '../../context/AuthContext';
 import useToast from '../../hooks/useToast';
 import { updateMe } from '../../services/user';
@@ -122,6 +123,9 @@ const TeacherProfile = () => {
           <div className="min-w-0">
             <p className="truncate text-[16px] font-extrabold text-ink">
               {user?.name || 'Teacher'}
+            </p>
+            <p className="truncate text-[12.5px] font-bold text-brand-800">
+              {roleLabel(user?.role)}
             </p>
             <p className="truncate text-[12.5px] text-slate-500">
               {user?.position || 'Teacher'}

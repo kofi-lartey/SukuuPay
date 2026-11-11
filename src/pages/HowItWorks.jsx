@@ -57,7 +57,7 @@ const HowItWorks = () => {
                 Upload Your Students
               </h3>
               <p className="text-slate-600 text-xs sm:text-sm leading-relaxed mb-6">
-                Upload 1,000 students via Excel or CSV in under 2 minutes. Our system automatically validates phone numbers across MTN, Telecel, and AT.
+                Bulk upload up to 5,000 students via Excel or CSV in under 2 minutes. Phone numbers are validated automatically across MTN, Telecel, and AT networks, and student ledgers generate instantly.
               </p>
             </div>
             <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 flex items-center justify-between text-xs text-slate-500">
@@ -129,11 +129,11 @@ const HowItWorks = () => {
                 Get Paid. Track Everything.
               </h3>
               <p className="text-slate-600 text-xs sm:text-sm leading-relaxed mb-6">
-                Your Bursar dashboard reconciles immediately. Instant PDF receipts go to parents, and funds sweep directly to your school bank account.
+                Your Bursar dashboard reconciles immediately. Instant QR-verified PDF receipts go to parents, and every cedi lands against the student ledger in real time.
               </p>
             </div>
             <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span className="flex items-center gap-1 font-medium text-slate-700">🏦 Automated T+1 bank settlement</span>
+              <span className="flex items-center gap-1 font-medium text-slate-700">⚡ Automated ledger settlement</span>
               <CheckCircle2 size={16} className="text-brand-700" />
             </div>
           </div>
@@ -163,7 +163,7 @@ const HowItWorks = () => {
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                   <p className="text-xs text-slate-400 uppercase font-medium mb-1">Payment Mode</p>
                   <p className="text-sm font-bold text-ink flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> MTN MoMo USSD
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> MTN MoMo · Telecel Cash · AT Money
                   </p>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
@@ -197,7 +197,7 @@ const HowItWorks = () => {
                 </div>
 
                 <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-white text-xs font-medium border border-white/10">
-                  Prompt: *170#
+                  Prompt: *170# (USSD) / web checkout
                 </div>
 
                 {/* Center Play Button */}

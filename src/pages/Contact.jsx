@@ -74,7 +74,7 @@ const Contact = () => (
             ))}
             <div className="flex items-center gap-1.5">
               <ShieldCheck size={16} className="text-brand-400" />
-              <span>Bank of Ghana / GhIPSS compliant</span>
+              <span>SukuuPay verified compliance</span>
             </div>
           </div>
 

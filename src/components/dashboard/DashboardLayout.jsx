@@ -6,6 +6,7 @@ import LegalLinks from '../common/LegalLinks';
 import ErrorBoundary from '../common/ErrorBoundary';
 import { useAuth } from '../../context/AuthContext';
 import { useDashboardOverview } from '../../hooks/useDashboardOverview';
+import { deriveEntitlements } from '../../hooks/useEntitlements';
 import { getSmsCredit } from '../../services/dashboard';
 
 /**
@@ -121,6 +122,12 @@ const DashboardLayout = () => {
     };
   }, [schoolId, pathname]);
 
+  // Entitlements for tier-gated feature access and sidebar visibility.
+  const entitlements = useMemo(
+    () => deriveEntitlements(data?.school || {}),
+    [data?.school?.subscription?.plan, data?.school?.subscription?.featureFlags]
+  );
+
   // Navigating with the drawer open must close it, or it hangs over the module
   // the user just asked for. Mirrors the marketing navbar's drawer.
   useEffect(() => setDrawerOpen(false), [pathname]);
@@ -178,6 +185,7 @@ const DashboardLayout = () => {
           school={schoolCard}
           variant="fixed"
           className="hidden lg:flex"
+          enabled={entitlements.enabled}
         />
 
         <div className="flex min-w-0 flex-col">
@@ -240,13 +248,14 @@ const DashboardLayout = () => {
             className="fixed inset-0 z-40 cursor-default bg-ink/40 backdrop-blur-[2px]"
           />
           <div id="dashboard-nav-drawer">
-            <DashboardSidebar
-              user={user}
-              school={schoolCard}
-              variant="drawer"
-              onClose={() => setDrawerOpen(false)}
-              className="fixed inset-y-0 left-0 z-50 flex w-[15.25rem] max-w-[85vw]"
-            />
+          <DashboardSidebar
+            user={user}
+            school={schoolCard}
+            variant="drawer"
+            onClose={() => setDrawerOpen(false)}
+            className="fixed inset-y-0 left-0 z-50 flex w-[15.25rem] max-w-[85vw]"
+            enabled={entitlements.enabled}
+          />
           </div>
         </div>
       )}

@@ -215,7 +215,7 @@ const publicUser = (user) => {
  * Backend/src/validators/authValidators.js — `super_admin` is a platform
  * operator and must never be self-granted.
  */
-const SELF_SIGNUP_ROLES = ['school_admin', 'accountant', 'teacher', 'viewer'];
+const SELF_SIGNUP_ROLES = ['school_admin', 'accountant', 'teacher'];
 
 
 // -- Auth -------------------------------------------------------------------
@@ -4579,7 +4579,7 @@ const platformSchoolRows = () => {
 
 /** Accounts across the platform. See `ensurePlatformUsers` for why these live in the db. */
 const platformUserRows = () => {
-  const roles = ['school_admin', 'accountant', 'teacher', 'viewer'];
+  const roles = ['school_admin', 'accountant', 'teacher'];
   return platformSchoolRows().flatMap((school, schoolIndex) =>
     [0, 1].map((seat) => ({
       _id: objectId(400 + schoolIndex * 2 + seat),
@@ -5596,7 +5596,7 @@ const notifySchool = ({ body, user }) => {
  * stops a mock from quietly scoping that page to one school.
  */
 /** Mirrors `INVITABLE_BY_SCHOOL_ADMIN` in `Backend/src/validators/userValidators.js`. */
-const INVITABLE_MOCK_ROLES = ['school_admin', 'accountant', 'teacher', 'viewer'];
+const INVITABLE_MOCK_ROLES = ['school_admin', 'accountant', 'teacher'];
 
 /**
  * `POST /users/invite`
