@@ -329,10 +329,6 @@ const SmsOverview = () => {
   const sectionTabs = useMemo(
     () => [
       { value: ADMIN_ROUTES.SMS, label: 'Overview' },
-      // First, and not last, because it is the only tab that carries a queue. An
-      // operator's first question on arriving is "is anything waiting for me", and
-      // burying that under "Message history" is how a pending approval sits for a day.
-      { value: ADMIN_ROUTES.SMS_REQUESTS, label: 'Credit requests' },
       { value: ADMIN_ROUTES.SMS_CREDITS, label: 'Credits' },
       { value: ADMIN_ROUTES.SMS_LOGS, label: 'Message history' },
     ],

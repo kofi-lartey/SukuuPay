@@ -58,8 +58,13 @@ const Modal = ({
   const titleId = useId();
   const descId = useId();
 
+  const wasOpen = useRef(false);
+
   useEffect(() => {
-    if (!open) return undefined;
+    if (!open) {
+      wasOpen.current = false;
+      return undefined;
+    }
 
     const onKeyDown = (event) => {
       if (event.key === 'Escape') onClose?.();
@@ -69,18 +74,23 @@ const Modal = ({
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
-    // Focus the panel so keyboard and screen-reader users are not left at
-    // the top of the document. `requestAnimationFrame` ensures the panel
-    // has been painted before we try to focus it — a synchronous focus()
-    // on an element that is about to mount can be dropped by Safari.
-    const raf = requestAnimationFrame(() => {
-      panelRef.current?.focus();
-    });
+    // Focus the panel once on open. Refocusing on every render (e.g. when
+    // inline handlers change identity) steals focus from inputs inside the dialog.
+    if (!wasOpen.current) {
+      const raf = requestAnimationFrame(() => {
+        panelRef.current?.focus();
+      });
+      wasOpen.current = true;
+      return () => {
+        document.removeEventListener('keydown', onKeyDown);
+        document.body.style.overflow = previousOverflow;
+        cancelAnimationFrame(raf);
+      };
+    }
 
     return () => {
       document.removeEventListener('keydown', onKeyDown);
       document.body.style.overflow = previousOverflow;
-      cancelAnimationFrame(raf);
     };
   }, [open, onClose]);
 

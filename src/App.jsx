@@ -88,7 +88,6 @@ import Reconciliation from './pages/admin/finance/Reconciliation';
 import InvoicesList from './pages/admin/finance/InvoicesList';
 import SmsOverview from './pages/admin/sms/SmsOverview';
 import SmsCredits from './pages/admin/sms/SmsCredits';
-import SmsRequests from './pages/admin/sms/SmsRequests';
 import SmsLogs from './pages/admin/sms/SmsLogs';
 import AnnouncementsList from './pages/admin/announcements/AnnouncementsList';
 import AnnouncementCreate from './pages/admin/announcements/AnnouncementCreate';
@@ -399,7 +398,6 @@ function App() {
                 <Route path="finance/invoices" element={<InvoicesList />} />
 
                 <Route path="sms" element={<SmsOverview />} />
-                <Route path="sms/requests" element={<SmsRequests />} />
                 <Route path="sms/credits" element={<SmsCredits />} />
                 <Route path="sms/logs" element={<SmsLogs />} />
 

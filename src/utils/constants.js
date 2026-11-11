@@ -126,7 +126,6 @@ export const ADMIN_ROUTES = {
   // are two views of one decision — an operator comparing "units promised" against
   // "units left" is doing a single calculation, and splitting them across sibling
   // top-level routes makes that read as two pages.
-  SMS_REQUESTS: `${ROUTES.ADMIN_SMS}/requests`,
   REVENUE_ANALYTICS: `${ROUTES.ADMIN_ANALYTICS}/revenue`,
   SCHOOLS_ANALYTICS: `${ROUTES.ADMIN_ANALYTICS}/schools`,
   COLLECTION_RATE_ANALYTICS: `${ROUTES.ADMIN_ANALYTICS}/collection-rate`,
