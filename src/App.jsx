@@ -134,7 +134,9 @@ import StudentCommunity from './pages/student/Community';
 import StudentLmsPage from './pages/student/Lms';
 import StudentSettings from './pages/student/Settings';
 import { Terms, Privacy } from './pages/Legal';
+import { CommunityProvider } from './context/CommunityContext';
 import NotFound from './pages/NotFound';
+import CommunityGuard from './routes/CommunityGuard';
 
 const TeacherSpinner = () => (
   <div className="flex min-h-screen items-center justify-center">
@@ -499,7 +501,7 @@ function App() {
                 <Route path="plans" element={<StudentPlans />} />
                 <Route path="messages" element={<StudentMessages />} />
                 <Route path="notifications" element={<StudentNotifications />} />
-                <Route path="community" element={<StudentCommunity />} />
+                <Route path="community" element={<CommunityGuard><CommunityProvider><StudentCommunity /></CommunityProvider></CommunityGuard>} />
                 <Route path="lms" element={<StudentLmsPage />} />
                 <Route path="settings" element={<StudentSettings />} />
               </Route>

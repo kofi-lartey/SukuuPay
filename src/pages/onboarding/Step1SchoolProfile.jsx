@@ -367,9 +367,8 @@ const JoinRequiredPanel = ({ role, requested, onRequest }) => {
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-soft">
         <span
-          className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full ${
-            requested ? 'bg-amber-100 text-amber-700' : 'bg-brand-50 text-brand-700'
-          }`}
+          className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full ${requested ? 'bg-amber-100 text-amber-700' : 'bg-brand-50 text-brand-700'
+            }`}
         >
           {requested ? (
             <Clock className="h-7 w-7" aria-hidden="true" />
@@ -426,7 +425,7 @@ const Step1SchoolProfile = () => {
    * `edit` updates the existing one. Both render the same form, so a bursar does
    * not feel they landed in a different part of the app.
    */
-const mode = schoolId ? 'edit' : 'create';
+  const mode = schoolId ? 'edit' : 'create';
 
   /**
    * Whether this account is allowed to register a school at all.
@@ -673,7 +672,7 @@ const mode = schoolId ? 'edit' : 'create';
     }
   };
 
-useEffect(() => {
+  useEffect(() => {
     // Join-only accounts have nothing to save and cannot finish onboarding until a
     // school admin approves them. The form is never rendered for them, so
     // `isValid` would be a meaningless `false` derived from empty fields; the bar
@@ -785,7 +784,7 @@ useEffect(() => {
     );
   }
 
-// Non-admin roles never see the create form. They are not blocked at submit
+  // Non-admin roles never see the create form. They are not blocked at submit
   // time — they are given the one route that can work for them, before they have
   // invested any effort filling in a school they are not allowed to register.
   if (mode === 'create' && !mayCreateSchool) {
@@ -1008,7 +1007,7 @@ useEffect(() => {
                     neither still finishes onboarding, because a missing map pin
                     is not a reason to block fee collection. */}
                 <div className="sm:col-span-2 space-y-3">
-<GhanaPostGpsPicker
+                  <GhanaPostGpsPicker
                     value={form.gpsAddress}
                     onChange={(value) => {
                       setForm((current) => ({ ...current, gpsAddress: value }));
