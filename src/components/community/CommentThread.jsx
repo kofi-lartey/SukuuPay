@@ -29,6 +29,7 @@ const CommentThread = ({
   onDeleteComment,
   onReact,
   forwardTargets = [],
+  loading = false,
   onForward,
   currentUserId,
   reactions = {},
@@ -39,6 +40,10 @@ const CommentThread = ({
   const [editing, setEditing] = useState(null);
   const [menu, setMenu] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  // A thread of forty comments is a wall. Five is enough to read the shape of the
+  // conversation and decide whether to open it.
+  const [expanded, setExpanded] = useState(false);
+  const PREVIEW_COUNT = 5;
   const [editBody, setEditBody] = useState('');
   const [pendingMedia, setPendingMedia] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -128,11 +133,15 @@ const CommentThread = ({
 
   return (
     <div className="mt-4 space-y-3 border-t border-slate-100 pt-3">
-      {comments.length === 0 && (
+      {loading && comments.length === 0 && (
+        <p className="py-2 text-center text-[12px] text-slate-400">Loading comments...</p>
+      )}
+
+      {!loading && comments.length === 0 && (
         <p className="py-2 text-center text-[12px] text-slate-400">No comments yet</p>
       )}
 
-      {comments.map((c) => {
+      {(expanded ? comments : comments.slice(0, PREVIEW_COUNT)).map((c) => {
         // `parentCommentId` arrives populated from the API so a reply can show
         // what it is replying to without a second request.
         const parent = c.parentCommentId && typeof c.parentCommentId === 'object' ? c.parentCommentId : null;
@@ -148,7 +157,10 @@ const CommentThread = ({
 
             <div className="flex-1 rounded-xl bg-slate-50 p-3">
               <div className="flex items-center gap-2">
-                <span className="text-[12px] font-extrabold text-ink">{c.authorName || 'Unknown'}</span>
+                {/* The author is the label of the comment, so the name is shown
+                    beside the text rather than on a line of its own. When there is
+                    no body the name is the whole content, which is why it lives
+                    here and not inside the paragraph below. */}
                 <span className="text-[10px] text-slate-400">{formatTime(c.createdAt)}</span>
                 {c.editedAt && (
                   <span className="text-[9.5px] italic text-slate-400" title="This message was edited">
@@ -179,6 +191,8 @@ const CommentThread = ({
 
               {isEditing ? (
                 <div className="mt-1.5">
+                  {/* Editing replaces the body, so the author label moves here to stay visible. */}
+                  <p className="mb-1 text-[12px] font-extrabold text-ink">{c.authorName || 'Unknown'}</p>
                   <textarea
                     value={editBody}
                     onChange={(e) => setEditBody(e.target.value)}
@@ -213,9 +227,12 @@ const CommentThread = ({
                     message={c}
                     onOpenMenu={(position) => setMenu({ message: c, ...position })}
                   >
-                    {c.body && (
-                      <p className="mt-1 whitespace-pre-wrap text-[12.5px] text-slate-600">{c.body}</p>
-                    )}
+                    {/* Author as the label of the comment, on the same line as the text, rather
+                      than on a line of its own above it. */}
+                  <p className="mt-1 whitespace-pre-wrap text-[12.5px] leading-snug text-slate-600">
+                    <span className="font-extrabold text-ink">{c.authorName || 'Unknown'}</span>
+                    {c.body ? ` ${c.body}` : null}
+                  </p>
 
                     {c.linkPreview?.url && (
                       <div className="mt-2">
@@ -240,9 +257,26 @@ const CommentThread = ({
                   targetType="comment"
                   onReact={onReact}
                   currentReaction={reactions[c._id]?.type}
+                  myReaction={c.myReaction}
                 />
-                {/* Reply / Edit / Delete live in the right-click and long-press
-                    menu, so a comment reads as text rather than a row of controls. */}
+                {/*
+                  * Reply is a visible link, not only a menu item. It was moved into
+                  * the right-click / long-press menu to keep the transcript quiet,
+                  * and that made it undiscoverable on a desktop, where right-click
+                  * is not a gesture anyone tries on a paragraph of text. Edit and
+                  * Delete stay in the menu: they are destructive, and a reply is
+                  * something you do to every second comment.
+                  */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReplyTo(c);
+                    inputRef.current?.focus();
+                  }}
+                  className="inline-flex items-center gap-1 text-[10.5px] font-bold text-slate-500 hover:text-teal-600"
+                >
+                  <Reply className="h-3 w-3" /> Reply
+                </button>
                 {onForward && (
                   <div className="relative">
                     <button
@@ -285,6 +319,16 @@ const CommentThread = ({
           </div>
         );
       })}
+
+      {comments.length > PREVIEW_COUNT && !expanded && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="w-full rounded-lg py-1.5 text-center text-[11.5px] font-bold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+        >
+          Read more ({comments.length - PREVIEW_COUNT} more)
+        </button>
+      )}
 
       <ContextMenu
         open={Boolean(menu)}

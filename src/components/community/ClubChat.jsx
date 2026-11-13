@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Send,
   Users,
@@ -21,7 +21,10 @@ import VoiceNoteButton from './VoiceNoteButton';
 import LinkPreviewCard from './LinkPreviewCard';
 import useLinkPreview from '../../hooks/useLinkPreview';
 import Bubble from './Bubble';
-import { uploadCommunityFile } from '../../services/community';
+import { uploadCommunityFile, getClubMembers, getPresence } from '../../services/community';
+import MentionPicker, { mentionQueryAt } from './MentionPicker';
+import { splitOnMentions, mentionsInBody } from '../../utils/mentions';
+import { initializeSocket } from '../../utils/socket';
 
 /**
  * The club chat, laid out as a messenger rather than a log.
@@ -79,6 +82,60 @@ const ClubChat = ({ clubId }) => {
   const fileRef = useRef(null);
 
   const myId = String(user?._id || '');
+
+  // Club roster for the header and the @ picker, and the live online set.
+  const [members, setMembers] = useState([]);
+  const [onlineIds, setOnlineIds] = useState([]);
+  const [caret, setCaret] = useState(0);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  useEffect(() => {
+    if (!clubId || !user?._id) return undefined;
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const [roster, online] = await Promise.all([getClubMembers(clubId), getPresence()]);
+        if (cancelled) return;
+        setMembers(roster?.members || []);
+        setOnlineIds(online);
+      } catch (e) {
+        // A roster failure must not take the chat down with it.
+        console.warn('[ClubChat] could not load members', e?.message);
+      }
+    };
+
+    load();
+    return () => { cancelled = true; };
+  }, [clubId, user?._id]);
+
+  // Presence is pushed by the gateway, so the count moves without a poll.
+  useEffect(() => {
+    let socket;
+    let cancelled = false;
+
+    const onPresence = (payload) => {
+      if (!cancelled) setOnlineIds(payload?.userIds || []);
+    };
+
+    initializeSocket(localStorage.getItem('auth_token'))
+      .then((instance) => {
+        if (cancelled) { instance?.close?.(); return; }
+        socket = instance;
+        socket.on('community:presence', onPresence);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+      socket?.off?.('community:presence', onPresence);
+    };
+  }, []);
+
+  const studentCount = members.filter((m) => m.role === 'student').length;
+  const onlineStudents = members.filter(
+    (m) => m.role === 'student' && onlineIds.includes(String(m._id))
+  ).length;
   const { preview: draftPreview, loading: previewLoading, dismiss: dismissPreview } =
     useLinkPreview(newMsg);
 
@@ -111,8 +168,12 @@ const ClubChat = ({ clubId }) => {
     setSending(true);
     setError('');
     try {
+      // Mentions are derived from the body against the roster, so a name typed by
+      // hand and one chosen from the picker behave the same. The server re-checks
+      // every id against the caller's school before storing.
       await sendMessage(body || null, {
         media: pendingMedia,
+        mentions: mentionsInBody(body, members),
         ...(replyTo ? { parentCommentId: replyTo._id } : {}),
       });
       setNewMsg('');
@@ -166,9 +227,24 @@ const ClubChat = ({ clubId }) => {
   return (
     <div className="flex h-[32rem] flex-col rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <MessageCircle className="h-4 w-4 text-teal-600" />
-          <span className="text-[13px] font-extrabold text-ink">Club Chat</span>
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2">
+            <MessageCircle className="h-4 w-4 text-teal-600" />
+            <span className="text-[13px] font-extrabold text-ink">Club Chat</span>
+          </div>
+          {/* Counts from the roster, online from the socket. Both are students:
+              the club may hold teachers, but the chat is a student space. */}
+          <div className="mt-0.5 flex items-center gap-2 whitespace-nowrap text-[10px] font-semibold text-slate-400">
+            <span className="inline-flex items-center gap-1">
+              <Users className="h-2.5 w-2.5" />
+              {studentCount} {studentCount === 1 ? 'student' : 'students'}
+            </span>
+            <span aria-hidden="true">&middot;</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+              {onlineStudents} online
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -291,7 +367,20 @@ const ClubChat = ({ clubId }) => {
 
                     {m.body && (
                       <span className="block whitespace-pre-wrap text-[12.5px] leading-snug">
-                        {m.body}
+                        {splitOnMentions(m.body, m.mentions).map((segment, i) =>
+                          segment.mentioned ? (
+                            <span
+                              key={i}
+                              className={`font-bold ${
+                                mine ? 'text-white underline decoration-teal-200' : 'text-teal-700'
+                              }`}
+                            >
+                              {segment.text}
+                            </span>
+                          ) : (
+                            <React.Fragment key={i}>{segment.text}</React.Fragment>
+                          )
+                        )}
                       </span>
                     )}
 
@@ -485,19 +574,55 @@ const ClubChat = ({ clubId }) => {
 
           <VoiceNoteButton onRecorded={(file) => handleFiles([file])} />
 
-          <input
-            ref={inputRef}
-            value={newMsg}
-            onChange={(e) => setNewMsg(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            placeholder={uploading ? 'Uploading...' : 'Message club...'}
-            className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-[12px]"
-          />
+          {/* `relative` so the picker anchors to the input rather than the panel. */}
+          <div className="relative flex-1">
+            <input
+              ref={inputRef}
+              value={newMsg}
+              onChange={(e) => {
+                const next = e.target.value;
+                const position = e.target.selectionStart ?? next.length;
+                setNewMsg(next);
+                setCaret(position);
+                // Opens the moment an `@token` exists and closes when the token
+                // ends - a space after the name, or deleting back past the `@`.
+                setPickerOpen(Boolean(mentionQueryAt(next, position)));
+              }}
+              onSelect={(e) => setCaret(e.target.selectionStart ?? 0)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && pickerOpen) {
+                  e.preventDefault();
+                  setPickerOpen(false);
+                  return;
+                }
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder={uploading ? 'Uploading...' : 'Message club...  Type @ to mention'}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[12px]"
+            />
+
+            {pickerOpen && (
+              <MentionPicker
+                members={members}
+                value={newMsg}
+                caret={caret}
+                onClose={() => setPickerOpen(false)}
+                onPick={({ start, end, insert }) => {
+                  const next = `${newMsg.slice(0, start)}${insert}${newMsg.slice(end)}`;
+                  setNewMsg(next);
+                  setPickerOpen(false);
+                  requestAnimationFrame(() => {
+                    const caret = start + insert.length;
+                    inputRef.current?.focus();
+                    inputRef.current?.setSelectionRange(caret, caret);
+                  });
+                }}
+              />
+            )}
+          </div>
 
           <button
             type="button"

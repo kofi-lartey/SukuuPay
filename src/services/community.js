@@ -88,3 +88,15 @@ export const getEvent = async (id) => api.get('/community/events/' + id);
 export const updateEvent = async (id, payload) => api.put('/community/events/' + id, payload);
 export const rsvpEvent = async (id) => api.put('/community/events/' + id + '/rsvp');
 export const deleteEvent = async (id) => api.delete('/community/events/' + id);
+
+/** Who is online in the caller's school. Live changes arrive over the socket. */
+export const getPresence = async () => {
+  const { data } = await api.get('/community/presence');
+  return data.data?.userIds || [];
+};
+
+/** Resolved club members, plus the total and student counts for the header. */
+export const getClubMembers = async (clubId) => {
+  const { data } = await api.get(`/community/clubs/${clubId}/members`);
+  return data.data;
+};

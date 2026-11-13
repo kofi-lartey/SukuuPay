@@ -39,19 +39,18 @@ const StudentCommunity = () => {
 
   const handleCreatePost = async (payload) => {
     try {
-      await handleNewPost(payload);
+      // One composer serves both. It already offers a Poll tab and sends
+      // `question`/`options` with it, so the page picks the endpoint by postType.
+      // Rendering two composers side by side - one for posts, one for polls - is
+      // what made the whole form appear twice.
+      if (payload?.postType === 'poll') {
+        await handleNewPoll(payload);
+      } else {
+        await handleNewPost(payload);
+      }
       setShowComposer(false);
     } catch (e) {
       console.error('Failed to create post:', e);
-    }
-  };
-
-  const handleCreatePoll = async (payload) => {
-    try {
-      await handleNewPoll(payload);
-      setShowComposer(false);
-    } catch (e) {
-      console.error('Failed to create poll:', e);
     }
   };
 
@@ -149,20 +148,20 @@ const StudentCommunity = () => {
         </div>
 
         {activeSpace === 'feed' && (
-          <div className="space-y-4">
+          // A feed is read at reading width, not at container width: 1152px of card is
+          // why each post looked oversized. 672px is the width a line of text stays
+          // comfortable at, and it is the conventional single-column feed measure.
+          <div className="mx-auto w-full max-w-4xl space-y-4">
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               {showComposer ? (
-                <div className="space-y-3">
-                  <PostComposer
-                    onSubmit={handleCreatePost}
-                    onCancel={() => setShowComposer(false)}
-                  />
-                  <PostComposer
-                    initialBody={newPost}
-                    onSubmit={handleCreatePoll}
-                    onCancel={() => setShowComposer(false)}
-                  />
-                </div>
+                // One composer, not two. It carries the post-type tabs and sends
+                // `question`/`options` when Poll is chosen, so a second instance
+                // for polls only duplicated the form on screen.
+                <PostComposer
+                  initialBody={newPost}
+                  onSubmit={handleCreatePost}
+                  onCancel={() => setShowComposer(false)}
+                />
               ) : (
                 <div className="flex gap-2">
                   <input
