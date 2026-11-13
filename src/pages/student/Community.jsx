@@ -59,8 +59,11 @@ const StudentCommunity = () => {
     return handleReaction(targetId, targetType, reactionType);
   };
 
-  const handleAddCommentLocal = async (postId, body, parentId) => {
-    return handleAddComment(postId, body, parentId);
+  const handleAddCommentLocal = async (postId, body, parentId, extra = {}) => {
+    // `extra` carries `media` and `forwardedFrom`. Dropping it here — which this
+    // signature did — meant an attachment sent from the feed thread uploaded to
+    // Cloudinary, returned a URL, and then went nowhere.
+    return handleAddComment(postId, body, parentId, extra);
   };
 
   const handleBookmark = async (postId) => {

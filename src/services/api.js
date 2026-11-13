@@ -15,6 +15,31 @@ import { refreshAccessToken, clearSession } from './tokenRefresh.js';
 const API_BASE_URL =
   import.meta.env?.VITE_API_BASE_URL || 'https://sukuupay-backend.onrender.com/api';
 
+/*
+ * Where the access token lives.
+ *
+ * `services/auth.js` writes it to `localStorage` and clears both stores on
+ * sign-out, so `localStorage` is the only writer in normal operation. The
+ * `sessionStorage` read is a compatibility fallback for a session that was
+ * written there by an older build or by a test harness: without it such a
+ * session sends no `Authorization` header at all, which the community router
+ * answers with 401 (or, before that fix, a misleading 403) on every request.
+ *
+ * Read, never written — `auth.js` stays the single owner of the storage keys.
+ */
+const readAccessToken = () => {
+  try {
+    return (
+      localStorage.getItem('auth_token') ||
+      sessionStorage.getItem('auth_token') ||
+      null
+    );
+  } catch {
+    // Storage can throw in a blocked-cookie or sandboxed iframe context.
+    return null;
+  }
+};
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -25,7 +50,7 @@ const api = axios.create({
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token');
+    const token = readAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

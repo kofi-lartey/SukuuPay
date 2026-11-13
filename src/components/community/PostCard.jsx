@@ -2,11 +2,18 @@ import React, { useState } from 'react';
 import { Heart, MessageCircle, Send, MoreVertical, Pin, Trash2, Bookmark, CheckCircle } from 'lucide-react';
 import ReactionPicker from './ReactionPicker';
 import CommentThread from './CommentThread';
+import { useCommunity } from '../../context/CommunityContext';
 
-const PostCard = ({ post, onReact, onAddComment, onAcceptAnswer, onDeleteComment, onDeletePost, onBookmark }) => {
+const PostCard = ({ post, onReact, onAddComment, onUpdateComment, onAcceptAnswer, onDeleteComment, onDeletePost, onBookmark }) => {
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState([]);
   const [loadingComments, setLoadingComments] = useState(false);
+
+  // Forwarding needs somewhere to forward *to*, and the feed is the only honest
+  // target list: every post here is in the same school, which is the boundary the
+  // API enforces on `forwardedFrom`.
+  const { feedPosts, handleAddComment, handleUpdateComment, handleDeleteComment, user } =
+    useCommunity();
 
   const toggleComments = async () => {
     setShowComments((prev) => !prev);
@@ -27,13 +34,38 @@ const PostCard = ({ post, onReact, onAddComment, onAcceptAnswer, onDeleteComment
     if (onReact) await onReact(targetId, targetType, reactionType);
   };
 
-  const handleComment = async (postId, body, parentId) => {
-    if (onAddComment) {
-      const newComment = await onAddComment(postId, body, parentId);
+  const handleComment = async (postId, body, parentId, extra = {}) => {
+    const add = onAddComment || handleAddComment;
+    if (add) {
+      const newComment = await add(postId, body, parentId, extra);
       if (newComment) {
         setComments((prev) => [...prev, newComment]);
       }
+      return newComment;
     }
+    return null;
+  };
+
+  const handleDeleteCommentLocal = async (postId, commentId) => {
+    if (!onDeleteComment && !handleDeleteComment) return;
+    const remove = onDeleteComment || handleDeleteComment;
+    await remove(postId, commentId);
+    setComments((prev) => prev.filter((c) => c._id !== commentId));
+  };
+
+  const handleCommentUpdate = async (commentId, body) => {
+    if (!onUpdateComment) return;
+    const updated = await onUpdateComment(commentId, body);
+    const next = updated?.data || updated;
+    if (next) {
+      setComments((prev) => prev.map((c) => (c._id === commentId ? { ...c, ...next } : c)));
+    }
+  };
+
+  const handleForward = async (targetPostId, comment) => {
+    // `forwardedFrom` is resolved server-side against the source's own school, so
+    // the client only names the message — it cannot forge the attribution.
+    await handleComment(targetPostId, null, null, { forwardedFrom: comment._id });
   };
 
   const formatTime = (ts) => {
@@ -114,7 +146,12 @@ const PostCard = ({ post, onReact, onAddComment, onAcceptAnswer, onDeleteComment
           postId={post._id}
           comments={comments}
           onAddComment={handleComment}
+          onUpdateComment={onUpdateComment ? handleCommentUpdate : undefined}
+          onDeleteComment={handleDeleteCommentLocal}
           onReact={handleReact}
+          onForward={handleForward}
+          forwardTargets={(feedPosts || []).filter((p) => p._id !== post._id)}
+          currentUserId={user?._id}
         />
       )}
     </div>

@@ -7,6 +7,8 @@ import {
   createPoll,
   listComments,
   createComment,
+  updateComment,
+  deleteComment,
   addReaction,
   getReactionCount,
   listClubs,
@@ -103,16 +105,14 @@ export const CommunityProvider = ({ children }) => {
   useEffect(() => {
     fetchFeed(1);
     fetchClubs();
-    fetchEvents();
   }, [fetchFeed, fetchClubs]);
 
   const handleNewPost = useCallback(async (payload) => {
-    if (!user?.role) {
-      throw new Error('User role not available');
+    if (!user?._id || !user?.schoolId) {
+      throw new Error('User session not ready');
     }
     try {
-      console.log('USER OBJECT:', JSON.stringify(user));
-      const res = await createPost({ ...payload, schoolId: user.schoolId, authorId: user._id, authorRole: user.role, authorName: user.name });
+      const res = await createPost(payload);
       return res.data || res;
     } catch (e) {
       console.error('Failed to create post:', e);
@@ -121,23 +121,43 @@ export const CommunityProvider = ({ children }) => {
   }, [user]);
 
   const handleNewPoll = useCallback(async (payload) => {
-    if (!user?.role) {
-      throw new Error('User role not available');
+    if (!user?._id || !user?.schoolId) {
+      throw new Error('User session not ready');
     }
     try {
-      await createPoll({ ...payload, schoolId: user.schoolId, authorId: user._id, authorRole: user.role, authorName: user.name });
+      await createPoll(payload);
     } catch (e) {
       console.error('Failed to create poll:', e);
       throw e;
     }
   }, [user]);
 
-  const handleAddComment = useCallback(async (postId, body, parentCommentId = null) => {
-    if (!user?.role) {
-      throw new Error('User role not available');
+  const handleDeleteComment = useCallback(async (postId, commentId) => {
+    try {
+      await deleteComment(postId, commentId);
+      return true;
+    } catch (e) {
+      console.error('Failed to delete comment:', e);
+      throw e;
+    }
+  }, []);
+
+  const handleUpdateComment = useCallback(async (commentId, body) => {
+    try {
+      const res = await updateComment(commentId, body);
+      return res.data || res;
+    } catch (e) {
+      console.error('Failed to update comment:', e);
+      throw e;
+    }
+  }, []);
+
+  const handleAddComment = useCallback(async (postId, body, parentCommentId = null, extra = {}) => {
+    if (!user?._id || !user?.schoolId) {
+      throw new Error('User session not ready');
     }
     try {
-      const res = await createComment({ postId, body, parentCommentId, schoolId: user.schoolId, authorId: user._id, authorRole: user.role, authorName: user.name });
+      const res = await createComment({ postId, body, parentCommentId, ...extra });
       return res.data || res;
     } catch (e) {
       console.error('Failed to add comment:', e);
@@ -227,6 +247,8 @@ export const CommunityProvider = ({ children }) => {
     handleNewPost,
     handleNewPoll,
     handleAddComment,
+    handleUpdateComment,
+    handleDeleteComment,
     handleReaction,
     handleBookmark,
     handleDeletePost,
