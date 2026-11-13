@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import Avatar from '../common/Avatar';
 
 /**
  * The `@` picker for a composer.
@@ -19,7 +20,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
  *
  * The message stores `mentions: [{ userId, name }]` separately from the text, so the
  * visible token only has to be readable. Using the first name keeps the sentence
- * looking like a sentence — "@Kwame can you bring the ball" rather than
+ * looking like a sentence â€” "@Kwame can you bring the ball" rather than
  * "@Kwame Mensah can you bring the ball".
  */
 
@@ -109,9 +110,7 @@ const MentionPicker = ({ members, value, caret, onPick, onClose }) => {
             index === active ? 'bg-teal-50' : 'hover:bg-slate-100'
           }`}
         >
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-teal-100 text-[9px] font-extrabold text-teal-700">
-            {(member.name || '?').slice(0, 2).toUpperCase()}
-          </span>
+          <Avatar name={member.name} src={member.avatar} size="xs" />
           <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-ink">
             {member.name}
           </span>

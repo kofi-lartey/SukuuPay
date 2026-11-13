@@ -80,7 +80,7 @@ const browserGlobals = {
 
 export default [
   {
-    files: ['src/components/community/**/*.{js,jsx}'],
+    files: ['src/components/community/**/*.{js,jsx}', 'src/components/common/Avatar.jsx'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',

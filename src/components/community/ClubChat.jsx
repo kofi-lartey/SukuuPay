@@ -22,6 +22,7 @@ import LinkPreviewCard from './LinkPreviewCard';
 import useLinkPreview from '../../hooks/useLinkPreview';
 import Bubble from './Bubble';
 import { uploadCommunityFile, getClubMembers, getPresence } from '../../services/community';
+import Avatar from '../common/Avatar';
 import MentionPicker, { mentionQueryAt } from './MentionPicker';
 import { splitOnMentions, mentionsInBody } from '../../utils/mentions';
 import { initializeSocket } from '../../utils/socket';
@@ -44,7 +45,7 @@ import { initializeSocket } from '../../utils/socket';
  *
  * ## Honest about what the server knows
  *
- * The single check on an outgoing message means *the server stored it* — nothing
+ * The single check on an outgoing message means *the server stored it* Ã¢â‚¬â€ nothing
  * more. There is no per-message delivery state on `CommunityComment`, so drawing a
  * second check or a "read" marker would be inventing a receipt the API cannot
  * back. Read receipts are on the roadmap with the message model that supports them.
@@ -61,7 +62,17 @@ const authorIdOf = (message) => {
 };
 
 const ClubChat = ({ clubId }) => {
-  const { messages, loading, sendMessage, editMessage, deleteMessage } = useClubChat(clubId);
+  const {
+    messages,
+    loading,
+    sendMessage,
+    editMessage,
+    deleteMessage,
+    filter,
+    setFilter,
+    query,
+    setQuery,
+  } = useClubChat(clubId);
   const { user } = useCommunity();
 
   const [newMsg, setNewMsg] = useState('');
@@ -73,7 +84,7 @@ const ClubChat = ({ clubId }) => {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   // The open menu, with the viewport position it was opened at. One state rather
-  // than an id, because a cursor-positioned menu has to know *where* — and a long
+  // than an id, because a cursor-positioned menu has to know where it was opened - and a
   // press and a right-click on the same message are two different positions.
   const [menu, setMenu] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -264,6 +275,50 @@ const ClubChat = ({ clubId }) => {
         </div>
       </div>
 
+      {/*
+        * Filter bar. Every option runs in the database, so a filter can match
+        * messages that are not on the loaded page - a client-side filter would
+        * report "nothing" while matches sat further back.
+        */}
+      <div className="space-y-1.5 border-b border-slate-100 px-3 py-2">
+        <div className="flex items-center gap-1 overflow-x-auto">
+          {[
+            { key: null, label: 'All' },
+            { key: 'questions', label: 'Questions' },
+            { key: 'files', label: 'Files' },
+            { key: 'links', label: 'Links' },
+            { key: 'mentions', label: 'Mentions' },
+          ].map((option) => (
+            <button
+              key={option.label}
+              type="button"
+              onClick={() => setFilter(option.key)}
+              aria-pressed={filter === option.key}
+              className={`shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-bold transition-colors ${
+                filter === option.key
+                  ? 'bg-teal-600 text-white'
+                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search messages"
+            aria-label="Search messages"
+            className="ml-auto w-32 shrink-0 rounded-full border border-slate-200 px-2.5 py-1 text-[11px]"
+          />
+        </div>
+
+        {filter && messages.length === 0 && !loading && (
+          <p className="text-[10.5px] text-slate-400">
+            No {filter} messages in this club yet.
+          </p>
+        )}
+      </div>
       <div className="flex-1 space-y-1 overflow-y-auto bg-slate-50/60 p-3">
         {loading && <p className="py-4 text-center text-[12px] text-slate-400">Loading...</p>}
         {!loading && messages.length === 0 && (
@@ -452,7 +507,7 @@ const ClubChat = ({ clubId }) => {
                 },
                 // Delete is for everyone, not just for me: the row is a soft delete
                 // on the server, so the message leaves every reader's thread.
-                // Offered only to the author — moderating someone else's message
+                // Offered only to the author Ã¢â‚¬â€ moderating someone else's message
                 // is the super_admin's action, not a chat one.
                 ...(String(menu.message.authorId?._id || menu.message.authorId) === myId
                   ? [

@@ -151,7 +151,7 @@ const StudentCommunity = () => {
           // A feed is read at reading width, not at container width: 1152px of card is
           // why each post looked oversized. 672px is the width a line of text stays
           // comfortable at, and it is the conventional single-column feed measure.
-          <div className="mx-auto w-full max-w-4xl space-y-4">
+          <div className="mx-auto w-full max-w-3xl space-y-4">
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               {showComposer ? (
                 // One composer, not two. It carries the post-type tabs and sends
