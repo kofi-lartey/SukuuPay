@@ -24,6 +24,7 @@ export const ROUTES = {
   DASHBOARD_SMS_PURCHASE: '/dashboard/sms-requests',
   DASHBOARD_REPORTS: '/dashboard/reports',
   DASHBOARD_MESSAGES: '/dashboard/messages',
+  DASHBOARD_COMMUNITY: '/dashboard/community',
   DASHBOARD_ACTIVITY: '/dashboard/activity-log',
   DASHBOARD_USERS: '/dashboard/user-management',
    DASHBOARD_SETTINGS: '/dashboard/settings',
@@ -229,6 +230,7 @@ export const TEACHER_ROUTES = {
   timetables: '/teacher/timetables',
   notifications: '/teacher/notifications',
   lms: '/teacher/lms',
+  community: '/teacher/community',
   profile: '/teacher/profile',
   students: '/teacher/students',
 };
@@ -261,6 +263,7 @@ export const ACCOUNTANT_ROUTES = {
   settings: '/dashboard/settings',
   sms: '/dashboard/sms-reminders',
   smsPurchase: '/dashboard/sms-requests',
+  community: '/dashboard/community',
 };
 
 export const APP_NAME = 'SukuuPay';
@@ -451,6 +454,13 @@ export const DASHBOARD_NAV = [
         // would make that masking pointless, since the inbox sits one click away.
         roles: ['super_admin', 'school_admin', 'accountant'],
         description: 'What parents wrote or recorded from their fee link.',
+      },
+      {
+        to: ROUTES.DASHBOARD_COMMUNITY,
+        label: 'Community',
+        icon: 'MessageCircle',
+        roles: ['super_admin', 'school_admin', 'teacher', 'accountant'],
+        description: 'School-wide feed, clubs, chat and events.',
       },
     ],
   },

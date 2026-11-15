@@ -15,6 +15,7 @@ import {
   Inbox,
   LayoutDashboard,
   Megaphone,
+  MessageCircle,
   MessageSquare,
   ScrollText,
   School,
@@ -53,6 +54,7 @@ const ICONS = {
   Settings,
   UserCog,
   UserCheck,
+  MessageCircle,
 };
 
 /**

@@ -22,4 +22,23 @@
   .text-balance {
     text-wrap: balance;
   }
+
+  /**
+   * Hide the scrollbar while keeping the element scrollable.
+   *
+   * Used by dialog bodies, where a visible scrollbar reads as chrome sitting
+   * on top of the panel rather than as part of it. Scrolling still works —
+   * wheel, trackpad, touch and keyboard all behave normally; only the bar is
+   * not painted. `scrollbar-width: none` covers Firefox and
+   * `-ms-overflow-style: none` covers legacy Edge; `::-webkit-scrollbar`
+   * covers Chromium and Safari.
+   */
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }

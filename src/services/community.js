@@ -75,7 +75,7 @@ export const createClub = async (payload) => api.post('/community/clubs', payloa
 export const listClubs = async (params = {}) => api.get('/community/clubs', { params });
 export const getClub = async (id) => api.get(`/community/clubs/${id}`);
 export const updateClub = async (id, payload) => api.put(`/community/clubs/${id}`, payload);
-export const toggleClubMembership = async (id) => api.put(`/community/clubs/${id}/membership`);
+export const toggleClubMembership = async (id, password) => api.put(`/community/clubs/${id}/membership`, { password });
 export const deleteClub = async (id) => api.delete(`/community/clubs/${id}`);
 
 export const getGamification = async () => api.get('/community/gamification');

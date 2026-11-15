@@ -32,7 +32,7 @@ const CommunityGuard = ({ children }) => {
     );
   }
 
-  if (!['student', 'teacher', 'school_admin', 'super_admin'].includes(user.role)) {
+  if (!['student', 'teacher', 'school_admin', 'super_admin', 'accountant'].includes(user.role)) {
     return <Navigate to="/student/login" replace />;
   }
 

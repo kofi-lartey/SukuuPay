@@ -13,6 +13,7 @@ import {
   getReactionCount,
   listClubs,
   createClub,
+  updateClub,
   toggleClubMembership,
   deletePost,
   bookmarkPost,
@@ -203,9 +204,22 @@ export const CommunityProvider = ({ children }) => {
     }
   }, [fetchClubs]);
 
-  const handleToggleClub = useCallback(async (clubId) => {
+  // Mirrors handleCreateClub: re-throws so the edit dialog can show the server's
+  // refusal. `CLUB_NOT_CREATOR` (403) and `CLUB_NOT_FOUND` (404) are distinct
+  // codes the dialog branches on, so the error must reach it intact.
+  const handleUpdateClub = useCallback(async (clubId, payload) => {
     try {
-      await toggleClubMembership(clubId);
+      await updateClub(clubId, payload);
+      fetchClubs();
+    } catch (e) {
+      console.error('Failed to update club:', e);
+      throw e;
+    }
+  }, [fetchClubs]);
+
+  const handleToggleClub = useCallback(async (clubId, password) => {
+    try {
+      await toggleClubMembership(clubId, password);
       fetchClubs();
     } catch (e) {
       console.error('Failed to toggle club membership:', e);
@@ -253,6 +267,7 @@ export const CommunityProvider = ({ children }) => {
     handleBookmark,
     handleDeletePost,
     handleCreateClub,
+    handleUpdateClub,
     handleToggleClub,
     handleCreateEvent,
     handleRsvpEvent,

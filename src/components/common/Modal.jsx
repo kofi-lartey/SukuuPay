@@ -53,6 +53,7 @@ const Modal = ({
   footer,
   size = 'md',
   hideTitle = false,
+  bodyClassName = '',
 }) => {
   const panelRef = useRef(null);
   const titleId = useId();
@@ -157,8 +158,12 @@ const Modal = ({
           </button>
         </div>
 
-        {/* Body — the flex-1 middle that scrolls. */}
-        <div className="overscroll-contain flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+        {/* Body — the flex-1 middle that scrolls. `bodyClassName` lets a
+            caller opt into presentation tweaks (e.g. `scrollbar-none`)
+            without changing every dialog. */}
+        <div
+          className={`overscroll-contain flex-1 overflow-y-auto px-5 py-5 sm:px-6 ${bodyClassName}`}
+        >
           {children}
         </div>
 

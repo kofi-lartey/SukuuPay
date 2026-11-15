@@ -307,6 +307,7 @@ function App() {
                 <Route path="sms-reminders" element={<SmsReminders />} />
                 <Route path="sms-requests" element={<SmsCreditRequests />} />
                 <Route path="messages" element={<ParentMessages />} />
+                <Route path="community" element={<CommunityGuard><CommunityProvider><StudentCommunity /></CommunityProvider></CommunityGuard>} />
                 <Route path="advertisements" element={<Advertisements />} />
                 <Route path="reports" element={<Reports />} />
                 <Route path="activity-log" element={<ActivityLog />} />

@@ -10,6 +10,7 @@ import ClubDetail from '../../components/community/ClubDetail';
 import ClubChat from '../../components/community/ClubChat';
 import CreateClubDialog from '../../components/community/CreateClubDialog';
 import CreateEventDialog from '../../components/community/CreateEventDialog';
+import ClubPasswordDialog from '../../components/community/ClubPasswordDialog';
 import StudyRoomWidget from '../../components/community/StudyRoomWidget';
 
 const TABS = [
@@ -30,7 +31,9 @@ const StudentCommunity = () => {
   const [newPost, setNewPost] = useState('');
   const [showComposer, setShowComposer] = useState(false);
   const [showCreateClub, setShowCreateClub] = useState(false);
+  const [clubToEdit, setClubToEdit] = useState(null);
   const [showCreateEvent, setShowCreateEvent] = useState(false);
+  const [passwordDialogClub, setPasswordDialogClub] = useState(null);
 
   const handleTabChange = (key) => {
     setActiveSpace(key);
@@ -88,7 +91,24 @@ const StudentCommunity = () => {
       await communityCtx.handleCreateClub(payload);
       await setActiveSpace('clubs');
     } catch (e) {
+      // Re-throw after logging. Swallowing this left the dialog with no way to
+      // show a server error — a 409 "club name already exists" or a 422 from
+      // Joi looked identical to a dead Create button.
       console.error('Failed to create club:', e?.response?.data || e.message);
+      throw e;
+    }
+  };
+
+  const handleUpdateClub = async (payload) => {
+    try {
+      await communityCtx.handleUpdateClub(clubToEdit?._id, payload);
+      await setActiveSpace('clubs');
+    } catch (e) {
+      // Re-throw for the same reason as create: the dialog renders
+      // `CLUB_NOT_CREATOR` (403) and `CLUB_NOT_FOUND` (404) inline, and both are
+      // lost if the error stops here.
+      console.error('Failed to update club:', e?.response?.data || e.message);
+      throw e;
     }
   };
 
@@ -97,7 +117,29 @@ const StudentCommunity = () => {
       await communityCtx.handleToggleClub(clubId);
       await setActiveSpace('clubs');
     } catch (e) {
-      console.error('Failed to toggle club:', e);
+      const code = e?.response?.data?.code;
+      if (code === 'CLUB_PASSWORD_REQUIRED' || code === 'CLUB_PASSWORD_INVALID') {
+        const club = clubs.find((c) => c._id === clubId);
+        setPasswordDialogClub(club || { _id: clubId, name: 'this club' });
+      } else {
+        console.error('Failed to toggle club:', e);
+      }
+    }
+  };
+
+  const handlePasswordSubmit = async (clubId, password) => {
+    try {
+      await communityCtx.handleToggleClub(clubId, password);
+      setPasswordDialogClub(null);
+      await setActiveSpace('clubs');
+    } catch (e) {
+      const code = e?.response?.data?.code;
+      if (code === 'CLUB_PASSWORD_INVALID') {
+        // Keep dialog open, error is shown in the dialog component
+        throw e;
+      }
+      console.error('Failed to join club:', e);
+      setPasswordDialogClub(null);
     }
   };
 
@@ -217,6 +259,8 @@ const StudentCommunity = () => {
                 onJoin={handleToggleClub}
                 onLeave={handleToggleClub}
                 onOpenChat={() => { setSelectedClub(c._id); setActiveSpace('chat'); setTab('chat'); }}
+                onEdit={(target) => setClubToEdit(target)}
+                currentUserId={communityCtx.user?._id}
               />
             ))}
             </div>
@@ -312,8 +356,24 @@ const StudentCommunity = () => {
           </div>
         )}
       </div>
-      <CreateClubDialog open={showCreateClub} onClose={() => setShowCreateClub(false)} onSubmit={handleCreateClub} />
+      <CreateClubDialog
+        open={showCreateClub}
+        onClose={() => setShowCreateClub(false)}
+        onSubmit={handleCreateClub}
+      />
+      <CreateClubDialog
+        open={!!clubToEdit}
+        club={clubToEdit}
+        onClose={() => setClubToEdit(null)}
+        onSubmit={handleUpdateClub}
+      />
       <CreateEventDialog open={showCreateEvent} onClose={() => setShowCreateEvent(false)} onSubmit={handleCreateEvent} />
+      <ClubPasswordDialog
+        open={!!passwordDialogClub}
+        clubName={passwordDialogClub?.name || 'this club'}
+        onSubmit={(password) => handlePasswordSubmit(passwordDialogClub?._id, password)}
+        onClose={() => setPasswordDialogClub(null)}
+      />
     </>
   );
 };
