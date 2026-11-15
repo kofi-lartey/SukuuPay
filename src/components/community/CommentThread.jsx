@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { Send, X, Paperclip, Reply, Pencil, Trash2, Copy } from 'lucide-react';
 import EmojiPicker, { insertAtCaret } from './EmojiPicker';
 import LinkPreviewCard from './LinkPreviewCard';
+import { mediaKindForUrl } from './LinkOrMedia';
 import ContextMenu from './ContextMenu';
 import CommentItem, { canStillEdit, isOwn } from './CommentItem';
 import useLinkPreview from '../../hooks/useLinkPreview';
@@ -286,8 +287,9 @@ const CommentThread = ({
           </div>
         )}
 
-        {/* The card for a link that has been typed but not yet sent. */}
-        {(draftPreview || previewLoading) && (
+        {/* The card for a link that has been typed but not yet sent. Audio/video
+            links render as players once sent, so don't show a preview card here. */}
+        {(draftPreview || previewLoading) && mediaKindForUrl(draftPreview?.url) === null && (
           <div className="mb-1.5">
             {previewLoading && !draftPreview ? (
               <div className="h-14 animate-pulse rounded-lg border border-slate-200 bg-slate-50" />

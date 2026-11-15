@@ -18,14 +18,16 @@ import EmojiPicker, { insertAtCaret } from './EmojiPicker';
 import MediaAttachment from './MediaAttachment';
 import ContextMenu from './ContextMenu';
 import VoiceNoteButton from './VoiceNoteButton';
+import LinkOrMedia, { mediaKindForUrl, youtubeIdOf } from './LinkOrMedia';
 import LinkPreviewCard from './LinkPreviewCard';
 import useLinkPreview from '../../hooks/useLinkPreview';
 import Bubble from './Bubble';
-import { uploadCommunityFile, getClubMembers, getPresence } from '../../services/community';
+import { uploadCommunityFile, getClubMembers } from '../../services/community';
+import { initializeSocket } from '../../utils/socket';
+import { useRoomActivity } from '../../hooks/useRoomActivity';
 import Avatar from '../common/Avatar';
 import MentionPicker, { mentionQueryAt } from './MentionPicker';
 import { splitOnMentions, mentionsInBody } from '../../utils/mentions';
-import { initializeSocket } from '../../utils/socket';
 
 /**
  * The club chat, laid out as a messenger rather than a log.
@@ -45,7 +47,7 @@ import { initializeSocket } from '../../utils/socket';
  *
  * ## Honest about what the server knows
  *
- * The single check on an outgoing message means *the server stored it* Ã¢â‚¬â€ nothing
+ * The single check on an outgoing message means *the server stored it* ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â nothing
  * more. There is no per-message delivery state on `CommunityComment`, so drawing a
  * second check or a "read" marker would be inventing a receipt the API cannot
  * back. Read receipts are on the roadmap with the message model that supports them.
@@ -72,7 +74,14 @@ const ClubChat = ({ clubId }) => {
     setFilter,
     query,
     setQuery,
+    chatPostId,
+    refresh,
   } = useClubChat(clubId);
+
+  // Live delivery: a message posted elsewhere is re-read when the gateway says so.
+  // Coalesced, because a burst of sends would otherwise refetch per message.
+  const refreshTimer = useRef(null);
+  const chatPostIdRef = useRef(null);
   const { user } = useCommunity();
 
   const [newMsg, setNewMsg] = useState('');
@@ -96,9 +105,26 @@ const ClubChat = ({ clubId }) => {
 
   // Club roster for the header and the @ picker, and the live online set.
   const [members, setMembers] = useState([]);
-  const [onlineIds, setOnlineIds] = useState([]);
   const [caret, setCaret] = useState(0);
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  /*
+   * Live room activity: presence, typing, recording.
+   *
+   * Presence used to come from a one-off HTTP call plus a socket listener attached
+   * after the connection was already open ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â so the initial broadcast was always
+   * missed and the count sat at whatever that call returned, usually zero. This hook
+   * re-syncs over HTTP after subscribing, which is the fix for "0 online while
+   * people are online".
+   */
+  const {
+    onlineIds,
+    typingNames,
+    recordingNames,
+    announceTyping,
+    stopTyping,
+    announceRecording,
+  } = useRoomActivity({ schoolId: user?.schoolId, enabled: Boolean(user?._id) });
 
   useEffect(() => {
     if (!clubId || !user?._id) return undefined;
@@ -106,10 +132,9 @@ const ClubChat = ({ clubId }) => {
 
     const load = async () => {
       try {
-        const [roster, online] = await Promise.all([getClubMembers(clubId), getPresence()]);
+        const roster = await getClubMembers(clubId);
         if (cancelled) return;
         setMembers(roster?.members || []);
-        setOnlineIds(online);
       } catch (e) {
         // A roster failure must not take the chat down with it.
         console.warn('[ClubChat] could not load members', e?.message);
@@ -120,29 +145,47 @@ const ClubChat = ({ clubId }) => {
     return () => { cancelled = true; };
   }, [clubId, user?._id]);
 
-  // Presence is pushed by the gateway, so the count moves without a poll.
+
+  /*
+   * A message posted by someone else arrives over the socket and is re-read.
+   *
+   * The gateway broadcasts `community:comment_created { postId, commentId }` to the
+   * whole school room. Rather than trust the event's payload (which carries no body,
+   * media or author), this re-reads page one â€” coalesced to one request per 400 ms so
+   * a burst of sends costs one fetch, not ten.
+   */
   useEffect(() => {
+    chatPostIdRef.current = chatPostId;
+  }, [chatPostId]);
+
+  useEffect(() => {
+    if (!chatPostId) return undefined;
     let socket;
     let cancelled = false;
 
-    const onPresence = (payload) => {
-      if (!cancelled) setOnlineIds(payload?.userIds || []);
+    const onCommentCreated = (payload) => {
+      if (String(payload?.postId) !== String(chatPostIdRef.current)) return;
+
+      clearTimeout(refreshTimer.current);
+      refreshTimer.current = setTimeout(() => {
+        if (!cancelled) refresh();
+      }, 400);
     };
 
     initializeSocket(localStorage.getItem('auth_token'))
       .then((instance) => {
-        if (cancelled) { instance?.close?.(); return; }
+        if (cancelled) return;
         socket = instance;
-        socket.on('community:presence', onPresence);
+        socket.on('community:comment_created', onCommentCreated);
       })
       .catch(() => {});
 
     return () => {
       cancelled = true;
-      socket?.off?.('community:presence', onPresence);
+      clearTimeout(refreshTimer.current);
+      socket?.off?.('community:comment_created', onCommentCreated);
     };
-  }, []);
-
+  }, [chatPostId, refresh]);
   const studentCount = members.filter((m) => m.role === 'student').length;
   const onlineStudents = members.filter(
     (m) => m.role === 'student' && onlineIds.includes(String(m._id))
@@ -319,8 +362,36 @@ const ClubChat = ({ clubId }) => {
           </p>
         )}
       </div>
-      <div className="flex-1 space-y-1 overflow-y-auto bg-slate-50/60 p-3">
-        {loading && <p className="py-4 text-center text-[12px] text-slate-400">Loading...</p>}
+      {/* Live activity strip. Sits between the filter bar and the transcript, in
+          * normal flow — not `sticky` over the messages. As a sticky overlay its
+          * opaque background covered the topmost message (a voice note) whenever
+          * someone was typing or recording, which read as the audio being hidden.
+          */}
+        {(typingNames.length > 0 || recordingNames.length > 0) && (
+          <div className="space-y-0.5 border-b border-slate-100 bg-slate-50/95 px-3 py-1.5">
+            {typingNames.length > 0 && (
+              <p className="flex items-center gap-1 text-[10.5px] font-semibold text-slate-500">
+                <span className="flex gap-0.5" aria-hidden="true">
+                  <span className="h-1 w-1 animate-bounce rounded-full bg-teal-500 [animation-delay:-0.2s]" />
+                  <span className="h-1 w-1 animate-bounce rounded-full bg-teal-500 [animation-delay:-0.1s]" />
+                  <span className="h-1 w-1 animate-bounce rounded-full bg-teal-500" />
+                </span>
+                {typingNames.slice(0, 3).join(', ')}
+                {typingNames.length === 1 ? ' is typing' : ' are typing'}
+              </p>
+            )}
+
+            {recordingNames.length > 0 && (
+              <p className="flex items-center gap-1 text-[10.5px] font-semibold text-red-600">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" aria-hidden="true" />
+                {recordingNames.slice(0, 3).join(', ')}
+                {recordingNames.length === 1 ? ' is recording a voice note' : ' are recording voice notes'}
+              </p>
+            )}
+          </div>
+        )}
+        <div className="flex-1 space-y-1 overflow-y-auto bg-slate-50/60 p-3">
+          {loading && <p className="py-4 text-center text-[12px] text-slate-400">Loading...</p>}
         {!loading && messages.length === 0 && (
           <p className="py-4 text-center text-[12px] text-slate-400">No messages yet</p>
         )}
@@ -343,7 +414,7 @@ const ClubChat = ({ clubId }) => {
               key={m._id}
               className={`flex ${mine ? 'justify-end' : 'justify-start'} ${grouped ? 'mt-0.5' : 'mt-2'}`}
             >
-<div className="max-w-[85%]">
+<div className="min-w-0 max-w-[85%]">
                 {editing?._id === m._id ? (
                   // A `<div>`, not a `<button>`: a textarea inside a button is
                   // invalid HTML and the browser reparents it, which loses focus
@@ -440,17 +511,22 @@ const ClubChat = ({ clubId }) => {
                     )}
 
                     {m.linkPreview?.url && (
-                      <span className="mt-1 block">
-                        <LinkPreviewCard preview={m.linkPreview} compact />
-                      </span>
+                      <div className="mt-1">
+                        <LinkOrMedia preview={m.linkPreview} mine={mine} />
+                      </div>
                     )}
 
                     {media.length > 0 && (
-                      <span className="mt-1 block space-y-1">
+                      <div className="mt-1 space-y-1">
                         {media.map((x, i) => (
-                          <MediaAttachment key={x.publicId || `${x.url}-${i}`} media={x} compact />
+                          <MediaAttachment
+                            key={x.publicId || `${x.url}-${i}`}
+                            media={x}
+                            compact
+                            mine={mine}
+                          />
                         ))}
-                      </span>
+                      </div>
                     )}
 
                     <span
@@ -507,7 +583,7 @@ const ClubChat = ({ clubId }) => {
                 },
                 // Delete is for everyone, not just for me: the row is a soft delete
                 // on the server, so the message leaves every reader's thread.
-                // Offered only to the author Ã¢â‚¬â€ moderating someone else's message
+                // Offered only to the author ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â moderating someone else's message
                 // is the super_admin's action, not a chat one.
                 ...(String(menu.message.authorId?._id || menu.message.authorId) === myId
                   ? [
@@ -596,8 +672,9 @@ const ClubChat = ({ clubId }) => {
 
         {error && <p className="mb-1.5 text-[11px] font-semibold text-red-600">{error}</p>}
 
-        {/* Card for a link typed but not yet sent. */}
-        {(draftPreview || previewLoading) && (
+        {/* Card for a link typed but not yet sent. Audio/video links render as
+            players once sent, so don't show a preview card for them here either. */}
+        {(draftPreview || previewLoading) && mediaKindForUrl(draftPreview?.url) === null && (
           <div className="mb-1.5">
             {previewLoading && !draftPreview ? (
               <div className="h-14 animate-pulse rounded-lg border border-slate-200 bg-slate-50" />
@@ -627,7 +704,10 @@ const ClubChat = ({ clubId }) => {
             <Paperclip className="h-4 w-4" />
           </button>
 
-          <VoiceNoteButton onRecorded={(file) => handleFiles([file])} />
+          <VoiceNoteButton
+            onRecorded={(file) => handleFiles([file])}
+            onRecordingChange={announceRecording}
+          />
 
           {/* `relative` so the picker anchors to the input rather than the panel. */}
           <div className="relative flex-1">
@@ -635,6 +715,8 @@ const ClubChat = ({ clubId }) => {
               ref={inputRef}
               value={newMsg}
               onChange={(e) => {
+              // Announce typing as it happens; the hook throttles and expires it.
+              announceTyping();
                 const next = e.target.value;
                 const position = e.target.selectionStart ?? next.length;
                 setNewMsg(next);
@@ -656,6 +738,7 @@ const ClubChat = ({ clubId }) => {
                 }
               }}
               placeholder={uploading ? 'Uploading...' : 'Message club...  Type @ to mention'}
+              onBlur={stopTyping}
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[12px]"
             />
 

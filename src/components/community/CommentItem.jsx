@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { CheckCircle, Reply, Forward, Pencil, Trash2, Copy } from 'lucide-react';
 import ReactionPicker from './ReactionPicker';
 import MediaAttachment from './MediaAttachment';
-import LinkPreviewCard from './LinkPreviewCard';
+import LinkOrMedia from './LinkOrMedia';
 import Bubble from './Bubble';
 import Avatar from '../common/Avatar';
 
@@ -197,7 +197,7 @@ const CommentItem = ({
 
                 {c.linkPreview?.url && (
                   <div className="mt-2">
-                    <LinkPreviewCard preview={c.linkPreview} compact />
+                    <LinkOrMedia preview={c.linkPreview} />
                   </div>
                 )}
               </Bubble>

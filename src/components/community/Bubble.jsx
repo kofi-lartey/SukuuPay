@@ -27,7 +27,8 @@ import { useLongPress } from '../../hooks/useLongPress';
  * and open a second tab of it.
  */
 
-const INTERACTIVE = 'a, button, video, audio, input, textarea, select, [role="button"]';
+const INTERACTIVE =
+  'a, button, video, audio, input, textarea, select, [role="button"], [role="slider"], [data-bubble-interactive]';
 
 /** The first http(s) URL in a message body. */
 const firstUrlIn = (text) => {

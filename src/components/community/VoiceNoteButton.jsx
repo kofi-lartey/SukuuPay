@@ -1,12 +1,12 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Mic, Trash2 } from 'lucide-react';
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
 
 /**
  * The microphone in a chat composer.
  *
- * The parent portal's `AudioRecorder` is a form block — a full-width 48px button and
- * a "voice note ready" panel — which is the right shape for a page of its own and
+ * The parent portal's `AudioRecorder` is a form block â€” a full-width 48px button and
+ * a "voice note ready" panel â€” which is the right shape for a page of its own and
  * the wrong one for an input row. This is the same recorder state machine
  * (`hooks/useVoiceRecorder.js`) rendered as an icon, so both surfaces share the
  * teardown rules, the capability probe and the take validation instead of each
@@ -14,7 +14,7 @@ import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
  *
  * ## Interaction model
  *
- * Tap to start, tap to stop — not press-and-hold. Hold-to-record is the WhatsApp
+ * Tap to start, tap to stop â€” not press-and-hold. Hold-to-record is the WhatsApp
  * gesture, but it fights the click-to-open-context-menu behaviour a few pixels away
  * in the same row, and a missed hold on a phone is a lost sentence. A toggle is one
  * fewer thing to get wrong.
@@ -29,11 +29,21 @@ const formatDuration = (seconds) => {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 };
 
-const VoiceNoteButton = ({ onRecorded }) => {
-  const { supported, recording, seconds, clip, error, toggle, cancel } =
-    useVoiceRecorder((next) => {
+const VoiceNoteButton = ({ onRecorded, onRecordingChange }) => {
+  const { supported, recording, seconds, clip, error, toggle, cancel } = useVoiceRecorder(
+    (next) => {
       if (next) onRecorded?.(next.file);
-    });
+    }
+  );
+
+  /*
+   * Tell the room recording started or stopped. Driven by the recorder state
+   * rather than the click handlers, so a take that ends on its own - the 60s
+   * ceiling, or the mic being pulled - still reports the stop.
+   */
+  useEffect(() => {
+    onRecordingChange?.(recording);
+  }, [recording, onRecordingChange]);
 
   // Recording in progress: a stop button and the elapsed time replace the icon.
   if (recording) {
