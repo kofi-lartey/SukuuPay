@@ -28,6 +28,7 @@ export const ROUTES = {
   DASHBOARD_ACTIVITY: '/dashboard/activity-log',
   DASHBOARD_USERS: '/dashboard/user-management',
    DASHBOARD_SETTINGS: '/dashboard/settings',
+   DASHBOARD_UPGRADE: '/dashboard/settings/upgrade',
    DASHBOARD_ACADEMICS: '/dashboard/academics',
    DASHBOARD_ACADEMICS_GRADES: '/dashboard/academics/grades',
    DASHBOARD_ACADEMICS_CLASSES: '/dashboard/academics/classes',
@@ -582,6 +583,13 @@ export const DASHBOARD_NAV = [
         // This is presentation only: the server's `authorize` is the boundary,
         // and hiding an entry must never be the thing that enforces it.
         roles: ['super_admin', 'school_admin', 'accountant'],
+      },
+      {
+        to: ROUTES.DASHBOARD_UPGRADE,
+        label: 'Upgrade',
+        icon: 'Sparkles',
+        roles: ['school_admin', 'accountant'],
+        description: 'Compare plans and upgrade your subscription tier.',
       },
       {
         to: ROUTES.DASHBOARD_ADVERTISEMENTS,
@@ -1208,6 +1216,26 @@ export const SMS_SEGMENT_LENGTH = 160;
  * to the API.
  */
 export const PRICING_PLANS = [
+  {
+    name: 'Free',
+    maxStudents: 50,
+    capacity: 'Up to 50 students',
+    blurb: 'A 1-week trial to set up your school and explore the platform before committing.',
+    termly: 0,
+    monthly: 0,
+    termNote: 'Free for 7 days — no credit card required',
+    free: true,
+    features: [
+      'Bulk student upload (CSV/Excel)',
+      'Basic fee tracking & receipts',
+      'Up to 50 students',
+      'Email support',
+    ],
+    cta: {
+      label: 'Start Free Trial',
+      to: ROUTES.SIGNUP,
+    },
+  },
   {
     name: 'Starter',
     /** Upper bound on students this tier is sized for; see `planForRoster`. */

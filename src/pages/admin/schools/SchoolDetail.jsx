@@ -29,6 +29,7 @@ import SchoolDisbursementsTab from '../../../components/admin/schools/SchoolDisb
 import SchoolTeamTab from '../../../components/admin/schools/SchoolTeamTab';
 import SchoolSettingsTab from '../../../components/admin/schools/SchoolSettingsTab';
 import SchoolNotesTab from '../../../components/admin/schools/SchoolNotesTab';
+import SchoolVerificationTab from '../../../components/admin/schools/SchoolVerificationTab';
 import { useImpersonation } from '../../../hooks/useImpersonation';
 import { useToast } from '../../../hooks/useToast';
 import {
@@ -63,6 +64,7 @@ const TABS = [
   { value: 'team', label: 'Team' },
   { value: 'settings', label: 'Settings' },
   { value: 'notes', label: 'Notes' },
+  { value: 'verification', label: 'Verification' },
 ];
 
 const STATUS_TONES = { active: 'green', suspended: 'red', archived: 'slate' };
@@ -707,6 +709,7 @@ const SchoolDetail = () => {
         <SchoolSettingsTab school={school} record={state.data} onSaved={refresh} />
       )}
       {tab === 'notes' && <SchoolNotesTab school={school} record={state.data} />}
+      {tab === 'verification' && <SchoolVerificationTab school={school} />}
 
       {/* ── Dialogs ── */}
       <EditSchoolDialog

@@ -49,6 +49,7 @@ import Reports from './pages/dashboard/Reports';
 import ActivityLog from './pages/dashboard/ActivityLog';
 import UserManagement from './pages/dashboard/UserManagement';
 import Settings from './pages/dashboard/Settings';
+import Upgrade from './pages/dashboard/Upgrade';
 import AcademicsOverview from './pages/dashboard/academics/AcademicsOverview';
 import Timetables from './pages/dashboard/academics/Timetables';
 import GradeApproval from './pages/dashboard/academics/GradeApproval';
@@ -313,6 +314,7 @@ function App() {
                 <Route path="activity-log" element={<ActivityLog />} />
                 <Route path="user-management" element={<UserManagement />} />
                 <Route path="settings" element={<Settings />} />
+                <Route path="settings/upgrade" element={<Upgrade />} />
                 <Route path="id-cards/settings" element={<IdCardSettings />} />
                 <Route path="id-cards/templates" element={<IdCardTemplates />} />
                 <Route path="id-cards/bulk" element={<IdCardBulkPrint />} />

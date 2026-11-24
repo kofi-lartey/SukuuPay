@@ -90,7 +90,7 @@ const Pricing = () => {
         </div>
 
         {/* Plan Cards */}
-        <div className="mb-16 grid grid-cols-1 items-stretch gap-8 lg:grid-cols-3">
+        <div className="mb-16 grid grid-cols-1 items-stretch gap-8 sm:grid-cols-2 lg:grid-cols-4">
           {PRICING_PLANS.map((plan, index) => (
             <div
               key={plan.name}
@@ -127,13 +127,19 @@ const Pricing = () => {
                 <p className="mb-6 text-sm text-slate-600">{plan.blurb}</p>
 
                 <div className="mb-6 border-b border-slate-100 pb-6">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-xs font-bold text-slate-500">GHS</span>
-                    <span className="font-display text-4xl font-extrabold text-ink">
-                      {GHS(isTermly ? plan.termly : plan.monthly)}
-                    </span>
-                    <span className="text-xs text-slate-500">/ month</span>
-                  </div>
+                  {plan.free ? (
+                    <div className="flex items-baseline gap-1">
+                      <span className="font-display text-4xl font-extrabold text-ink">Free</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-xs font-bold text-slate-500">GHS</span>
+                      <span className="font-display text-4xl font-extrabold text-ink">
+                        {GHS(isTermly ? plan.termly : plan.monthly)}
+                      </span>
+                      <span className="text-xs text-slate-500">/ month</span>
+                    </div>
+                  )}
                   <p className="mt-1 text-[11px] text-slate-400">
                     {isTermly ? plan.termNote : 'Billed monthly, cancel anytime'}
                   </p>

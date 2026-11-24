@@ -7,6 +7,7 @@ import { exportStudents } from '../../services/students';
 import RecordManualPaymentDialog from '../../components/dashboard/RecordManualPaymentDialog';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
 import PageHeader from '../../components/dashboard/PageHeader';
+import SchoolVerificationBanner from '../../components/common/SchoolVerificationBanner';
 import KpiRow from './overview/KpiRow';
 import CollectionsCard from './overview/CollectionsCard';
 import PaymentChannelsCard from './overview/PaymentChannelsCard';
@@ -126,6 +127,8 @@ const Overview = () => {
           </>
         }
       />
+
+      <SchoolVerificationBanner school={school} className="mb-4" />
 
       <ErrorBoundary label="The KPI figures">
         <KpiRow kpis={kpis} />

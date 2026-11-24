@@ -3,6 +3,8 @@ import {
   Info,
   Landmark,
   Smartphone,
+  Building2,
+  Wallet,
 } from 'lucide-react';
 import { Field, FormAlert, SelectField } from '../../components/common/FormField';
 import useOnboardingProgress from '../../hooks/useOnboardingProgress';
@@ -17,17 +19,19 @@ const GHANA_PHONE = /^(0[2-5]\d{8}|233[2-5]\d{8})$/;
 /**
  * How the money is collected.
  *
- * There is one answer to this now. Collections run on SukuuPay's own Moolre
- * account, so every school uses the platform gateway and the School model
- * stores `payment.gatewayMode` as `moolre` whether the school chose it or not.
- * A school cannot bring its own gateway, so the mode is not a choice and is
- * not asked for.
+ * Self-Collection model: the school collects payments directly using their own
+ * credentials. SukuuPay does not hold or settle funds — the school's own
+ * payment methods (Merchant ID, collection phone, etc.) receive money directly.
  *
- * What *is* asked for is where the money lands: the settlement account.
+ * Mobile Money collections use the default system number configured by the
+ * Super Admin, so the school does not need to provide a separate MoMo number
+ * for that channel.
  */
 const EMPTY = {
-  mode: 'sukuupay',
-  payoutMethod: 'bank',
+  mode: 'self_collection',
+  collectionMethod: 'bank',
+  merchantId: '',
+  collectionPhone: '',
   accountName: '',
   accountNumber: '',
   bankName: '',
@@ -77,9 +81,7 @@ const Step2PaymentSetup = () => {
   useEffect(() => {
     const draft = getStepDraft('payment-setup');
     if (draft) {
-      // The mode is not a choice any more, so a draft written before that
-      // change cannot bring it back — it is pinned to the platform gateway.
-      setForm((current) => ({ ...current, ...draft, mode: 'sukuupay' }));
+      setForm((current) => ({ ...current, ...draft, mode: 'self_collection' }));
     }
     setHydrated(true);
   }, [getStepDraft]);
@@ -100,18 +102,20 @@ const Step2PaymentSetup = () => {
   const errors = useMemo(() => {
     const found = {};
 
-    if (form.payoutMethod === 'bank') {
+    if (form.collectionMethod === 'bank') {
       if (form.accountName.trim().length < 2) found.accountName = 'Enter the account name.';
       const accountNumber = form.accountNumber.replace(/\s/g, '');
-      if (!/^\d{10}$/.test(accountNumber)) {
-        found.accountNumber = 'Ghana account numbers are 10 digits.';
-      }
+      if (!/^\d{10}$/.test(accountNumber)) found.accountNumber = 'Ghana account numbers are 10 digits.';
       if (!form.bankName) found.bankName = 'Choose the bank.';
-    } else {
-      const momo = form.momoNumber.replace(/[\s-]/g, '');
+    } else if (form.collectionMethod === 'momo') {
+      const momo = (form.momoNumber || '').replace(/[\s-]/g, '');
       if (!momo) found.momoNumber = 'Enter your Mobile Money number.';
       else if (!GHANA_PHONE.test(momo)) found.momoNumber = 'Use a Ghana number, e.g. 0241234567.';
       if (!form.momoNetwork) found.momoNetwork = 'Choose the network.';
+    } else if (form.collectionMethod === 'merchant') {
+      if (form.merchantId.trim().length < 3) found.merchantId = 'Enter your Merchant ID.';
+      const phone = form.collectionPhone.replace(/[\s-]/g, '');
+      if (phone && !GHANA_PHONE.test(phone)) found.collectionPhone = 'Use a Ghana number, e.g. 0241234567.';
     }
 
     return found;
@@ -129,29 +133,32 @@ const Step2PaymentSetup = () => {
         return false;
       }
 
-      const payout =
-        form.payoutMethod === 'bank'
+      const collection =
+        form.collectionMethod === 'bank'
           ? {
               accountName: form.accountName.trim(),
               accountNumber: form.accountNumber.replace(/\s/g, ''),
               bankName: form.bankName,
             }
-          : { momoNumber: form.momoNumber.replace(/[\s-]/g, ''), momoNetwork: form.momoNetwork };
+          : form.collectionMethod === 'momo'
+            ? { momoNumber: (form.momoNumber || '').replace(/[\s-]/g, ''), momoNetwork: form.momoNetwork }
+            : {
+                merchantId: form.merchantId.trim(),
+                collectionPhone: form.collectionPhone.replace(/[\s-]/g, ''),
+              };
 
       try {
-        await updatePayoutAccount(schoolId, { ...payout, method: form.payoutMethod, mode: form.mode });
-        toast.success('Settlement account saved.');
+        await updatePayoutAccount(schoolId, { ...collection, method: form.collectionMethod, mode: form.mode });
+        toast.success('Collection details saved.');
       } catch (error) {
-        // The API has no payout route yet. The draft is already in localStorage,
-        // so say what is and is not true rather than claiming a save.
         if (error.code === 'PAYOUT_NOT_SUPPORTED') {
           setFormError(
-            'Your settlement account is saved on this device only — the API does not accept payout details yet. Nothing was lost, but re-enter them once payout support ships.'
+            'Your collection details are saved on this device only — the API does not accept them yet. Nothing was lost, but re-enter them once support ships.'
           );
-          toast.warning('Settlement details kept on this device; the server has no payout endpoint yet.');
+          toast.warning('Collection details kept on this device; the server has no endpoint yet.');
         } else {
-          setFormError(error.message || 'We could not save your settlement account.');
-          toast.error(error.message || 'We could not save your settlement account.');
+          setFormError(error.message || 'We could not save your collection details.');
+          toast.error(error.message || 'We could not save your collection details.');
           return false;
         }
       }
@@ -171,7 +178,7 @@ const Step2PaymentSetup = () => {
     <div>
       <StepHeader
         title="How should parents pay?"
-        description="Choose where the money lands. You can change this later from Settings — it does not affect your student roster."
+        description="Set up your school's own collection methods. Parents will pay directly into your accounts — SukuuPay does not hold or settle funds."
       />
 
       <div className="space-y-6">
@@ -180,35 +187,45 @@ const Step2PaymentSetup = () => {
         <div className="flex items-start gap-2.5 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3.5">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-700" aria-hidden="true" />
           <p className="text-[13px] font-semibold leading-relaxed text-brand-800">
-            SukuuPay collects every payment on your behalf. A small service fee is added to
-            each payment, and you&apos;ll receive weekly settlements every Monday for the
-            previous week&apos;s collections.
+            <strong>Self-Collection model:</strong> Your school collects payments directly using its own
+            credentials. Funds go straight to your bank account, Mobile Money wallet, or merchant terminal.
+            There is no weekly settlement — you receive money as parents pay.
+          </p>
+        </div>
+
+        <div className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+          <p className="text-[12px] font-medium leading-relaxed text-slate-600">
+            <strong>Platform-managed collections</strong> (where SukuuPay holds funds and settles weekly) is
+            a separate option available to verified schools. In this onboarding, you are setting up
+            <strong> self-collection</strong> — your school keeps full control of its money.
           </p>
         </div>
 
         <SectionCard
-          icon={Landmark}
-          title="Settlement account"
-          description="Where your collected money is paid out. Required in both modes — it is the fallback if a gateway payout is reversed."
+          icon={Wallet}
+          title="Collection method"
+          description="How parents will pay your school. Choose the method you want to receive funds through."
         >
           <fieldset className="mb-4">
             <legend className="mb-1.5 text-[12px] font-semibold text-slate-700">
-              Payout method
+              Collection method
             </legend>
             <div className="flex flex-wrap gap-2.5">
               {[
                 { value: 'bank', label: 'Bank account', icon: Landmark },
                 { value: 'momo', label: 'Mobile Money', icon: Smartphone },
+                { value: 'merchant', label: 'Merchant ID', icon: Building2 },
               ].map((option) => {
                 const Icon = option.icon;
-                const active = form.payoutMethod === option.value;
+                const active = form.collectionMethod === option.value;
                 return (
                   <button
                     key={option.value}
                     type="button"
                     role="radio"
                     aria-checked={active}
-                    onClick={() => update('payoutMethod', option.value)}
+                    onClick={() => update('collectionMethod', option.value)}
                     className={`flex items-center gap-2 rounded-lg border-2 px-4 py-2.5 text-sm font-bold transition-colors ${
                       active
                         ? 'border-brand-600 bg-brand-50 text-brand-800'
@@ -220,10 +237,21 @@ const Step2PaymentSetup = () => {
                   </button>
                 );
               })}
+              <button
+                type="button"
+                onClick={() => toast.info('Platform-managed collections (SukuuPay collects) will be available soon.')}
+                className="flex items-center gap-2 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-2.5 text-sm font-bold text-slate-500 transition-colors hover:border-slate-400 hover:bg-slate-100"
+              >
+                <Wallet className="h-4 w-4" aria-hidden="true" />
+                Platform-managed
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                  Coming soon
+                </span>
+              </button>
             </div>
           </fieldset>
 
-          {form.payoutMethod === 'bank' ? (
+          {form.collectionMethod === 'bank' && (
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
                 label="Account name"
@@ -262,7 +290,9 @@ const Step2PaymentSetup = () => {
                 ))}
               </SelectField>
             </div>
-          ) : (
+          )}
+
+          {form.collectionMethod === 'momo' && (
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
                 label="MoMo number"
@@ -270,11 +300,12 @@ const Step2PaymentSetup = () => {
                 type="tel"
                 inputMode="tel"
                 placeholder="0241234567"
-                value={form.momoNumber}
+                value={form.momoNumber || ''}
                 onChange={onChange('momoNumber')}
                 onBlur={blur('momoNumber')}
                 error={showError('momoNumber')}
                 required
+                hint="The number parents will send Mobile Money payments to"
               />
               <SelectField
                 label="Network"
@@ -294,10 +325,36 @@ const Step2PaymentSetup = () => {
             </div>
           )}
 
+          {form.collectionMethod === 'merchant' && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label="Merchant ID"
+                placeholder="e.g. MCH-12345"
+                value={form.merchantId}
+                onChange={onChange('merchantId')}
+                onBlur={blur('merchantId')}
+                error={showError('merchantId')}
+                required
+              />
+              <Field
+                label="Collection phone number"
+                icon={Smartphone}
+                type="tel"
+                inputMode="tel"
+                placeholder="0241234567 (optional)"
+                value={form.collectionPhone}
+                onChange={onChange('collectionPhone')}
+                onBlur={blur('collectionPhone')}
+                error={showError('collectionPhone')}
+                hint="Optional — the number parents can call for payment support"
+              />
+            </div>
+          )}
+
           <p className="mt-4 flex items-start gap-2 text-[12px] font-medium leading-relaxed text-slate-500">
             <Info className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            SukuuPay holds the collections and remits them to this account. You&apos;ll
-            receive weekly settlements every Monday.
+            Since your school collects funds directly, there is no weekly settlement — money arrives in
+            your account as parents pay. You can change these details later from Settings.
           </p>
         </SectionCard>
       </div>

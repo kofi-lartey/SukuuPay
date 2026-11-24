@@ -14,6 +14,10 @@ import {
   School,
   ShieldCheck,
   Smartphone,
+  FileCheck,
+  AlertTriangle,
+  Upload,
+  Clock,
 } from 'lucide-react';
 import PageHeader from '../../components/dashboard/PageHeader';
 import Card from '../../components/dashboard/ui/Card';
@@ -34,6 +38,10 @@ import {
   ACADEMIC_TERMS,
   GRADING_SYSTEMS,
   } from '../../services/settings';
+import {
+  getVerificationStatus,
+  uploadVerificationDocument,
+} from '../../services/verification';
 import { ROUTES } from '../../utils/constants';
 
 /** Human-readable labels for the payment gateway modes. */
@@ -108,6 +116,13 @@ const SECTIONS = [
       'Read-only. Subscription changes are made through billing, not from Settings. Invoices are not yet issued by this system — the API returns an empty list.',
   },
   {
+    id: 'verification',
+    label: 'Verification & Documents',
+    blurb: 'KYB documents, verification tier and compliance status.',
+    icon: FileCheck,
+    writable: true,
+  },
+  {
     id: 'security',
     label: 'Security & Compliance',
     blurb: 'Who can sign in, and what has been done.',
@@ -167,6 +182,7 @@ const Settings = () => {
 
   const [settings, setSettings] = useState(null);
   const [billing, setBilling] = useState(null);
+  const [verification, setVerification] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -199,6 +215,8 @@ const Settings = () => {
       ]);
       setSettings(nextSettings);
       setBilling(nextBilling);
+      const nextVerification = await getVerificationStatus(schoolId).catch(() => null);
+      setVerification(nextVerification);
       setProfile({
         name: nextSettings.profile?.name || '',
         type: nextSettings.profile?.type || '',
@@ -414,11 +432,51 @@ const Settings = () => {
         description="Manage school credentials, the academic calendar, notification preferences and subscription."
       />
 
-      {loadError && (
-        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold text-amber-800">
-          {loadError.message}
+      {verification && verification.verificationStatus !== 'VERIFIED' && (
+        <div className="mb-5 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
+          <FileCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-extrabold">School not verified</p>
+            <p className="mt-0.5 text-[12px]/[17px] font-medium">
+              Upload the required verification documents to unlock all features.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => selectSection('verification')}
+            className="shrink-0 text-[12px] font-extrabold underline"
+          >
+            Review
+          </button>
         </div>
       )}
+
+      {billing?.nextInvoice?.dueDate && (() => {
+        const due = new Date(billing.nextInvoice.dueDate);
+        const days = Math.ceil((due.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+        const urgent = days <= 7;
+        return (
+          <div
+            className={`mb-5 flex items-start gap-3 rounded-xl border px-4 py-3 ${
+              urgent
+                ? 'border-red-200 bg-red-50 text-red-800'
+                : 'border-amber-200 bg-amber-50 text-amber-800'
+            }`}
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-extrabold">
+                Subscription payment due {urgent ? 'soon' : 'upcoming'}
+              </p>
+              <p className="mt-0.5 text-[12px]/[17px] font-medium">
+                {((billing.nextInvoice.amount ?? 0) / 100).toFixed(2)} GHS due on {due.toLocaleDateString('en-GB')}
+                {days >= 0 ? ` (${days} day${days === 1 ? '' : 's'} remaining)` : ' (overdue)'}.
+              </p>
+            </div>
+            <Clock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          </div>
+        );
+      })()}
 
       <div className="flex flex-col gap-5 lg:flex-row">
         {/* The section rail. A tab list, so `aria-current` is meaningful and the
@@ -836,7 +894,7 @@ const Settings = () => {
                       {billing.subscription?.status}
                     </Badge>
                   </DetailRow>
-                  <DetailRow label="Monthly fee">{billing.subscription?.monthlyFee ?? 0} pesewas</DetailRow>
+                  <DetailRow label="Monthly fee">{((billing.subscription?.monthlyFee ?? 0) / 100).toFixed(2)} GHS</DetailRow>
                   <DetailRow label="Current period">
                     {billing.subscription?.currentPeriodStart
                       ? `${new Date(billing.subscription.currentPeriodStart).toLocaleDateString('en-GB')} – ${new Date(
@@ -852,13 +910,22 @@ const Settings = () => {
                   </DetailRow>
                   <DetailRow label="Next invoice">
                     {billing.nextInvoice?.dueDate
-                      ? `${billing.nextInvoice.amount} pesewas, due ${new Date(
+                      ? `${((billing.nextInvoice.amount ?? 0) / 100).toFixed(2)} GHS, due ${new Date(
                           billing.nextInvoice.dueDate
                         ).toLocaleDateString('en-GB')}`
                       : 'No invoice scheduled'}
                   </DetailRow>
                 </div>
               )}
+
+              <div className="mt-4 flex justify-end">
+                <Link
+                  to={ROUTES.DASHBOARD_UPGRADE}
+                  className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-lift transition-colors hover:bg-brand-800"
+                >
+                  Upgrade subscription
+                </Link>
+              </div>
 
               {/*
                 The invoice history is a hard `[]` in the service and storage is a
@@ -875,6 +942,106 @@ const Settings = () => {
                   is collected.
                 </p>
               </div>
+            </Card>
+          )}
+
+          {/* ── Verification & Documents ── */}
+          {section.id === 'verification' && (
+            <Card>
+              <h2 className="text-base font-extrabold text-ink">{section.label}</h2>
+              <p className="mt-0.5 text-[13px] font-medium text-slate-500">{section.blurb}</p>
+
+              {!verification ? (
+                <p className="mt-4 text-[13px] font-medium text-slate-500">Verification status is unavailable.</p>
+              ) : (
+                <>
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <Badge tone={verification.verificationStatus === 'VERIFIED' ? 'green' : verification.verificationStatus === 'PENDING_REVIEW' ? 'amber' : 'slate'}>
+                      {verification.verificationStatus || 'UNVERIFIED'}
+                    </Badge>
+                    <span className="text-[12px] font-semibold text-slate-500">
+                      Tier {verification.verificationTier ?? 0}
+                    </span>
+                    {verification.verifiedAt && (
+                      <span className="text-[12px] font-semibold text-slate-500">
+                        Verified {new Date(verification.verifiedAt).toLocaleDateString('en-GB')}
+                      </span>
+                    )}
+                  </div>
+
+                  {verification.rejectionReason && (
+                    <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[12px] font-semibold text-red-800">
+                      {verification.rejectionReason}
+                    </div>
+                  )}
+
+                  <div className="mt-5">
+                    <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Documents</p>
+                    <ul className="mt-2 divide-y divide-slate-100">
+                      {(verification.documents?.uploaded || []).map((doc) => (
+                        <li key={doc.type} className="flex items-center justify-between gap-3 py-2.5">
+                          <div className="min-w-0">
+                            <p className="text-[13px] font-extrabold text-ink">{doc.type.replace(/_/g, ' ')}</p>
+                            <p className="text-[11px] font-medium text-slate-500">
+                              Uploaded {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString('en-GB') : '—'}
+                            </p>
+                            {doc.reviewNote && (
+                              <p className="mt-0.5 text-[11px] font-medium text-slate-500">{doc.reviewNote}</p>
+                            )}
+                          </div>
+                          <Badge tone={doc.reviewStatus === 'APPROVED' ? 'green' : doc.reviewStatus === 'PENDING' ? 'amber' : 'red'}>
+                            {doc.reviewStatus === 'APPROVED' ? 'Verified' : doc.reviewStatus === 'PENDING' ? 'Pending' : 'Rejected'}
+                          </Badge>
+                        </li>
+                      ))}
+                      {!(verification.documents?.uploaded || []).length && (
+                        <li className="py-2.5 text-[13px] font-medium text-slate-500">No documents uploaded yet.</li>
+                      )}
+                    </ul>
+                  </div>
+
+                  {(verification.documents?.missing || []).length > 0 && (
+                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                      <p className="text-[12px] font-extrabold text-amber-800">Missing required documents</p>
+                      <p className="mt-0.5 text-[12px] font-medium text-amber-800">
+                        {(verification.documents.missing || []).map((d) => d.replace(/_/g, ' ')).join(', ')}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {['NASIA_LICENSE', 'RGD_CERTIFICATE', 'AUTHORIZATION_LETTER', 'HEADTEACHER_ID'].map((type) => (
+                      <label
+                        key={type}
+                        className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-[12px] font-bold text-slate-700 hover:bg-slate-50"
+                      >
+                        <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                        Upload {type.replace(/_/g, ' ')}
+                        <input
+                          type="file"
+                          className="sr-only"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) await (async () => {
+                              setSaving(true);
+                              try {
+                                await uploadVerificationDocument(schoolId, type, file);
+                                toast.success('Document uploaded for review.');
+                                await load();
+                              } catch (err) {
+                                toast.error(err.message);
+                              } finally {
+                                setSaving(false);
+                              }
+                            })();
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
             </Card>
           )}
 
@@ -983,8 +1150,8 @@ const Settings = () => {
                <p className="mt-3 text-[11px] font-medium text-slate-500">
                  Password change is applied directly without email verification.
                </p>
-             </Card>
-           )}
+</Card>
+            )}
 
            {lastModified && (
             <p className="text-[11px] font-medium text-slate-400">Last modified {lastModified}</p>

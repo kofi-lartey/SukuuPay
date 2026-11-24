@@ -26,6 +26,7 @@ import useOnboardingProgress from '../../hooks/useOnboardingProgress';
 import useToast from '../../hooks/useToast';
 import { getSchool, updateSchool, provisionMySchool, joinSchoolByCode } from '../../services/school';
 import { uploadSchoolLogo } from '../../services/upload';
+import KybDocumentUpload from '../../components/onboarding/KybDocumentUpload';
 import { useAuth } from '../../context/AuthContext';
 import { GHANA_REGIONS, GHANA_SCHOOL_TYPES, canCreateSchool } from '../../utils/constants';
 import { isValidDigitalAddress, isInsideGhana } from '../../utils/ghanaPostGps';
@@ -45,6 +46,10 @@ const EMPTY = {
   city: '',
   region: '',
   gpsAddress: '',
+  emisCode: '',
+  nasiaRegistrationNumber: '',
+  schoolLevel: '',
+  schoolOwnership: '',
   // Coordinates live outside `form` — they are an object on the School model, not
   // a flat field, and mixing them in here would let a half-updated object reach
   // `toPayload`. `label` is the place name shown on the picker's summary line;
@@ -121,7 +126,7 @@ const validate = (form) => {
 };
 
 /** Strip the optional blanks so Joi does not receive `""` for a number field. */
-const toPayload = (form) => {
+const toPayload = (form, selectedMatch = null, manualEntry = false) => {
   const payload = {
     name: form.name.trim(),
     type: form.type,
@@ -134,7 +139,16 @@ const toPayload = (form) => {
   if (form.yearFounded !== '') payload.yearFounded = Number(form.yearFounded);
   if (form.motto.trim()) payload.motto = form.motto.trim();
   if (form.website.trim()) payload.website = form.website.trim();
-  if (form.gpsAddress.trim()) payload.gpsAddress = form.gpsAddress.trim();
+  if (form.emisCode?.trim()) payload.emisCode = form.emisCode.trim();
+  if (form.nasiaRegistrationNumber?.trim()) payload.nasiaRegistrationNumber = form.nasiaRegistrationNumber.trim();
+  if (form.schoolLevel) payload.schoolLevel = form.schoolLevel;
+  if (form.schoolOwnership) payload.schoolOwnership = form.schoolOwnership;
+  if (selectedMatch) {
+    payload.externalDirectoryId = selectedMatch.externalId;
+    payload.externalDirectorySource = selectedMatch.source || 'ghana_api';
+  } else if (manualEntry) {
+    payload.externalDirectorySource = 'manual';
+  }
   // No `logo` key. Neither school schema declares one, so `stripUnknown`
   // discarded it on every save and the only thing that ever set `School.logo`
   // was the upload endpoint — which sets it server-side itself. Sending it here
@@ -462,6 +476,71 @@ const Step1SchoolProfile = () => {
   const [joinOpen, setJoinOpen] = useState(false);
   const [joinRequested, setJoinRequested] = useState(false);
 
+  // ── Smart school search state ──
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedMatch, setSelectedMatch] = useState(null);
+  const [manualEntry, setManualEntry] = useState(false);
+  const [searchDebounceTimer, setSearchDebounceTimer] = useState(null);
+  const searchInputRef = useRef(null);
+
+  const performSearch = useCallback(async (query) => {
+    if (!query || query.trim().length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    try {
+      const results = await searchSchoolDirectory({ q: query.trim() });
+      setSearchResults(results || []);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  const handleSearchChange = useCallback((value) => {
+    setSearchQuery(value);
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    const timer = setTimeout(() => {
+      performSearch(value);
+    }, 350);
+    setSearchDebounceTimer(timer);
+  }, [searchDebounceTimer, performSearch]);
+
+  const selectSchoolMatch = useCallback((match) => {
+    setSelectedMatch(match);
+    setForm((current) => ({
+      ...current,
+      name: match.name || current.name,
+      region: match.region || current.region,
+    }));
+    setLocation((current) => current);
+    setSearchResults([]);
+    setSearchQuery(match.name);
+    // Auto-link directory match if school already exists
+    if (schoolId) {
+      linkDirectoryMatch(schoolId, {
+        externalId: match.externalId,
+        source: match.source || 'ghana_api',
+        name: match.name,
+        region: match.region,
+        district: match.district,
+        level: match.level,
+        category: match.category,
+      }).catch(() => {});
+    }
+  }, [schoolId]);
+
+  const clearSearch = useCallback(() => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setSelectedMatch(null);
+    setManualEntry(false);
+  }, []);
+
   /**
    * Coordinates, kept beside `form` rather than inside it.
    *
@@ -516,6 +595,10 @@ const Step1SchoolProfile = () => {
             city: current.city || school.city || '',
             region: current.region || school.region || '',
             gpsAddress: current.gpsAddress || school.gpsAddress || '',
+            emisCode: current.emisCode || school.emisCode || '',
+            nasiaRegistrationNumber: current.nasiaRegistrationNumber || school.nasiaRegistrationNumber || '',
+            schoolLevel: current.schoolLevel || school.schoolLevel || '',
+            schoolOwnership: current.schoolOwnership || school.schoolOwnership || '',
           }));
           // Restored separately from the flat fields so a stored coordinate pair
           // survives a refresh. Without this a bursar who dropped a pin would lose
@@ -606,7 +689,7 @@ const Step1SchoolProfile = () => {
     try {
       if (mode === 'create') {
         const { school, user: updatedUser } = await provisionMySchool(
-          toPayload(effectiveForm)
+          toPayload(effectiveForm, selectedMatch, manualEntry)
         );
 
         // Two things must happen before the wizard advances: the guard needs the
@@ -650,7 +733,7 @@ const Step1SchoolProfile = () => {
         return false;
       }
 
-      await updateSchool(schoolId, toPayload(effectiveForm));
+      await updateSchool(schoolId, toPayload(effectiveForm, selectedMatch, manualEntry));
       toast.success('School profile saved.');
       return true;
     } catch (error) {
@@ -844,6 +927,119 @@ const Step1SchoolProfile = () => {
           <div className="space-y-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-soft sm:p-7">
             {formError && <FormAlert tone="error">{formError}</FormAlert>}
 
+            {/* Smart School Search Section */}
+            {!manualEntry && (
+              <div className="space-y-3">
+                <SectionHeading>Find your school</SectionHeading>
+                <div className="relative">
+                  <div className="relative">
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => handleSearchChange(e.target.value)}
+                      placeholder="Search your school in Ghana..."
+                      className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-[13px] font-medium text-ink placeholder:font-normal placeholder:text-slate-500 transition-colors focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700/30"
+                    />
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                      <School className="h-4 w-4" aria-hidden="true" />
+                    </div>
+                    {searching && (
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                        <LoaderCircle className="h-4 w-4 animate-spin text-slate-400" aria-hidden="true" />
+                      </div>
+                    )}
+                  </div>
+
+                  {searchResults.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg">
+                      {searchResults.map((match) => (
+                        <button
+                          key={match.externalId}
+                          type="button"
+                          onClick={() => selectSchoolMatch(match)}
+                          className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[13px] font-bold text-ink">{match.name}</p>
+                            <p className="mt-0.5 text-[11px] font-medium text-slate-500">
+                              {match.district ? `${match.district}, ` : ''}{match.region} · {match.level} · {match.category}
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                            Matched
+                          </span>
+                        </button>
+                      ))}
+                      <div className="border-t border-slate-100 px-4 py-2">
+                        <button
+                          type="button"
+                          onClick={() => setManualEntry(true)}
+                          className="text-[12px] font-bold text-brand-700 hover:underline"
+                        >
+                          Can't find your school? Enter details manually
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedMatch && (
+                    <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                      <CheckCircle2 className="h-4 w-4 text-blue-600" aria-hidden="true" />
+                      <span className="text-[12px] font-bold text-blue-700">
+                        Matched with Ghana School Directory
+                      </span>
+                      <button
+                        type="button"
+                        onClick={clearSearch}
+                        className="ml-auto text-[11px] font-bold text-slate-500 hover:text-slate-700"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  )}
+
+                  {searchQuery.trim().length >= 2 && searchResults.length === 0 && !searching && !selectedMatch && (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                      <p className="text-[12px] font-medium text-slate-600">
+                        No matching schools found in the directory.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setManualEntry(true)}
+                        className="mt-1 text-[12px] font-bold text-brand-700 hover:underline"
+                      >
+                        Enter details manually instead
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setManualEntry(true)}
+                  className="text-[12px] font-bold text-slate-500 hover:text-slate-700"
+                >
+                  Can't find your school? Enter details manually →
+                </button>
+              </div>
+            )}
+
+            {manualEntry && (
+              <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5">
+                <span className="text-[12px] font-bold text-amber-800">
+                  Manual entry mode — your school will be marked as unverified
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setManualEntry(false)}
+                  className="text-[11px] font-bold text-amber-700 hover:underline"
+                >
+                  Back to search
+                </button>
+              </div>
+            )}
+
             <LogoPicker
               logoUrl={previewLogoUrl || logoUrl}
               busy={logoBusy || saving}
@@ -873,6 +1069,26 @@ const Step1SchoolProfile = () => {
                   error={showError('name')}
                   required
                   maxLength={150}
+                />
+
+                <Field
+                  label="EMIS Code"
+                  icon={Hash}
+                  placeholder="e.g. 001001"
+                  value={form.emisCode || ''}
+                  onChange={update('emisCode')}
+                  onBlur={blur('emisCode')}
+                  hint="Optional · Found on your school's EMIS records"
+                />
+
+                <Field
+                  label="NaSIA Registration Number"
+                  icon={Hash}
+                  placeholder="e.g. NASIA/GAR/2024/001"
+                  value={form.nasiaRegistrationNumber || ''}
+                  onChange={update('nasiaRegistrationNumber')}
+                  onBlur={blur('nasiaRegistrationNumber')}
+                  hint="Optional · From your NaSIA certificate"
                 />
 
                 <div>
@@ -1099,9 +1315,11 @@ const Step1SchoolProfile = () => {
             )}
           </div>
 
-          <p className="mt-3 text-center text-[12px] font-semibold text-slate-400 sm:hidden">
-            Use the button below to continue.
-          </p>
+          {mode === 'edit' && schoolId && (
+            <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-soft sm:p-7">
+              <KybDocumentUpload schoolId={schoolId} />
+            </div>
+          )}
           {saving && (
             <p className="mt-3 text-center text-[12px] font-bold text-brand-700" role="status">
               {mode === 'create' ? 'Setting up your school…' : 'Saving your school profile…'}

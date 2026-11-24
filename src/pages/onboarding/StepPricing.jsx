@@ -117,14 +117,15 @@ const StepPricing = () => {
                 : `${suggested.name} is the usual starting point.`}
             </p>
             <p className="mt-1 text-[13px] font-medium leading-relaxed text-brand-800">
-              {suggested.capacity} · {GHS(suggested.termly)} per term. Your bursar can change this
-              later from Settings.
+              {suggested.free
+                ? 'Free for 7 days — no credit card required.'
+                : `${suggested.capacity} · ${GHS(suggested.termly)} per term. Your bursar can change this later from Settings.`}
             </p>
           </div>
         </div>
       )}
 
-      <div className="grid gap-5 md:grid-cols-3">
+      <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
         {PRICING_PLANS.map((plan) => {
           const isSuggested = suggested?.name === plan.name;
 
@@ -147,12 +148,23 @@ const StepPricing = () => {
               <p className="mt-1 text-[12px] font-semibold text-slate-500">{plan.capacity}</p>
 
               <p className="mt-4 text-2xl font-extrabold text-ink">
-                {GHS(plan.termly)}
-                <span className="ml-1 text-[12px] font-bold text-slate-500">/ term</span>
+                {plan.free ? (
+                  'Free'
+                ) : (
+                  <>
+                    {GHS(plan.termly)}
+                    <span className="ml-1 text-[12px] font-bold text-slate-500">/ term</span>
+                  </>
+                )}
               </p>
-              <p className="mt-1 text-[12px] font-medium text-slate-500">
-                or {GHS(plan.monthly)} monthly · {plan.termNote}
-              </p>
+              {!plan.free && (
+                <p className="mt-1 text-[12px] font-medium text-slate-500">
+                  or {GHS(plan.monthly)} monthly · {plan.termNote}
+                </p>
+              )}
+              {plan.free && (
+                <p className="mt-1 text-[12px] font-medium text-slate-500">{plan.termNote}</p>
+              )}
 
               <ul className="mt-5 flex-1 space-y-2">
                 {plan.features.slice(0, 4).map((feature) => (
@@ -163,22 +175,18 @@ const StepPricing = () => {
                 ))}
               </ul>
 
-              {/*
-                Pay via Mobile Money for this tier. The endpoint creates a
-                pending `ManualPayment`, suspends the subscription, and returns
-                a reference code. The school pays `05576655008` and an
-                administrator approves before access activates.
-              */}
-              <button
-                onClick={() => {
-                  setPayingPlan(plan.name);
-                  navigate(`${ROUTES.MANUAL_PAYMENT}?plan=${plan.name.toLowerCase()}&monthlyFee=${plan.monthly * 100}`);
-                }}
-                className="mt-5 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-4 py-2.5 text-[13px] font-bold text-slate-700 transition-colors hover:bg-slate-50"
-              >
-                Pay via Mobile Money
-                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
+              {!plan.free && (
+                <button
+                  onClick={() => {
+                    setPayingPlan(plan.name);
+                    navigate(`${ROUTES.MANUAL_PAYMENT}?plan=${plan.name.toLowerCase()}&monthlyFee=${plan.monthly * 100}`);
+                  }}
+                  className="mt-5 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-4 py-2.5 text-[13px] font-bold text-slate-700 transition-colors hover:bg-slate-50"
+                >
+                  Pay via Mobile Money
+                  <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              )}
             </div>
           );
         })}

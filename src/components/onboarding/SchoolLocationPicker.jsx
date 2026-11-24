@@ -18,6 +18,12 @@ import {
   reverseGeocode,
   suggestPlaces,
 } from '../../utils/googleMaps';
+import {
+  isNominatimAvailable,
+  suggestPlacesNominatim,
+  resolvePlaceNominatim,
+  reverseGeocodeNominatim,
+} from '../../utils/nominatim';
 
 /** Keystrokes to wait before asking Google. Long enough to skip most of a burst. */
 const DEBOUNCE_MS = 250;
@@ -57,7 +63,7 @@ const SchoolLocationPicker = ({
   const [resolving, setResolving] = useState(false);
   const [message, setMessage] = useState('');
 
-  const searchEnabled = isMapsConfigured();
+  const searchEnabled = true;
   // A session token groups one burst of keystrokes into a single billable
   // session. Created on focus, terminated after a pick, per Google's guidance.
   const sessionToken = useRef(null);
@@ -114,10 +120,15 @@ const SchoolLocationPicker = ({
       if (!sessionToken.current) newSession();
 
       try {
-        const results = await suggestPlaces(trimmed, {
-          sessionToken: sessionToken.current,
-          centre: hasPin ? { lat: latitude, lng: longitude } : null,
-        });
+        let results;
+        if (isMapsConfigured()) {
+          results = await suggestPlaces(trimmed, {
+            sessionToken: sessionToken.current,
+            centre: hasPin ? { lat: latitude, lng: longitude } : null,
+          });
+        } else {
+          results = await suggestPlacesNominatim(trimmed);
+        }
         // A slower earlier request must not clobber a newer one.
         if (seq !== requestSeq.current) return;
         setSuggestions(results);
@@ -146,7 +157,12 @@ const SchoolLocationPicker = ({
       setResolving(true);
       setMessage('');
       try {
-        const place = await resolvePlace(suggestion.placeId, { sessionToken: sessionToken.current });
+        let place;
+        if (isMapsConfigured()) {
+          place = await resolvePlace(suggestion.placeId, { sessionToken: sessionToken.current });
+        } else {
+          place = await resolvePlaceNominatim(suggestion.placeId, suggestion.mainText);
+        }
         endSession();
         if (!isInsideGhana(place.latitude, place.longitude)) {
           // Should not happen behind `componentRestrictions: { country: 'gh' }`,
@@ -194,6 +210,20 @@ const SchoolLocationPicker = ({
       if (isMapsConfigured()) {
         try {
           const place = await reverseGeocode(position.lat, position.lng);
+          if (place?.label) {
+            onChange({
+              latitude: position.lat,
+              longitude: position.lng,
+              source: 'device',
+              label: place.label,
+            });
+          }
+        } catch {
+          // Coordinates are already set; a missing label does not undo that.
+        }
+      } else {
+        try {
+          const place = await reverseGeocodeNominatim(position.lat, position.lng);
           if (place?.label) {
             onChange({
               latitude: position.lat,
@@ -360,13 +390,6 @@ const SchoolLocationPicker = ({
           </ul>
         )}
       </div>
-
-      {!searchEnabled && (
-        <p className="mt-2 text-[11px] font-medium leading-snug text-slate-500">
-          Address search needs <span className="font-bold">VITE_GOOGLE_MAPS_API_KEY</span>. Until
-          then, “Use my current location” still works, and you can type coordinates below.
-        </p>
-      )}
 
       {message && (
         <p role="status" className="mt-2 text-[11px] font-semibold text-amber-700">

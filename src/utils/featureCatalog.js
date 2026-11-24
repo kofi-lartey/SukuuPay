@@ -154,13 +154,22 @@ export const MARKETING_TO_SERVER = {
  */
 export const tierKeyForServerPlan = (serverPlan) => {
   if (!serverPlan) return null;
+  const plan = String(serverPlan).toLowerCase();
+  /*
+   * `subscription.plan` holds BOTH the legacy server aliases and the published
+   * marketing names: the School model enum accepts `starter`/`growth`/`campus`
+   * alongside `trial`/`basic`/`standard`/`premium`/`enterprise`, and the
+   * manual-payment flow stores the marketing name directly. Resolving only the
+   * aliases left a school on `plan: "starter"` with no tier — and therefore no
+   * entitlements at all — so both spellings are mapped here.
+   */
+  const aliases = {
+    starter: ['trial', 'free', 'basic', 'starter'],
+    growth: ['standard', 'premium', 'growth'],
+    campus: ['enterprise', 'campus'],
+  };
   for (const tierKey of TIER_ORDER) {
-    const serverPlans = {
-      starter: ['trial', 'basic'],
-      growth: ['standard', 'premium'],
-      campus: ['enterprise'],
-    }[tierKey];
-    if (serverPlans.includes(serverPlan)) return tierKey;
+    if (aliases[tierKey].includes(plan)) return tierKey;
   }
   return null;
 };

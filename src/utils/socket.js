@@ -18,6 +18,7 @@ const bindCommunityEvents = (instance) => {
   instance.on('community:comment_created', (data) => emitToWindow('community:comment_created', data));
   instance.on('community:reaction', (data) => emitToWindow('community:reaction', data));
   instance.on('community:club_updated', (data) => emitToWindow('community:club_updated', data));
+  instance.on('verification:updated', (data) => emitToWindow('verification:updated', data));
 };
 
 /**

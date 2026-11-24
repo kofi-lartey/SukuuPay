@@ -78,13 +78,16 @@ export const useDashboardOverview = (schoolId) => {
         const s = school.value;
         const term = s.academic?.currentTerm || '';
         const academicYear = s.academic?.currentYear || '';
-        next.school = {
-          name: s.name || '',
-          city: s.city || '',
-          schoolCode: s.schoolCode || '',
-          subscription: s.subscription || {},
-          featureFlags: s.featureFlags || {},
-        };
+next.school = {
+        name: s.name || '',
+        city: s.city || '',
+        schoolCode: s.schoolCode || '',
+        subscription: s.subscription || {},
+        featureFlags: s.featureFlags || {},
+        verificationStatus: s.verificationStatus || 'UNVERIFIED',
+        verificationTier: s.verificationTier ?? 0,
+        rejectionReason: s.rejectionReason || '',
+      };
         next.term = {
           term,
           academicYear,

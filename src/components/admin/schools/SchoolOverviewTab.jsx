@@ -232,7 +232,27 @@ const SchoolOverviewTab = ({ school, record, onEditMarkup }) => {
               { label: 'Type', value: school.type || '—' },
               { label: 'Region', value: school.region || '—' },
               { label: 'City', value: school.city || '—' },
-              { label: 'Address', value: school.address || '—' },
+               { label: 'Address', value: school.address || '—' },
+               { label: 'GPS Address', value: school.gpsAddress ? (
+                 <a
+                   href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(school.gpsAddress)}`}
+                   target="_blank"
+                   rel="noreferrer noopener"
+                   className="text-brand-700 hover:underline"
+                 >
+                   {school.gpsAddress}
+                 </a>
+               ) : '—' },
+               { label: 'Coordinates', value: school.location?.latitude ? (
+                 <a
+                   href={`https://www.google.com/maps/search/?api=1&query=${school.location.latitude},${school.location.longitude}`}
+                   target="_blank"
+                   rel="noreferrer noopener"
+                   className="text-brand-700 hover:underline"
+                 >
+                   {school.location.latitude}, {school.location.longitude}
+                 </a>
+               ) : '—' },
               { label: 'Phone', value: school.phone || '—' },
               { label: 'Email', value: school.email || '—' },
               { label: 'Website', value: school.website || '—' },
@@ -279,9 +299,17 @@ const SchoolOverviewTab = ({ school, record, onEditMarkup }) => {
             <Fact
               label="Onboarded"
               value={
-                record?.onboardingCompletedAt ? formatDate(record.onboardingCompletedAt) : 'Not completed'
+                record?.onboardingCompletedAt
+                  ? formatDate(record.onboardingCompletedAt)
+                  : school?.name && school?.region
+                    ? formatDate(school.createdAt)
+                    : 'Not completed'
               }
-              tone={record?.onboardingCompletedAt ? 'text-ink' : 'text-amber-600'}
+              tone={
+                record?.onboardingCompletedAt || (school?.name && school?.region)
+                  ? 'text-ink'
+                  : 'text-amber-600'
+              }
             />
           </dl>
         </Card>

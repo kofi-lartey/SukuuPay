@@ -46,7 +46,7 @@ const ManualPayment = () => {
       });
       setInitiated(true);
       setReferenceCode(result.referenceCode || '');
-      setExpectedAmount(result.expectedAmount || monthlyFeeFromUrl / 100);
+      setExpectedAmount((result.expectedAmount || monthlyFeeFromUrl) / 100);
       setPayeePhone(result.payeePhone || '05576655008');
     } catch (err) {
       setError(err.message || 'We could not start your payment. Please try again.');
@@ -177,6 +177,20 @@ as the payment narration when you send Mobile Money to{' '}
             {error}
           </p>
         )}
+
+        <div className="mt-6 border-t border-slate-100 pt-4">
+          <p className="text-[12px] font-medium text-slate-500">
+            Already paid?{' '}
+            <button
+              type="button"
+              onClick={() => navigate(ROUTES.DASHBOARD)}
+              className="font-bold text-brand-700 hover:underline"
+            >
+              Go to your dashboard
+            </button>{' '}
+            — your subscription activates after an administrator verifies the payment.
+          </p>
+        </div>
       </div>
     );
   }
