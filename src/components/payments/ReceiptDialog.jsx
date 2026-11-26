@@ -90,6 +90,80 @@ const RecipientChip = ({ kind, value, onEdit, disabled, missing }) => {
 // Main dialog
 // ─────────────────────────────────────────────────────────────────────────────
 
+const money = (value) =>
+  `GH₵ ${((Number(value) || 0) / 100).toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const buildReceiptHtml = (receipt, student, school) => {
+  const receiptRef = receipt?.receiptNumber || receipt?.reference || '—';
+  const date = receipt?.date || receipt?.createdAt || new Date();
+  const d = new Date(date);
+  const dateStr = Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const studentName = student?.studentName || '—';
+  const studentId = student?.studentId || '—';
+  const className = student?.studentClass || '';
+  const schoolName = school?.name || 'School';
+  const schoolAddress = [school?.address, school?.city].filter(Boolean).join(', ');
+  const method = receipt?.paymentMethod === 'momo' ? 'Mobile Money' : receipt?.paymentMethod || 'Standard';
+  const amount = Number(receipt?.amount || 0);
+  const totalFees = Number(receipt?.totalFees ?? amount);
+  const paidToDate = Number(receipt?.paidToDate ?? amount);
+  const balance = Math.max(0, totalFees - paidToDate);
+  const description = receipt?.description || receipt?.notes || 'School Fee Payment';
+  const lines = Array.isArray(receipt?.feesBreakdown) && receipt.feesBreakdown.length
+    ? receipt.feesBreakdown.map((l) => `<tr><td class="c-no">1</td><td>${l.description || l.label || 'Fee Item'}</td><td class="c-num">1</td><td class="c-num">${money(l.amount)}</td><td class="c-num">${money(l.amount)}</td></tr>`).join('')
+    : `<tr><td class="c-no">1</td><td>${description}</td><td class="c-num">1</td><td class="c-num">${money(amount)}</td><td class="c-num">${money(amount)}</td></tr>`;
+  const emptyRows = '<tr class="empty"><td colspan="5">&nbsp;</td></tr>'.repeat(3);
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Receipt ${receiptRef}</title><style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Century Gothic", "Futura", "Segoe UI", Arial, sans-serif; color: #4a5a52; background: #fff; }
+  .page { width: 210mm; min-height: 297mm; padding: 18mm 16mm; position: relative; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; }
+  h1 { font-size: 52px; font-weight: 300; letter-spacing: 8px; margin: 0; }
+  .logo { width: 80px; height: 80px; border-radius: 50%; background: #c9dcc4; display: flex; align-items: center; justify-content: center; font-size: 11px; overflow: hidden; }
+  .logo img { width: 100%; height: 100%; object-fit: cover; }
+  .bar { background: #c9dcc4; display: flex; justify-content: space-between; padding: 5px 8px; margin: 22px 0 18px; font-size: 11px; letter-spacing: 1px; }
+  .bar b { font-weight: 700; }
+  .cols { display: flex; gap: 24px; font-size: 12px; line-height: 1.7; }
+  .cols > div { flex: 1; }
+  .cols h4 { margin: 0 0 4px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
+  .muted { opacity: .8; }
+  .pm span { display: block; padding-left: 16px; position: relative; }
+  .pm span.on::before { content: "X"; position: absolute; left: 0; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; margin-top: 26px; font-size: 12px; }
+  thead th { text-align: left; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; padding: 8px 6px; border-top: 3px solid #c9dcc4; border-bottom: 3px solid #c9dcc4; }
+  td { padding: 10px 6px; border-bottom: 1px solid #c9dcc4; }
+  .c-no { width: 8%; }
+  .c-num, th.c-num { text-align: right; }
+  .totals { margin: 18px 0 0 auto; width: 60%; font-size: 12px; }
+  .totals div { display: flex; justify-content: space-between; padding: 4px 8px; }
+  .totals .grand { background: #c9dcc4; font-weight: 700; letter-spacing: 1px; }
+  .totals .balance { background: #4a5a52; color: #fff; font-weight: 700; letter-spacing: 1px; margin-top: 6px; }
+  .notes { margin-top: 26px; font-size: 11.5px; line-height: 1.6; }
+  .thanks { text-align: center; letter-spacing: 5px; font-size: 20px; margin-top: 50px; }
+  @media print { .page { box-shadow: none; } }
+  </style></head><body><div class="page">
+  <div class="head"><h1>RECEIPT</h1>${school?.logo ? `<div class="logo"><img src="${school.logo}" alt="logo" /></div>` : '<div class="logo">LOGO</div>'}</div>
+  <div class="bar"><span><b>RECEIPT REF.</b> ${receiptRef}</span><span><b>DATE:</b> ${dateStr}</span></div>
+  <div class="cols">
+    <div><h4>${schoolName}</h4><div class="muted">${schoolAddress}</div></div>
+    <div><h4>Paid To</h4><div>${studentName}</div><div class="muted">ID: ${studentId} • ${className}</div></div>
+    <div class="pm"><h4>Payment Method</h4><span class="on">${method}</span><span>Cash</span><span>Bank Transfer</span><span>Other</span></div>
+  </div>
+  <table><thead><tr><th>No.</th><th>Description</th><th class="c-num">Qty</th><th class="c-num">Price</th><th class="c-num">Total</th></tr></thead><tbody>${lines}${emptyRows}</tbody></table>
+  <div class="totals">
+    <div><span>SUB TOTAL</span><span>${money(amount)}</span></div>
+    <div><span>TAX / DISCOUNT</span><span>GH₵ 0.00</span></div>
+    <div class="grand"><span>GRAND TOTAL</span><span>${money(amount)}</span></div>
+    <div><span>TOTAL FEES</span><span>${money(totalFees)}</span></div>
+    <div><span>PAID TO DATE</span><span>${money(paidToDate)}</span></div>
+    <div class="balance"><span>REMAINING BALANCE</span><span>${money(balance)}</span></div>
+  </div>
+  <div class="notes"><b>Notes</b><br>Thank you for your payment. This receipt confirms ${balance > 0 ? 'part payment' : 'full settlement'}. The remaining balance is shown above.</div>
+  <div class="thanks">THANK YOU</div>
+</div></body></html>`;
+};
+
 const ReceiptDialog = ({ open, paymentId, onClose }) => {
   const toast = useToast();
   const [receipt, setReceipt] = useState(null);
@@ -186,8 +260,8 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
       return;
     }
     const outcome = await run('email', () => emailReceipt(paymentId), {
-      success: () => '',
-      sent: (to) => `Receipt sent to ${to}`,
+      success: () => 'Opening your email client',
+      sent: (to) => `Opening email to ${to}`,
       failure: 'Could not email the receipt.',
     });
     if (outcome.ok) setSentVia((s) => ({ ...s, email: true }));
@@ -204,8 +278,8 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
     }
     setEmailError(null);
     const outcome = await run('email', () => emailReceipt(paymentId, candidate), {
-      success: () => '',
-      sent: (to) => `Receipt sent to ${to}`,
+      success: () => 'Opening your email client',
+      sent: (to) => `Opening email to ${to}`,
       failure: 'Could not email the receipt.',
     });
     if (outcome.ok) {
@@ -355,181 +429,12 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
       )}
 
       {!loading && !error && receipt && (
-        <div className="relative font-sans text-slate-800">
-          {/* NO INNER SCROLL — the Modal itself owns the scroll. */}
-
-          {/* RECEIPT PAPER CONTAINER */}
-          <div className="relative mx-auto my-2 max-w-[600px] overflow-hidden bg-white shadow-md border border-slate-200 rounded-sm text-[12px]">
-            
-            {/* ACCENT SHAPES (SYSTEM COLOURS) */}
-            <div className="absolute top-0 right-0 w-24 h-24 bg-brand-500 [clip-path:polygon(100%_0,0_0,100%_100%)] z-0" />
-            <div className="absolute bottom-0 left-0 w-20 h-20 bg-brand-500 [clip-path:polygon(0_100%,0_0,100%_100%)] z-0" />
-            <div className="absolute top-0 left-0 w-3 h-full bg-slate-900 z-10" />
-
-            {/* DOCUMENT CONTENT */}
-            <div className="relative z-20 pl-8 pr-6 py-8 flex flex-col justify-between min-h-[640px]">
-              
-              <div>
-                {/* 1. TOP HEADER */}
-                <div className="flex justify-between items-start mb-8">
-                  {/* School Brand/Logo */}
-                  <div className="flex items-center gap-3">
-                    {school.logo ? (
-                      <img src={school.logo} alt="" className="h-12 w-12 object-contain" />
-                    ) : (
-                      <div className="h-10 w-10 rounded bg-slate-900 text-white flex items-center justify-center font-bold text-lg">
-                        {(school.name || 'S').charAt(0)}
-                      </div>
-                    )}
-                    <div>
-                      <h1 className="font-extrabold text-[16px] leading-tight text-slate-900 tracking-tight">
-                        {school.name || 'School Name'}
-                      </h1>
-                      <p className="text-[10px] text-slate-500">
-                        {[school.address, school.city].filter(Boolean).join(', ')}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Receipt Title & Date */}
-                  <div className="text-right pr-6">
-                    <h2 className="text-[26px] font-black uppercase tracking-wider text-brand-600 leading-none">
-                      RECEIPT
-                    </h2>
-                    <p className="text-[11px] font-medium text-slate-600 mt-1">
-                      {receiptDate(receipt.date)?.split(',')[0] || '—'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* 2. RECIPIENT & RECEIPT METADATA BLOCK */}
-                <div className="flex justify-between items-end mb-8 text-[11px]">
-                  <div>
-                    <p className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                      NO / RECEIPT REF.
-                    </p>
-                    <p className="font-mono font-extrabold text-slate-900 text-[12px]">
-                      {receipt.receiptNumber || receipt.reference || '—'}
-                    </p>
-                  </div>
-
-                  <div className="text-right">
-                    <p className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                      PAID TO
-                    </p>
-                    <p className="font-extrabold text-[13px] text-slate-900 leading-snug">
-                      {student.studentName || '—'}
-                    </p>
-                    <p className="text-slate-500 text-[10.5px]">
-                      ID: <span className="font-mono font-semibold">{student.studentId || '—'}</span>
-                      {student.studentClass ? ` • ${student.studentClass}` : ''}
-                    </p>
-                  </div>
-                </div>
-
-                {/* 3. ITEM / BREAKDOWN TABLE */}
-                <div className="mb-8">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-y-2 border-slate-900 text-[10px] uppercase font-black tracking-wider text-slate-900">
-                        <th className="py-2 px-1">DESCRIPTION</th>
-                        <th className="py-2 px-1 text-center w-16">QTY</th>
-                        <th className="py-2 px-1 text-right w-24">PRICE</th>
-                        <th className="py-2 px-1 text-right w-28">TOTAL</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200 text-[11.5px]">
-                      {breakdown.length > 0 ? (
-                        breakdown.map((line, index) => (
-                          <tr key={index}>
-                            <td className="py-3 px-1 font-semibold text-slate-800">
-                              {line.description || line.label || 'Fee Item'}
-                            </td>
-                            <td className="py-3 px-1 text-center font-medium text-slate-600">1</td>
-                            <td className="py-3 px-1 text-right font-mono text-slate-600">
-                              {formatCedi(line.amount)}
-                            </td>
-                            <td className="py-3 px-1 text-right font-mono font-bold text-slate-900">
-                              {formatCedi(line.amount)}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td className="py-3 px-1 font-semibold text-slate-800">
-                            {receipt.description || receipt.notes || 'School Fee Payment'}
-                          </td>
-                          <td className="py-3 px-1 text-center font-medium text-slate-600">1</td>
-                          <td className="py-3 px-1 text-right font-mono text-slate-600">
-                            {formatCedi(receipt.amount)}
-                          </td>
-                          <td className="py-3 px-1 text-right font-mono font-bold text-slate-900">
-                            {formatCedi(receipt.amount)}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                  <div className="border-b border-slate-900 w-full mt-1" />
-                </div>
-
-                {/* 4. TOTALS & PAYMENT DETAILS */}
-                <div className="flex justify-between items-start gap-4 mb-6">
-                  {/* Payment Method & Notes */}
-                  <div className="max-w-[240px] space-y-3">
-                    <div>
-                      <h4 className="font-bold text-[11px] text-slate-900 uppercase">Payment Method</h4>
-                      <p className="text-[10.5px] text-slate-600 mt-0.5 uppercase font-medium">
-                        {receipt.paymentMethod === 'momo'
-                          ? 'Mobile Money'
-                          : receipt.paymentMethod || 'Standard'}
-                      </p>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-[11px] text-slate-900 uppercase">Notes</h4>
-                      <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
-                        Thank you for your payment. This receipt confirms full settlement for the fees listed above.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Calculation Summary */}
-                  <div className="w-56 space-y-2 text-right">
-                    <div className="flex justify-between text-[11px]">
-                      <span className="font-medium text-slate-600">Sub Total</span>
-                      <span className="font-mono font-bold text-slate-800">{formatCedi(receipt.amount)}</span>
-                    </div>
-                    <div className="flex justify-between text-[11px]">
-                      <span className="font-medium text-slate-600">Tax / Discount</span>
-                      <span className="font-mono text-slate-500">{formatCedi(0)}</span>
-                    </div>
-
-                    {/* GRAND TOTAL BADGE */}
-                    <div className="mt-3 bg-brand-600 text-white rounded-md px-3 py-2 flex justify-between items-center shadow-sm">
-                      <span className="text-[10.5px] font-extrabold uppercase tracking-wider">
-                        GRAND TOTAL
-                      </span>
-                      <span className="text-[15px] font-black font-mono tracking-tight">
-                        {formatCedi(receipt.amount)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 5. BRAND FOOTER */}
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
-                <div className="flex items-center gap-1.5">
-                  <LogoMark className="h-3.5 w-3.5" />
-                  <span className="font-bold tracking-tight text-slate-700">SukuuPay</span>
-                </div>
-                <span className="italic">Sukuu Sika Mu Nti</span>
-              </div>
-
-            </div>
-          </div>
-
-          {/* INLINE EMAIL PROMPT */}
+        <>
+          <iframe
+            title="Receipt preview"
+            srcDoc={buildReceiptHtml(receipt, student, school)}
+            className="h-[720px] w-full border-0"
+          />
           {emailPromptOpen && (
             <form
               onSubmit={submitEmailPrompt}
@@ -540,20 +445,11 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
                   ? 'Send to a different email'
                   : 'This parent has no email address on record'}
               </p>
-              <p className="mt-0.5 text-[11px] font-semibold text-amber-800">
-                The address is saved to the parent&rsquo;s record so the next
-                receipt does not ask again.
-              </p>
               <div className="mt-2.5 flex items-center gap-2">
-                <label htmlFor="receipt-parent-email" className="sr-only">
-                  Email address
-                </label>
                 <input
                   id="receipt-parent-email"
                   ref={emailInputRef}
                   type="email"
-                  inputMode="email"
-                  autoComplete="email"
                   value={emailDraft}
                   onChange={(event) => {
                     setEmailDraft(event.target.value);
@@ -561,16 +457,9 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
                   }}
                   disabled={anyBusy}
                   placeholder="parent@example.com"
-                  aria-invalid={Boolean(emailError)}
-                  aria-describedby={emailError ? 'receipt-email-error' : undefined}
-                  className="min-w-0 flex-1 rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-slate-800 placeholder:font-normal placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:opacity-60"
+                  className="min-w-0 flex-1 rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-slate-800"
                 />
                 <Button type="submit" size="sm" disabled={anyBusy}>
-                  {busy === 'email' ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <Send className="h-3.5 w-3.5" aria-hidden="true" />
-                  )}
                   Send
                 </Button>
                 <button
@@ -586,16 +475,12 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
                   Cancel
                 </button>
               </div>
-              {emailError && (
-                <p id="receipt-email-error" className="mt-1 text-[10.5px] font-semibold text-red-600">
-                  {emailError}
-                </p>
-              )}
+              {emailError && <p className="mt-1 text-[10.5px] font-semibold text-red-600">{emailError}</p>}
             </form>
           )}
-
-        </div>
+        </>
       )}
+
     </Modal>
   );
 };

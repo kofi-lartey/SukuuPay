@@ -17,6 +17,7 @@ import {
   Megaphone,
   MessageCircle,
   MessageSquare,
+  Rocket,
   ScrollText,
   School,
   Settings,
@@ -57,6 +58,7 @@ const ICONS = {
   UserCog,
   UserCheck,
   MessageCircle,
+  Rocket,
 };
 
 /**

@@ -20,6 +20,8 @@ export const ROUTES = {
   DASHBOARD_STUDENTS: '/dashboard/students',
   DASHBOARD_PAYMENTS: '/dashboard/payments',
   DASHBOARD_PLANS: '/dashboard/installment-plans',
+  DASHBOARD_CASHFLOW: '/dashboard/cashflow-analytics',
+  DASHBOARD_LMS_ANALYTICS: '/dashboard/lms-analytics',
   DASHBOARD_SMS: '/dashboard/sms-reminders',
   DASHBOARD_SMS_PURCHASE: '/dashboard/sms-requests',
   DASHBOARD_REPORTS: '/dashboard/reports',
@@ -36,6 +38,7 @@ export const ROUTES = {
    DASHBOARD_ACADEMICS_TEACHER_ATTENDANCE: '/dashboard/academics/teacher-attendance',
    DASHBOARD_ACADEMICS_REPORTS: '/dashboard/academics/reports',
    DASHBOARD_ADVERTISEMENTS: '/dashboard/advertisements',
+   DASHBOARD_CAMPUSES: '/dashboard/campuses',
   ONBOARDING: '/onboarding',
   // The one onboarding screen for roles that join a school instead of creating
   // one: a school-code field and a waiting room. The server names it as
@@ -476,6 +479,20 @@ export const DASHBOARD_NAV = [
         description: 'Daily, term, outstanding and compliance reporting.',
       },
       {
+        to: ROUTES.DASHBOARD_CASHFLOW,
+        label: 'Cash Flow',
+        icon: 'TrendingUp',
+        feature: 'cashFlowAnalytics',
+        description: 'Forecast collections and track payment velocity.',
+      },
+      {
+        to: ROUTES.DASHBOARD_LMS_ANALYTICS,
+        label: 'LMS Analytics',
+        icon: 'ChartBar',
+        feature: 'lmsAnalytics',
+        description: 'Completion, performance and score distribution across assessments.',
+      },
+      {
         to: ROUTES.DASHBOARD_ACTIVITY,
         label: 'Activity Log',
         icon: 'ScrollText',
@@ -587,7 +604,7 @@ export const DASHBOARD_NAV = [
       {
         to: ROUTES.DASHBOARD_UPGRADE,
         label: 'Upgrade',
-        icon: 'Sparkles',
+        icon: 'Rocket',
         roles: ['school_admin', 'accountant'],
         description: 'Compare plans and upgrade your subscription tier.',
       },
@@ -617,6 +634,14 @@ export const DASHBOARD_NAV = [
         // the same rail section as SMS reminders.
         roles: ['school_admin', 'accountant'],
         description: 'Ask to be advertised, and track the decision.',
+      },
+      {
+        to: ROUTES.DASHBOARD_CAMPUSES,
+        label: 'Campuses',
+        icon: 'School',
+        roles: ['super_admin', 'school_admin'],
+        feature: 'multiCampusControls',
+        description: 'Manage campuses across the school.',
       },
     ],
   },
@@ -1204,10 +1229,11 @@ export const SMS_SEGMENT_LENGTH = 160;
  *
  * ### `name` does not correspond to `subscription.plan` on the server
  *
- * `schoolModel.js` enumerates `["trial", "basic", "standard", "premium",
- * "enterprise"]`. These three marketing tiers do not map onto it one-to-one —
- * there are five server values for three published plans, and no field records
- * which published tier a given `subscription.plan` came from.
+ * `schoolModel.js` enumerates `["trial", "free", "starter", "growth"]`. These three marketing tiers 
+ * (Free, Starter, Growth) map to the server values as follows:
+ * - Free → trial, free
+ * - Starter → starter
+ * - Growth → growth
  *
  * That is why nothing here writes a plan anywhere. The onboarding step shows the
  * tiers and links out; choosing one would need a server-side mapping and a
@@ -1277,28 +1303,6 @@ export const PRICING_PLANS = [
     cta: {
       label: 'Get Started with Growth',
       to: `${ROUTES.MANUAL_PAYMENT}?plan=growth&monthlyFee=27500`,
-    },
-  },
-  {
-    name: 'Campus',
-    maxStudents: Number.POSITIVE_INFINITY,
-    capacity: '1,000+ students',
-    blurb: 'Large schools, multi-campus groups, and Senior High Schools.',
-    termly: 400,
-    monthly: 440,
-    termNote: 'Billed GHS 1,200 per term (dedicated infrastructure)',
-    features: [
-      'Everything in Growth, plus:',
-      'Multi-campus & multi-signatory financial controls',
-      'Custom audit reports & MoE compliance exports',
-      'Dedicated school success account manager',
-      'SIS & School ERP API integration',
-      'Custom SMS Sender ID branding (e.g. ACHIMOTA-SCH)',
-      'LMS multi-campus content & API',
-    ],
-    cta: {
-      label: 'Contact Campus Sales',
-      to: `${ROUTES.MANUAL_PAYMENT}?plan=campus&monthlyFee=44000`,
     },
   },
 ];

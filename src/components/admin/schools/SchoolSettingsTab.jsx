@@ -9,7 +9,9 @@ import {
   FEATURE_FLAGS,
   GATEWAY_MODES,
   PLANS,
+  SUBSCRIPTION_PLANS,
   SUBSCRIPTION_STATUSES,
+  getStandardMonthlyFee,
   updateFeatureFlags,
   updatePlatformFee,
   updateSubscription,
@@ -45,6 +47,21 @@ const FLAG_COPY = {
 const MAX_PLATFORM_FEE = 5;
 
 /**
+ * Maps server subscription plan values to marketing labels for display.
+ * The server uses: trial, free, starter, growth
+ * Marketing tiers: Free, Free, Starter, Growth
+ */
+const getPlanLabel = (plan) => {
+  const labels = {
+    trial: 'Free',
+    free: 'Free',
+    starter: 'Starter',
+    growth: 'Growth',
+  };
+  return labels[plan] || plan;
+};
+
+/**
  * One form's own save button.
  *
  * Module-level rather than declared inside the tab, because a component defined in a
@@ -72,8 +89,8 @@ const SaveButton = ({ busy, onClick, label, busyLabel }) => (
 /**
  * Every platform-owned setting on one school, as four separate confirmed writes.
  *
- * **Four forms, four buttons, four audit entries — deliberately, not for lack of
- * taste.** Each of these has its own endpoint, its own `AUDIT_ACTIONS` entry and its
+ * Four forms, four buttons, four audit entries — deliberately, not for lack of
+ * taste. Each of these has its own endpoint, its own `AUDIT_ACTIONS` entry and its
  * own `before`/`after` pair on the server (`schools.controller.js` — one controller
  * per route, each calling `logRequest` with only its own pair). A single "Save
  * settings" button would have to either call four endpoints in sequence — four audit
@@ -97,13 +114,17 @@ const SaveButton = ({ busy, onClick, label, busyLabel }) => (
  * boxes that would switch installments off on the first save.
  */
 const SchoolSettingsTab = ({ school, record, onSaved }) => {
-  const subscription = record?.subscription || school.subscription || {};
+  // Early return if school is not yet loaded
+  if (!school) return null;
+
+  const subscription = record?.subscription || school?.subscription || {};
   const serverFlags = record?.featureFlags || null;
 
   /* ── Subscription ── */
   const [plan, setPlan] = useState(subscription.plan || 'trial');
   const [subStatus, setSubStatus] = useState(subscription.status || 'trial');
   const [monthlyFee, setMonthlyFee] = useState(subscription.monthlyFee ?? 0);
+  const [feeManuallyEdited, setFeeManuallyEdited] = useState(false);
   const [trialEndsAt, setTrialEndsAt] = useState(
     subscription.trialEndsAt ? String(subscription.trialEndsAt).slice(0, 10) : ''
   );
@@ -157,6 +178,7 @@ const SchoolSettingsTab = ({ school, record, onSaved }) => {
     setPlan(subscription.plan || 'trial');
     setSubStatus(subscription.status || 'trial');
     setMonthlyFee(subscription.monthlyFee ?? 0);
+    setFeeManuallyEdited(false);
     setTrialEndsAt(subscription.trialEndsAt ? String(subscription.trialEndsAt).slice(0, 10) : '');
     setPeriodStart(
       subscription.currentPeriodStart ? String(subscription.currentPeriodStart).slice(0, 10) : ''
@@ -167,6 +189,21 @@ const SchoolSettingsTab = ({ school, record, onSaved }) => {
     setPlatformFee(String(record?.platformFeePercent ?? 0));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverStamp]);
+
+/**
+ * Auto-populate monthly fee when plan changes, unless the operator has manually
+ * edited the fee. The standard fees are defined in PLAN_MONTHLY_FEES (admin.js).
+ * - 'trial' and 'free' → 0
+ * - 'starter' → 16500 (Starter: GH₵ 165)
+ * - 'growth' → 27500 (Growth: GH₵ 275)
+ */
+  useEffect(() => {
+    if (feeManuallyEdited) return;
+    const standardFee = getStandardMonthlyFee(plan);
+    if (standardFee !== null && standardFee !== monthlyFee) {
+      setMonthlyFee(standardFee);
+    }
+  }, [plan, feeManuallyEdited, monthlyFee]);
 
   /**
    * The subscription payload, omitting anything left blank.
@@ -222,8 +259,6 @@ const SchoolSettingsTab = ({ school, record, onSaved }) => {
     });
   };
 
-  if (!school) return null;
-
   return (
     <div className="space-y-4">
       {/* ── Subscription ── */}
@@ -249,10 +284,18 @@ const SchoolSettingsTab = ({ school, record, onSaved }) => {
         )}
 
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <SelectField label="Plan" value={plan} onChange={(event) => setPlan(event.target.value)}>
-            {PLANS.map((value) => (
+          <SelectField
+            label="Plan"
+            value={plan}
+            onChange={(event) => {
+              const newPlan = event.target.value;
+              setPlan(newPlan);
+              setFeeManuallyEdited(false);
+            }}
+          >
+            {SUBSCRIPTION_PLANS.map((value) => (
               <option key={value} value={value}>
-                {value}
+                {value} — {getPlanLabel(value)}
               </option>
             ))}
           </SelectField>
@@ -278,8 +321,11 @@ const SchoolSettingsTab = ({ school, record, onSaved }) => {
           <MoneyInput
             label="Monthly fee"
             value={monthlyFee}
-            onChange={setMonthlyFee}
-            hint="whole pesewas"
+            onChange={(value) => {
+              setMonthlyFee(value);
+              if (value !== null && value !== undefined) setFeeManuallyEdited(true);
+            }}
+            hint={feeManuallyEdited ? 'whole pesewas (manual override)' : 'whole pesewas (auto-filled from plan)'}
           />
 
           <Field

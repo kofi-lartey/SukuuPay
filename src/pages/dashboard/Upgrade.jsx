@@ -23,17 +23,16 @@ import { PRICING_PLANS, ROUTES } from '../../utils/constants';
 const GHS = (amount) => `GH₵ ${amount.toLocaleString('en-GH')}`;
 
 /**
- * Map a `PRICING_PLANS` entry to its marketing tier key (starter/growth/campus).
+ * Map a `PRICING_PLANS` entry to its marketing tier key (starter/growth).
  * Free/trial has no paid tier.
  */
 const PLAN_TIER = {
   Free: null,
   Starter: 'starter',
   Growth: 'growth',
-  Campus: 'campus',
 };
 
-const TIER_RANK = ['starter', 'growth', 'campus'];
+const TIER_RANK = ['starter', 'growth'];
 
 /**
  * The Upgrade page.
@@ -70,12 +69,9 @@ const Upgrade = () => {
    * Resolve the school's current position from the raw `subscription.plan`
    * value, not from the entitlement resolver.
    *
-   * `subscription.plan` holds either a legacy server alias (`basic`,
-   * `standard`, `premium`, `enterprise`) or the marketing name the
-   * manual-payment flow stores (`starter`/`growth`/`campus`) — and a school that
-   * has never paid is `trial`/`free`. The entitlement resolver folds trial into
-   * the starter tier (so a trial school gets starter features), but for the
-   * upgrade decision a trial school must still be offered the paid Starter plan.
+   * `subscription.plan` holds the server values: 'trial', 'free', 'starter', 'growth'.
+   * The entitlement resolver folds trial into the free tier (so a trial school gets free features),
+   * but for the upgrade decision a trial school must still be offered the paid Starter plan.
    * So the mapping lives here, and a trial/free school ranks below Starter.
    */
   const view = useMemo(() => {
@@ -84,13 +80,9 @@ const Upgrade = () => {
     const isTrial = !raw || raw === 'trial' || raw === 'free' || status === 'trial';
 
     const tierForPlan = {
+      free: 'free',
       starter: 'starter',
-      basic: 'starter',
       growth: 'growth',
-      standard: 'growth',
-      premium: 'growth',
-      campus: 'campus',
-      enterprise: 'campus',
     };
 
     const tierKey = isTrial ? null : tierForPlan[raw] || null;
@@ -110,7 +102,7 @@ const Upgrade = () => {
     return {
       upgradePlans,
       currentPlanLabel,
-      isTopTier: tierKey === 'campus' && upgradePlans.length === 0,
+      isTopTier: tierKey === 'growth' && upgradePlans.length === 0,
     };
   }, [currentPlan, school?.subscription?.status]);
 
@@ -257,7 +249,7 @@ const Upgrade = () => {
               You are on the highest plan
             </h3>
             <p className="mt-2 text-slate-500">
-              Your school is already on the Campus tier, which includes every feature SukuuPay
+              Your school is already on the Growth tier, which includes every feature SukuuPay
               offers. Contact support if you need help getting the most out of it.
             </p>
           </div>

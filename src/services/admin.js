@@ -35,7 +35,27 @@ import { toApiError } from './toApiError';
  */
 
 /** Subscription plans. Mirrors `listAllSchoolsQuerySchema` in admin.validation.js. */
-export const SUBSCRIPTION_PLANS = ['trial', 'basic', 'standard', 'premium', 'enterprise'];
+export const SUBSCRIPTION_PLANS = ['trial', 'free', 'starter', 'growth'];
+
+/**
+ * Standard monthly fees (in pesewas) for each subscription plan.
+ * Used to auto-populate the Monthly Fee field when a plan is selected.
+ * 1 GHS = 100 pesewas.
+ * - 'trial' and 'free' are free tiers → 0
+ * - 'starter' maps to Starter plan (GH₵ 165/month = 16500 pesewas)
+ * - 'growth' maps to Growth plan (GH₵ 275/month = 27500 pesewas)
+ */
+export const PLAN_MONTHLY_FEES = {
+  trial: 0,
+  free: 0,
+  starter: 16500,
+  growth: 27500,
+};
+
+/**
+ * Returns the standard monthly fee (pesewas) for a plan, or null if custom/unknown.
+ */
+export const getStandardMonthlyFee = (plan) => PLAN_MONTHLY_FEES[plan] ?? null;
 
 /** School lifecycle states. Mirrors the `status` filter on `GET /admin/schools`. */
 export const SCHOOL_STATUSES = ['active', 'suspended', 'archived'];
@@ -530,7 +550,7 @@ export const updatePlatformSettings = async (patch) => {
 // ─────────────────────────────────────────────
 
 /** `School.subscription.plan`. Mirrors the enum on the model. */
-export const PLANS = ['trial', 'basic', 'standard', 'premium', 'enterprise'];
+export const PLANS = ['trial', 'free', 'starter', 'growth'];
 
 /** `School.subscription.status`. */
 export const SUBSCRIPTION_STATUSES = ['active', 'suspended', 'expired', 'cancelled', 'trial'];

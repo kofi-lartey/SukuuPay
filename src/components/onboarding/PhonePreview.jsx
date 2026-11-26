@@ -22,7 +22,7 @@ const PhonePreview = ({
   heightClass = 'h-auto max-h-[calc(100dvh-14rem)] lg:h-[520px]',
 }) => (
   <div
-    className={`relative mx-auto w-full max-w-[300px] rounded-[2.5rem] border-[9px] border-slate-900 bg-slate-900 shadow-phone ${className}`}
+    className={`relative mx-auto w-full max-w-[300px] rounded-[2.5rem] border-[9px] border-slate-900 bg-slate-900 shadow-phone overflow-hidden ${className}`}
   >
     <span className="sr-only">{label}</span>
 

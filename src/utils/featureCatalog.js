@@ -70,7 +70,7 @@ export const FEATURES = {
     id: 'apiAccess',
     label: 'SIS & School ERP API Integration',
     module: 'academics',
-    tier: 'campus',
+    tier: 'growth',
   },
 
   lmsBasic: {
@@ -91,12 +91,6 @@ export const FEATURES = {
     module: 'insight',
     tier: 'growth',
   },
-  lmsAdvanced: {
-    id: 'lmsAdvanced',
-    label: 'Multi-Campus Content & API',
-    module: 'academics',
-    tier: 'campus',
-  },
 
   arrearsDashboard: {
     id: 'arrearsDashboard',
@@ -110,63 +104,66 @@ export const FEATURES = {
     module: 'insight',
     tier: 'growth',
   },
-  multiCampusControls: {
-    id: 'multiCampusControls',
-    label: 'Multi-Campus & Multi-Signatory Financial Controls',
-    module: 'administration',
-    tier: 'campus',
-  },
-  customAuditReports: {
-    id: 'customAuditReports',
-    label: 'Custom Audit Reports & MoE Compliance Exports',
-    module: 'insight',
-    tier: 'campus',
-  },
-  successAccountManager: {
-    id: 'successAccountManager',
-    label: 'Dedicated School Success Account Manager',
-    module: 'administration',
-    tier: 'campus',
-  },
-  customSenderId: {
-    id: 'customSenderId',
-    label: 'Custom SMS Sender ID Branding',
-    module: 'outreach',
-    tier: 'campus',
-  },
 };
 
 /** Tier order — higher is richer. Used for inheritance and upgrade paths. */
-export const TIER_ORDER = ['starter', 'growth', 'campus'];
+export const TIER_ORDER = ['free', 'starter', 'growth'];
 
 /** Maps marketing tier names (as published) to the server subscription plans. */
 export const MARKETING_TO_SERVER = {
-  Starter: ['trial', 'basic'],
-  Growth: ['standard', 'premium'],
-  Campus: ['enterprise'],
+  Free: ['trial', 'free'],
+  Starter: ['starter'],
+  Growth: ['growth'],
+};
+
+/**
+ * Retired plan names mapped onto their surviving tier. The published tiers are
+ * Free / Starter / Growth; older records (and status-suffixed values like
+ * `"premiumactive"`) may still carry a retired name. Mapping them keeps a
+ * legacy school on the entitlements and billing it was sold.
+ */
+export const LEGACY_PLAN_ALIASES = {
+  basic: 'free',
+  standard: 'starter',
+  premium: 'growth',
+  enterprise: 'growth',
 };
 
 /**
  * Resolves the tier key for a given server plan value.
  *
- * @param {string} serverPlan - e.g. 'trial', 'basic', 'standard', 'premium', 'enterprise'
+ * @param {string} serverPlan - e.g. 'trial', 'free', 'starter', 'growth'
  * @returns {string | null}
  */
 export const tierKeyForServerPlan = (serverPlan) => {
   if (!serverPlan) return null;
-  const plan = String(serverPlan).toLowerCase();
+  let plan = String(serverPlan).toLowerCase();
   /*
-   * `subscription.plan` holds BOTH the legacy server aliases and the published
-   * marketing names: the School model enum accepts `starter`/`growth`/`campus`
-   * alongside `trial`/`basic`/`standard`/`premium`/`enterprise`, and the
-   * manual-payment flow stores the marketing name directly. Resolving only the
-   * aliases left a school on `plan: "starter"` with no tier — and therefore no
-   * entitlements at all — so both spellings are mapped here.
+   * `subscription.plan` may carry a status suffix concatenated to it
+   * (e.g. `"growthactive"` instead of `"growth"`). Strip any known trailing
+   * status so the plan portion is recovered; clean values pass through unchanged.
    */
+  const STATUSES = ['active', 'suspended', 'expired', 'cancelled', 'pending', 'trial'];
+  for (const status of STATUSES) {
+    if (plan.endsWith(status)) {
+      const candidate = plan.slice(0, -status.length);
+      if (['trial', 'free', 'starter', 'growth'].includes(candidate)) {
+        plan = candidate;
+        break;
+      }
+      // A retired name with a status suffix (e.g. "premiumactive").
+      if (LEGACY_PLAN_ALIASES[candidate]) {
+        plan = LEGACY_PLAN_ALIASES[candidate];
+        break;
+      }
+    }
+  }
+  // A bare retired name (e.g. "premium").
+  if (LEGACY_PLAN_ALIASES[plan]) plan = LEGACY_PLAN_ALIASES[plan];
   const aliases = {
-    starter: ['trial', 'free', 'basic', 'starter'],
-    growth: ['standard', 'premium', 'growth'],
-    campus: ['enterprise', 'campus'],
+    free: ['trial', 'free'],
+    starter: ['starter'],
+    growth: ['growth'],
   };
   for (const tierKey of TIER_ORDER) {
     if (aliases[tierKey].includes(plan)) return tierKey;
@@ -175,9 +172,31 @@ export const tierKeyForServerPlan = (serverPlan) => {
 };
 
 /**
+ * Maps server subscription plan values to marketing labels for display.
+ * The server uses: trial, free, starter, growth
+ * Marketing tiers: Free, Free, Starter, Growth
+ */
+export const getPlanLabel = (plan) => {
+  if (!plan) return 'Unknown';
+  const labels = {
+    trial: 'Free',
+    free: 'Free',
+    starter: 'Starter',
+    growth: 'Growth',
+  };
+  // Strip status suffix if present (e.g., "growthactive" -> "growth")
+  const basePlan = tierKeyForServerPlan(plan)
+    ? Object.keys({ trial: 1, free: 1, starter: 1, growth: 1 }).find(
+        (k) => tierKeyForServerPlan(k) === tierKeyForServerPlan(plan)
+      )
+    : plan;
+  return labels[basePlan] || basePlan;
+};
+
+/**
  * Resolves the set of enabled feature IDs for a school.
  *
- * @param {object} school - School object with `subscription.plan` and optional `subscription.featureFlags`
+ * @param {object} school - School object with `subscription.plan` and optional `subscription.featureFlags` or top-level `featureFlags`
  * @returns {Set<string>}
  */
 export const resolveEntitlements = (school) => {
@@ -188,11 +207,19 @@ export const resolveEntitlements = (school) => {
   // - Each tier's array includes its own features + all features from lower tiers.
   // - The arrays below are flat to avoid conditional ternaries.
   const tierFeatures = {
-    starter: [
+    free: [
       'bulkStudentUpload',
       'momoPayments',
       'smsReminders',
       'pdfReceipts',
+    ],
+    starter: [
+      // Inherited from free
+      'bulkStudentUpload',
+      'momoPayments',
+      'smsReminders',
+      'pdfReceipts',
+      // Starter-specific (LMS)
       'idCards',
       'whatsapp',
       'lmsBasic',
@@ -203,26 +230,7 @@ export const resolveEntitlements = (school) => {
       'cashFlowAnalytics',
       'lmsQuizzes',
       'lmsAnalytics',
-      // Inherited from starter
-      'bulkStudentUpload',
-      'momoPayments',
-      'smsReminders',
-      'pdfReceipts',
-      'idCards',
-      'whatsapp',
-      'lmsBasic',
-    ],
-    campus: [
-      'multiCampusControls',
-      'customAuditReports',
-      'successAccountManager',
-      'customSenderId',
-      // Inherited from growth
-      'installments',
-      'arrearsDashboard',
-      'cashFlowAnalytics',
-      'lmsQuizzes',
-      'lmsAnalytics',
+      'apiAccess',
       // Inherited from starter
       'bulkStudentUpload',
       'momoPayments',
@@ -234,10 +242,11 @@ export const resolveEntitlements = (school) => {
     ],
   };
 
-  const enabled = new Set(tierFeatures[tierKey] || tierFeatures.starter || []);
+  const enabled = new Set(tierFeatures[tierKey] || tierFeatures.free || []);
 
   // Merge any explicitly enabled per-school feature flags.
-  const flags = school?.subscription?.featureFlags;
+  // Check both school.featureFlags (top-level) and school.subscription.featureFlags
+  const flags = school?.featureFlags || school?.subscription?.featureFlags;
   if (flags) {
     if (flags.installments) enabled.add('installments');
     if (flags.idCards) enabled.add('idCards');
@@ -249,18 +258,21 @@ export const resolveEntitlements = (school) => {
 };
 
 /**
- * Whether a feature is enabled for a school.
+ * Boolean check for a single feature on a school.
  *
  * @param {object} school - School object
- * @param {string} featureId - Feature ID
+ * @param {string} featureId - Feature ID to check
  * @returns {boolean}
  */
-export const hasFeature = (school, featureId) => resolveEntitlements(school).has(featureId);
+export const hasFeature = (school, featureId) => {
+  const enabled = resolveEntitlements(school);
+  return enabled.has(featureId);
+};
 
 /**
  * The upgrade path from a tier to the next.
  *
- * @param {string} tierKey - Current tier ('starter', 'growth', 'campus')
+ * @param {string} tierKey - Current tier ('free', 'starter', 'growth')
  * @returns {string | null} Next tier key, or null if already top tier.
  */
 export const nextTier = (tierKey) => {
@@ -284,9 +296,9 @@ export const lockedFeaturesFor = (school) => {
 
   // Features that the next tier adds over the current tier
   const nextTierOnly = {
-    starter: ['installments', 'arrearsDashboard', 'cashFlowAnalytics', 'lmsQuizzes', 'lmsAnalytics'],
-    growth: ['multiCampusControls', 'customAuditReports', 'successAccountManager', 'customSenderId', 'lmsAdvanced'],
-    campus: [],
+    free: ['idCards', 'whatsapp', 'lmsBasic'],
+    starter: ['installments', 'arrearsDashboard', 'cashFlowAnalytics', 'lmsQuizzes', 'lmsAnalytics', 'apiAccess'],
+    growth: [],
   }[tierKey] || [];
 
   return nextTierOnly

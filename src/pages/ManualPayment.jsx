@@ -31,7 +31,6 @@ const ManualPayment = () => {
   const tiers = {
     starter: { label: 'Starter', monthlyFee: 16500 },
     growth: { label: 'Growth', monthlyFee: 27500 },
-    campus: { label: 'Campus', monthlyFee: 44000 },
   };
 
   const tier = tiers[planFromUrl] || tiers.starter;

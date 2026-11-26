@@ -304,9 +304,17 @@ export const emailReceipt = async (paymentId, email) => {
       email ? { email } : {},
       { timeout: 30000 }
     );
-    return data?.data || null;
+    const payload = data?.data || null;
+    if (payload?.mailtoUrl) {
+      const a = document.createElement("a");
+      a.href = payload.mailtoUrl;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+    return payload;
   } catch (error) {
-    throw toApiError(error, 'The receipt could not be emailed.');
+    throw toApiError(error, "The receipt could not be emailed.");
   }
 };
 

@@ -4488,17 +4488,17 @@ const getSmsBalance = ({ user }) => {
 // into a second, unrelated set of totals.
 
 const PLATFORM_SCHOOLS = [
-  { name: 'Sunnyvale Schools', code: 'SUN-001', region: 'Greater Accra', city: 'Accra', plan: 'standard', status: 'active', students: 450, staff: 25 },
-  { name: 'Greenfield Academy', code: 'GRN-002', region: 'Ashanti', city: 'Kumasi', plan: 'premium', status: 'active', students: 812, staff: 54 },
-  { name: 'Riverside International', code: 'RIV-003', region: 'Western', city: 'Takoradi', plan: 'enterprise', status: 'active', students: 1240, staff: 96 },
+  { name: 'Sunnyvale Schools', code: 'SUN-001', region: 'Greater Accra', city: 'Accra', plan: 'starter', status: 'active', students: 450, staff: 25 },
+  { name: 'Greenfield Academy', code: 'GRN-002', region: 'Ashanti', city: 'Kumasi', plan: 'growth', status: 'active', students: 812, staff: 54 },
+  { name: 'Riverside International', code: 'RIV-003', region: 'Western', city: 'Takoradi', plan: 'growth', status: 'active', students: 1240, staff: 96 },
   { name: 'New Horizon School', code: 'NHS-042', region: 'Central', city: 'Cape Coast', plan: 'trial', status: 'active', students: 180, staff: 12 },
-  { name: "St Mary's College", code: 'STM-007', region: 'Greater Accra', city: 'Accra', plan: 'standard', status: 'active', students: 965, staff: 71 },
-  { name: 'Northern Hills Secondary', code: 'NTH-011', region: 'Northern', city: 'Tamale', plan: 'basic', status: 'active', students: 540, staff: 33 },
-  { name: 'Coastal View Academy', code: 'CST-014', region: 'Eastern', city: 'Koforidua', plan: 'basic', status: 'active', students: 310, staff: 19 },
-  { name: 'Ashanti Grove School', code: 'ASH-018', region: 'Ashanti', city: 'Kumasi', plan: 'standard', status: 'suspended', students: 425, staff: 27 },
+  { name: "St Mary's College", code: 'STM-007', region: 'Greater Accra', city: 'Accra', plan: 'starter', status: 'active', students: 965, staff: 71 },
+  { name: 'Northern Hills Secondary', code: 'NTH-011', region: 'Northern', city: 'Tamale', plan: 'free', status: 'active', students: 540, staff: 33 },
+  { name: 'Coastal View Academy', code: 'CST-014', region: 'Eastern', city: 'Koforidua', plan: 'free', status: 'active', students: 310, staff: 19 },
+  { name: 'Ashanti Grove School', code: 'ASH-018', region: 'Ashanti', city: 'Kumasi', plan: 'starter', status: 'suspended', students: 425, staff: 27 },
   { name: 'Volta Basic School', code: 'VOL-021', region: 'Volta', city: 'Ho', plan: 'trial', status: 'active', students: 205, staff: 11 },
-  { name: 'Bono Senior High', code: 'BON-023', region: 'Bono', city: 'Sunyani', plan: 'premium', status: 'active', students: 1102, staff: 78 },
-  { name: 'Upper West Model', code: 'UWM-026', region: 'Upper West', city: 'Wa', plan: 'basic', status: 'archived', students: 288, staff: 16 },
+  { name: 'Bono Senior High', code: 'BON-023', region: 'Bono', city: 'Sunyani', plan: 'growth', status: 'active', students: 1102, staff: 78 },
+  { name: 'Upper West Model', code: 'UWM-026', region: 'Upper West', city: 'Wa', plan: 'free', status: 'archived', students: 288, staff: 16 },
   { name: 'Savannah Preparatory', code: 'SAV-029', region: 'North East', city: 'Nalerigu', plan: 'trial', status: 'active', students: 156, staff: 9 },
 ];
 

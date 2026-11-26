@@ -37,7 +37,8 @@ import {
   GHANA_REGIONS,
   ACADEMIC_TERMS,
   GRADING_SYSTEMS,
-  } from '../../services/settings';
+} from '../../services/settings';
+import { getPlanLabel } from '../../utils/featureCatalog';
 import {
   getVerificationStatus,
   uploadVerificationDocument,
@@ -889,7 +890,7 @@ const Settings = () => {
               ) : (
                 <div className="mt-4">
                   <DetailRow label="Plan">
-                    <span className="capitalize">{billing.subscription?.plan}</span>
+                    <span>{getPlanLabel(billing.subscription?.plan)}</span>
                     <Badge tone={billing.subscription?.status === 'active' ? 'green' : 'amber'} className="ml-2">
                       {billing.subscription?.status}
                     </Badge>

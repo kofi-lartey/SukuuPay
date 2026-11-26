@@ -41,10 +41,13 @@ import Overview from './pages/dashboard/Overview';
 import Students from './pages/dashboard/Students';
 import Payments from './pages/dashboard/Payments';
 import InstallmentPlans from './pages/dashboard/InstallmentPlans';
+import CashFlowAnalytics from './pages/dashboard/CashFlowAnalytics';
+import LmsAnalytics from './pages/dashboard/LmsAnalytics';
 import SmsReminders from './pages/dashboard/SmsReminders';
 import SmsCreditRequests from './pages/dashboard/SmsCreditRequests';
 import ParentMessages from './pages/dashboard/ParentMessages';
 import Advertisements from './pages/dashboard/Advertisements';
+import CampusManagement from './pages/CampusManagement';
 import Reports from './pages/dashboard/Reports';
 import ActivityLog from './pages/dashboard/ActivityLog';
 import UserManagement from './pages/dashboard/UserManagement';
@@ -305,11 +308,14 @@ function App() {
                 <Route path="students" element={<Students />} />
                 <Route path="payments" element={<Payments />} />
                 <Route path="installment-plans" element={<InstallmentPlans />} />
+                <Route path="cashflow-analytics" element={<CashFlowAnalytics />} />
+                <Route path="lms-analytics" element={<LmsAnalytics />} />
                 <Route path="sms-reminders" element={<SmsReminders />} />
                 <Route path="sms-requests" element={<SmsCreditRequests />} />
                 <Route path="messages" element={<ParentMessages />} />
                 <Route path="community" element={<CommunityGuard><CommunityProvider><StudentCommunity /></CommunityProvider></CommunityGuard>} />
                 <Route path="advertisements" element={<Advertisements />} />
+                <Route path="campuses" element={<CampusManagement />} />
                 <Route path="reports" element={<Reports />} />
                 <Route path="activity-log" element={<ActivityLog />} />
                 <Route path="user-management" element={<UserManagement />} />

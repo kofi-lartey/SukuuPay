@@ -9,7 +9,7 @@ import {
   tierKeyForServerPlan,
 } from '../utils/featureCatalog';
 
-const TIER_MARKETING = { starter: 'Starter', growth: 'Growth', campus: 'Campus' };
+const TIER_MARKETING = { starter: 'Starter', growth: 'Growth' };
 
 /**
  * Pure resolver — derives entitlements from a school object.
@@ -42,7 +42,7 @@ export const deriveEntitlements = (school) => {
     nextTierKey,
     nextTierMarketing: nextTierKey ? TIER_MARKETING[nextTierKey] : null,
     upgradeTarget,
-    isTopTier: currentTier === 'campus',
+    isTopTier: currentTier === 'growth',
   };
 };
 

@@ -56,11 +56,14 @@ const Timetables = () => {
   const [timetables, setTimetables] = useState([]);
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [listTerm, setListTerm] = useState(ACADEMIC_TERMS[0]);
+  const [listAcademicYear, setListAcademicYear] = useState(defaultAcademicYear());
   const [editingClass, setEditingClass] = useState('');
   const [editorTerm, setEditorTerm] = useState(ACADEMIC_TERMS[0]);
   const [editorAcademicYear, setEditorAcademicYear] = useState(defaultAcademicYear());
   const [editorDays, setEditorDays] = useState(emptyDays());
   const [editorStatus, setEditorStatus] = useState('draft');
+  const [editorRejectionReason, setEditorRejectionReason] = useState('');
   const [editorLoading, setEditorLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -76,8 +79,8 @@ const Timetables = () => {
     setLoading(true);
     try {
       const result = await fetchMyTimetables({
-        term: ACADEMIC_TERMS[0],
-        academicYear: defaultAcademicYear(),
+        term: listTerm,
+        academicYear: listAcademicYear,
       });
       setTimetables(result?.data?.timetables || []);
     } catch {
@@ -89,6 +92,10 @@ const Timetables = () => {
 
   useEffect(() => {
     loadTimetables();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listTerm, listAcademicYear]);
+
+  useEffect(() => {
     let active = true;
     fetchMyClasses()
       .then((result) => {
@@ -111,6 +118,7 @@ const Timetables = () => {
       found ? { ...emptyDays(), ...(found.days || {}) } : emptyDays()
     );
     setEditorStatus(found ? found.submissionStatus || 'draft' : 'draft');
+    setEditorRejectionReason(found ? found.rejectionReason || '' : '');
     setEditorRemovalStatus(found ? found.removalStatus || null : null);
   };
 
@@ -121,6 +129,7 @@ const Timetables = () => {
     setEditorAcademicYear(defaultAcademicYear());
     setEditorDays(emptyDays());
     setEditorStatus('draft');
+    setEditorRejectionReason('');
     setEditorRemovalStatus(null);
   };
 
@@ -131,6 +140,7 @@ const Timetables = () => {
     setEditorAcademicYear(defaultAcademicYear());
     setEditorDays(emptyDays());
     setEditorStatus('draft');
+    setEditorRejectionReason('');
     setEditorRemovalStatus(null);
   };
 
@@ -240,9 +250,29 @@ const Timetables = () => {
         description="Draft timetables for your classes and submit them to the administrator for approval."
       />
 
+      <div className="flex flex-wrap items-end gap-3">
+        <SelectField
+          label="Term"
+          value={listTerm}
+          onChange={(e) => setListTerm(e.target.value)}
+          className="w-full sm:w-auto"
+        >
+          {ACADEMIC_TERMS.map((value) => (
+            <option key={value} value={value}>{value}</option>
+          ))}
+        </SelectField>
+        <Field
+          label="Academic year"
+          value={listAcademicYear}
+          onChange={(e) => setListAcademicYear(e.target.value)}
+          placeholder="2026/2027"
+          className="w-full sm:w-auto"
+        />
+      </div>
+
       <div className="flex flex-wrap items-center gap-3">
         {creating ? (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <SelectField
               label="Class"
               value={editingClass}
@@ -305,7 +335,8 @@ const Timetables = () => {
         />
       ) : (
         <Card className="p-4">
-          <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200">
                 <th className="pb-3 text-[12.5px] font-semibold text-slate-500">
@@ -350,6 +381,11 @@ const Timetables = () => {
                         Removal pending
                       </span>
                     )}
+                    {t.submissionStatus === 'rejected' && t.rejectionReason && (
+                      <span className="mt-1 block max-w-[220px] text-[11px] font-semibold text-rose-700">
+                        {t.rejectionReason}
+                      </span>
+                    )}
                   </td>
                   <td className="py-3 text-[12.5px] text-slate-500">
                     {t.updatedAt ? new Date(t.updatedAt).toLocaleDateString() : '-'}
@@ -368,21 +404,7 @@ const Timetables = () => {
                           <Button
                             variant="primary"
                             size="sm"
-                            disabled={submitting}
-                            onClick={() => {
-                              loadEditor(t.className);
-                              setSubmitting(true);
-                              submitTimetable(t.className, {
-                                term: t.term,
-                                academicYear: t.academicYear,
-                              }).then(() => {
-                                setEditorStatus('submitted');
-                                toast.success('Submitted for approval.');
-                                closeEditor();
-                                loadTimetables();
-                                setSubmitting(false);
-                              });
-                            }}
+                            onClick={() => loadEditor(t.className)}
                           >
                             Submit
                           </Button>
@@ -449,6 +471,7 @@ const Timetables = () => {
               ))}
             </tbody>
           </table>
+          </div>
         </Card>
       )}
 
@@ -527,9 +550,17 @@ const Timetables = () => {
               </Button>
             )}
             {editorStatus === 'rejected' && canEditEditor && (
-              <p className="text-[12.5px] text-rose-700 font-semibold">
-                Returned by the administrator — edit and resubmit.
-              </p>
+              <div className="w-full rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5">
+                <p className="text-[12.5px] text-rose-700 font-semibold">
+                  Returned by the administrator — edit and resubmit.
+                </p>
+                {editorRejectionReason && (
+                  <p className="mt-1 text-[12.5px] text-rose-700">
+                    <span className="font-bold">Reason: </span>
+                    {editorRejectionReason}
+                  </p>
+                )}
+              </div>
             )}
             {editorStatus === 'approved' && (
               <p className="text-[12.5px] text-emerald-700 font-semibold">

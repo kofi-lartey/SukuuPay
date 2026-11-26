@@ -1,5 +1,6 @@
 import React from 'react';
 import { Lock, ArrowUpRight, ExternalLink } from 'lucide-react';
+import { useEntitlements } from '../../hooks/useEntitlements';
 
 /**
  * A feature gate: renders children when enabled, otherwise an upgrade prompt.
@@ -19,19 +20,25 @@ export const FeatureGate = ({
   upgradeTarget,
   onUpgradeClick,
 }) => {
-  const canAccess = enabled?.has(feature);
+  // Resolve entitlements for the current school when the caller did not pass an
+  // explicit set. Hooks must run unconditionally, so this is always called; the
+  // `enabled` prop, when present, still wins.
+  const ent = useEntitlements();
+  const resolvedEnabled = enabled ?? ent.enabled;
+  const resolvedUpgradeTarget = upgradeTarget ?? ent.upgradeTarget;
+  const canAccess = resolvedEnabled?.has(feature);
 
   if (canAccess) return <>{children}</>;
 
   // Use provided fallback or render default upgrade prompt
   if (fallback) {
-    return typeof fallback === 'function' ? fallback({ feature, upgradeTarget }) : fallback;
+    return typeof fallback === 'function' ? fallback({ feature, upgradeTarget: resolvedUpgradeTarget }) : fallback;
   }
 
   return (
     <UpgradePrompt
       feature={feature}
-      upgradeTarget={upgradeTarget}
+      upgradeTarget={resolvedUpgradeTarget}
       onClick={onUpgradeClick}
     />
   );
@@ -55,7 +62,6 @@ export const UpgradePrompt = ({
     installments: 'Installment Plans',
     lmsQuizzes: 'Quizzes & Grading',
     lmsAnalytics: 'LMS Analytics',
-    multiCampusControls: 'Multi-Campus Controls',
     customAuditReports: 'Custom Audit Reports',
     successAccountManager: 'Dedicated Account Manager',
     customSenderId: 'Custom Sender ID',
@@ -167,7 +173,6 @@ export const LockedModuleCard = ({
     installments: 'Installment Plans',
     lmsQuizzes: 'Quizzes & Grading',
     lmsAnalytics: 'LMS Analytics',
-    multiCampusControls: 'Multi-Campus Controls',
     customAuditReports: 'Custom Audit Reports',
     successAccountManager: 'Dedicated Account Manager',
     customSenderId: 'Custom Sender ID',

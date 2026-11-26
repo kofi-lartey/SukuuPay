@@ -45,20 +45,20 @@ const Timetable = () => {
   }
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      <div className="flex items-center gap-3">
+    <div className="space-y-4 sm:space-y-6 max-w-6xl mx-auto">
+      <div className="flex items-center gap-2 sm:gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
           <Calendar className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-ink">Timetable</h1>
+          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-ink">Timetable</h1>
           <p className="text-[13px] font-semibold text-slate-500">
             {timetable.className ? `${timetable.className} · ${timetable.term}` : 'Your class schedule'}
           </p>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm overflow-x-auto">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm overflow-x-auto">
         <div className="min-w-[640px] grid grid-cols-6 gap-2">
           <div />
           {DAYS.map((day) => (
@@ -67,19 +67,43 @@ const Timetable = () => {
             </div>
           ))}
           {(() => {
-            const maxPeriods = Math.max(...DAYS.map((d) => (days[d] || []).length), 0);
-            const rows = [];
-            for (let i = 0; i < maxPeriods; i += 1) {
-              rows.push(
-                <React.Fragment key={i}>
+            const periodNumbers = new Set();
+            DAYS.forEach((d) => {
+              (days[d] || []).forEach((p) => {
+                if (p && p.period != null) periodNumbers.add(p.period);
+              });
+            });
+            let periods = periodNumbers.size ? [...periodNumbers].sort((a, b) => a - b) : null;
+            if (!periods) {
+              periods = [];
+              DAYS.forEach((d) => {
+                (days[d] || []).forEach((_, i) => {
+                  if (!periods.includes(i + 1)) periods.push(i + 1);
+                });
+              });
+              periods.sort((a, b) => a - b);
+            }
+
+            const findPeriod = (periodNum) => {
+              for (let di = 0; di < DAYS.length; di += 1) {
+                const p = (days[DAYS[di]] || []).find((x) => x && x.period === periodNum);
+                if (p) return p;
+              }
+              return undefined;
+            };
+
+            return periods.map((periodNum) => {
+              const timeRef = findPeriod(periodNum);
+              return (
+                <React.Fragment key={periodNum}>
                   <div className="text-[11px] font-bold text-slate-400 flex items-center">
-                    {days[DAYS[0]]?.[i]?.startTime || `P${i + 1}`}
+                    {timeRef?.startTime || `P${periodNum}`}
                   </div>
                   {DAYS.map((day) => {
-                    const period = (days[day] || [])[i];
+                    const period = (days[day] || []).find((p) => p && p.period === periodNum);
                     return (
                       <div
-                        key={`${day}-${i}`}
+                        key={`${day}-${periodNum}`}
                         className="rounded-xl border border-slate-100 bg-slate-50 p-2 min-h-[60px]"
                       >
                         {period ? (
@@ -96,8 +120,7 @@ const Timetable = () => {
                   })}
                 </React.Fragment>
               );
-            }
-            return rows;
+            })
           })()}
         </div>
       </div>

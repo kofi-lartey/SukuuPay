@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 import { useParentPay } from '../../layouts/ParentLayout';
 import { useTimetable } from '../../hooks/parent/useTimetable';
 import StudentRow from '../../components/parent/shared/StudentRow';
@@ -58,7 +58,7 @@ const PeriodCard = ({ period }) => {
 
 const Timetable = () => {
   const { token, student, school } = useParentPay();
-  const [weekOf, setWeekOf] = useState(() => startOfWeek(new Date()));
+  const [weekOf] = useState(() => startOfWeek(new Date()));
   const [selectedDay, setSelectedDay] = useState(() => {
     const d = new Date().getDay();
     return d >= 1 && d <= 5 ? dayIndexToName(d - 1) : DAYS[0];
@@ -73,11 +73,18 @@ const Timetable = () => {
     return data.days[selectedDay] || [];
   }, [data, selectedDay]);
 
-  const shiftWeek = (direction) => {
-    const next = new Date(weekOf);
-    next.setDate(next.getDate() + direction * 7);
-    setWeekOf(startOfWeek(next));
-  };
+  const hasTimetable = useMemo(() => {
+    if (!data?.days) return false;
+    return Object.values(data.days).some((d) => Array.isArray(d) && d.length > 0);
+  }, [data]);
+
+  const weekRange = useMemo(() => {
+    const start = weekOf;
+    const end = new Date(weekOf);
+    end.setDate(end.getDate() + 6);
+    const fmt = (d) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    return `${fmt(start)} – ${fmt(end)}`;
+  }, [weekOf]);
 
   if (error) {
     return (
@@ -92,32 +99,14 @@ const Timetable = () => {
     <div className="space-y-5">
       <StudentRow student={student} school={school} />
 
-      {/* Week selector */}
-      <div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white px-3 py-2 shadow-sm">
-        <button
-          type="button"
-          onClick={() => shiftWeek(-1)}
-          aria-label="Previous week"
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100"
-        >
-          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-        </button>
+      {/* Week label (non-interactive: timetable is per term) */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white px-4 py-2.5 shadow-sm">
         <p className="text-[13px] font-extrabold text-ink">
-          Week of{' '}
-          {weekOf.toLocaleDateString('en-GB', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
-          })}
+          This week · {weekRange}
         </p>
-        <button
-          type="button"
-          onClick={() => shiftWeek(1)}
-          aria-label="Next week"
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100"
-        >
-          <ChevronRight className="h-4 w-4" aria-hidden="true" />
-        </button>
+        <p className="mt-0.5 text-[11.5px] text-slate-500">
+          Same schedule every week of the term.
+        </p>
       </div>
 
       {/* Day tabs */}
@@ -148,6 +137,12 @@ const Timetable = () => {
           <SkeletonRow />
           <SkeletonRow />
         </div>
+      ) : !hasTimetable ? (
+        <EmptyState
+          icon={Calendar}
+          title="Your child's class timetable hasn't been published yet"
+          description="Check back later once the school publishes it."
+        />
       ) : periods.length === 0 ? (
         <EmptyState
           icon={Calendar}

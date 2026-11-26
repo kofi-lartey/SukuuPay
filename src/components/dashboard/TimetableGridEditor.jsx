@@ -29,6 +29,7 @@ const initialPeriod = (number) => ({
   endTime: '',
   subject: '',
   teacher: '',
+  teacherId: null,
   room: '',
 });
 
@@ -80,6 +81,7 @@ export default function TimetableGridEditor({
           users.map((u) => ({
             value: u.name || u.email || '',
             label: u.name || u.email || '',
+            id: u._id,
           }))
         );
       })
@@ -231,7 +233,7 @@ export default function TimetableGridEditor({
               {(days[day] || []).map((period, index) => (
                 <div
                   key={index}
-                  className="grid gap-2 rounded-lg border border-slate-200 p-2 sm:grid-cols-6"
+                  className="grid gap-2 rounded-lg border border-slate-200 p-2 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10"
                 >
                   <Field
                     label="Period"
@@ -258,7 +260,7 @@ export default function TimetableGridEditor({
                       updatePeriod(day, index, 'endTime', e.target.value)
                     }
                   />
-                  <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+                  <div className="col-span-1 sm:col-span-1 md:col-span-2 lg:col-span-2 flex flex-col sm:flex-row sm:items-end gap-2">
                     <SelectField
                       label="Subject"
                       value={period.subject}
@@ -291,7 +293,7 @@ export default function TimetableGridEditor({
                       </Button>
                     )}
                   </div>
-                  <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+                  <div className="col-span-1 sm:col-span-1 md:col-span-2 lg:col-span-2 flex flex-col sm:flex-row sm:items-end gap-2">
                     <SelectField
                       label="Teacher"
                       value={
@@ -307,8 +309,11 @@ export default function TimetableGridEditor({
                         const val = e.target.value;
                         if (val === 'Other…') {
                           updatePeriod(day, index, 'teacher', '');
+                          updatePeriod(day, index, 'teacherId', null);
                         } else {
+                          const teacher = schoolTeachers.find((t) => t.value === val);
                           updatePeriod(day, index, 'teacher', val);
+                          updatePeriod(day, index, 'teacherId', teacher?.id ?? null);
                         }
                       }}
                     >
@@ -341,7 +346,7 @@ export default function TimetableGridEditor({
                         />
                       )}
                   </div>
-                  <div className="flex items-end gap-2">
+                  <div className="col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-2 flex items-end gap-2">
                     <Field
                       label="Room"
                       value={period.room}

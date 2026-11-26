@@ -116,6 +116,11 @@ const Timetables = () => {
   const [removeConfirm, setRemoveConfirm] = useState(null);
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
   const [deactivatedAt, setDeactivatedAt] = useState(null);
+  const [rejectTarget, setRejectTarget] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [removalConfirmTarget, setRemovalConfirmTarget] = useState(null);
+  const [removalConfirmDialogOpen, setRemovalConfirmDialogOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -267,8 +272,16 @@ const Timetables = () => {
   };
 
   const handleReject = async (item) => {
-    const reason = window.prompt('Reason for rejection (shown to the teacher):');
-    if (!reason) return;
+    setRejectTarget(item);
+    setRejectReason('');
+    setRejectDialogOpen(true);
+  };
+
+  const handleRejectConfirm = async () => {
+    const item = rejectTarget;
+    const reason = rejectReason.trim();
+    if (!item || reason.length < 3) return;
+    setRejectDialogOpen(false);
     try {
       await rejectTimetable(item.className, {
         term: item.term,
@@ -287,6 +300,9 @@ const Timetables = () => {
       loadTimetable();
     } catch (error) {
       toast.error(error?.message || 'Could not reject the timetable.');
+    } finally {
+      setRejectTarget(null);
+      setRejectReason('');
     }
   };
 
@@ -342,6 +358,14 @@ const Timetables = () => {
   };
 
   const handleConfirmRemoval = async (item) => {
+    setRemovalConfirmTarget(item);
+    setRemovalConfirmDialogOpen(true);
+  };
+
+  const handleRemovalConfirm = async () => {
+    const item = removalConfirmTarget;
+    if (!item) return;
+    setRemovalConfirmDialogOpen(false);
     try {
       await confirmRemoval(item.className, { term: item.term, academicYear: item.academicYear });
       toast.success('Removal confirmed — timetable deleted.');
@@ -349,6 +373,8 @@ const Timetables = () => {
       loadSubmissions();
     } catch (error) {
       toast.error(error?.message || 'Could not confirm the removal.');
+    } finally {
+      setRemovalConfirmTarget(null);
     }
   };
 
@@ -783,11 +809,7 @@ const Timetables = () => {
                     <Button
                       variant="primary"
                       size="sm"
-                      onClick={() => {
-                        if (window.confirm(`Confirm removal of ${item.className} timetable?`)) {
-                          handleConfirmRemoval(item);
-                        }
-                      }}
+                      onClick={() => handleConfirmRemoval(item)}
                     >
                       Confirm Removal
                     </Button>
@@ -813,7 +835,7 @@ const Timetables = () => {
       onClose={() => { setRemoveDialogOpen(false); setRemoveConfirm(null); }}
       title="Confirm Permanent Removal"
     >
-      <div className="space-4">
+      <div className="space-y-4">
         <p className="text-sm text-slate-600">
           Type <strong>REMOVE</strong> in the box below to permanently delete the
           timetable for <strong>{className}</strong> ({term}, {academicYear}).
@@ -840,6 +862,86 @@ const Timetables = () => {
             className="rounded-lg bg-rose-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
           >
             {removing ? 'Removing…' : 'Remove'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+
+    <Modal
+      open={rejectDialogOpen}
+      onClose={() => { setRejectDialogOpen(false); setRejectTarget(null); setRejectReason(''); }}
+      title="Reject Timetable Submission"
+      size="md"
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-slate-600">
+          Enter a reason for rejecting the timetable for <strong>{rejectTarget?.className}</strong>
+          ({rejectTarget?.term}, {rejectTarget?.academicYear}). This will be shown to the teacher.
+        </p>
+        <textarea
+          value={rejectReason}
+          onChange={(e) => setRejectReason(e.target.value)}
+          rows={4}
+          maxLength={300}
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-brand-500"
+          placeholder="Reason for rejection (minimum 3 characters, maximum 300)"
+        />
+        <p className="text-[11px] text-slate-500">
+          {rejectReason.trim().length} / 300 characters
+          {rejectReason.trim().length > 0 && rejectReason.trim().length < 3 && (
+            <span className="text-rose-600 ml-2">Minimum 3 characters required</span>
+          )}
+        </p>
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => { setRejectDialogOpen(false); setRejectTarget(null); setRejectReason(''); }}
+            className="px-4 py-2 text-sm text-slate-600"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={rejectReason.trim().length < 3}
+            onClick={handleRejectConfirm}
+            className="rounded-lg bg-rose-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+          >
+            Reject
+          </button>
+        </div>
+      </div>
+    </Modal>
+
+    <Modal
+      open={removalConfirmDialogOpen}
+      onClose={() => { setRemovalConfirmDialogOpen(false); setRemovalConfirmTarget(null); }}
+      title="Confirm Removal Request"
+      size="md"
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-slate-600">
+          Are you sure you want to confirm the removal request for the timetable of
+          <strong>{removalConfirmTarget?.className}</strong>
+          ({removalConfirmTarget?.term}, {removalConfirmTarget?.academicYear})?
+        </p>
+        <p className="text-sm text-slate-500">
+          This will permanently delete the timetable. This action cannot be undone.
+        </p>
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => { setRemovalConfirmDialogOpen(false); setRemovalConfirmTarget(null); }}
+            className="px-4 py-2 text-sm text-slate-600"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={removing}
+            onClick={handleRemovalConfirm}
+            className="rounded-lg bg-rose-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+          >
+            Confirm Removal
           </button>
         </div>
       </div>

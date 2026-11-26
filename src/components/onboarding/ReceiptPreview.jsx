@@ -142,9 +142,9 @@ const ReceiptPreview = ({
                 ['Method', 'MTN MoMo'],
                 ['Reference', 'RCPT-2026-0042'],
               ].map(([term, description]) => (
-                <div key={term} className="flex items-baseline justify-between gap-2">
+                <div key={term} className="flex items-baseline justify-between gap-2 min-w-0">
                   <dt className="shrink-0 font-semibold text-slate-500">{term}</dt>
-                  <dd className="truncate text-right font-bold text-ink">{description}</dd>
+                  <dd className="min-w-0 text-right font-bold text-ink break-all">{description}</dd>
                 </div>
               ))}
             </dl>
@@ -199,9 +199,9 @@ const ReceiptPreview = ({
           </p>
           <dl className="mt-1.5 space-y-1.5">
             {alsoPrinted.map((entry) => (
-              <div key={entry.label} className="flex items-baseline justify-between gap-3">
+              <div key={entry.label} className="flex items-baseline justify-between gap-3 min-w-0">
                 <dt className="shrink-0 text-[10px] font-semibold text-slate-500">{entry.label}</dt>
-                <dd className="truncate text-right text-[11px] font-bold text-ink">{entry.value}</dd>
+                <dd className="min-w-0 text-right text-[11px] font-bold text-ink break-all">{entry.value}</dd>
               </div>
             ))}
           </dl>
