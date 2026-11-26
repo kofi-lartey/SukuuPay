@@ -33,7 +33,7 @@ const looksLikeEmail = (value) =>
 const maskPhone = (value) => {
   const digits = String(value || '').replace(/\D/g, '');
   if (digits.length < 6) return value || '';
-  return `${digits.slice(0, 3)} ••• ${digits.slice(-3)}`;
+  return `${digits.slice(0, 4)} •••• ${digits.slice(-2)}`;
 };
 
 /**
@@ -105,9 +105,11 @@ const buildReceiptHtml = (receipt, student, school) => {
   const schoolAddress = [school?.address, school?.city].filter(Boolean).join(', ');
   const method = receipt?.paymentMethod === 'momo' ? 'Mobile Money' : receipt?.paymentMethod || 'Standard';
   const amount = Number(receipt?.amount || 0);
-  const totalFees = Number(receipt?.totalFees ?? amount);
-  const paidToDate = Number(receipt?.paidToDate ?? amount);
-  const balance = Math.max(0, totalFees - paidToDate);
+  const totalFees = Number(receipt?.totalFees ?? student?.totalOwed ?? amount);
+  const amountAlreadyPaid = Number(student?.totalPaid ?? receipt?.paidToDate ?? 0);
+  const amountLeftToPay = Math.max(0, totalFees - amountAlreadyPaid);
+  const amountPaidToday = amount;
+  const balance = Math.max(0, amountLeftToPay - amountPaidToday);
   const description = receipt?.description || receipt?.notes || 'School Fee Payment';
   const lines = Array.isArray(receipt?.feesBreakdown) && receipt.feesBreakdown.length
     ? receipt.feesBreakdown.map((l) => `<tr><td class="c-no">1</td><td>${l.description || l.label || 'Fee Item'}</td><td class="c-num">1</td><td class="c-num">${money(l.amount)}</td><td class="c-num">${money(l.amount)}</td></tr>`).join('')
@@ -152,11 +154,10 @@ const buildReceiptHtml = (receipt, student, school) => {
   </div>
   <table><thead><tr><th>No.</th><th>Description</th><th class="c-num">Qty</th><th class="c-num">Price</th><th class="c-num">Total</th></tr></thead><tbody>${lines}${emptyRows}</tbody></table>
   <div class="totals">
-    <div><span>SUB TOTAL</span><span>${money(amount)}</span></div>
-    <div><span>TAX / DISCOUNT</span><span>GH₵ 0.00</span></div>
-    <div class="grand"><span>GRAND TOTAL</span><span>${money(amount)}</span></div>
     <div><span>TOTAL FEES</span><span>${money(totalFees)}</span></div>
-    <div><span>PAID TO DATE</span><span>${money(paidToDate)}</span></div>
+    <div><span>AMOUNT ALREADY PAID</span><span>${money(amountAlreadyPaid)}</span></div>
+    <div><span>AMOUNT LEFT TO PAY</span><span>${money(amountLeftToPay)}</span></div>
+    <div><span>AMOUNT PAID TODAY</span><span>${money(amountPaidToday)}</span></div>
     <div class="balance"><span>REMAINING BALANCE</span><span>${money(balance)}</span></div>
   </div>
   <div class="notes"><b>Notes</b><br>Thank you for your payment. This receipt confirms ${balance > 0 ? 'part payment' : 'full settlement'}. The remaining balance is shown above.</div>
@@ -219,11 +220,15 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
     return () => clearTimeout(t);
   }, [sentVia]);
 
-  const student = receipt?.student || {};
-  const school = receipt?.school || {};
+  const receiptData = receipt?.receipt || receipt || {};
+  const student = receiptData?.student || receipt?.student || {};
+  const school = receiptData?.school || receipt?.school || {};
+  const studentName = student?.studentName || '—';
+  const studentId = student?.studentId || '—';
+  const className = student?.studentClass || '';
   const breakdown = useMemo(
-    () => (Array.isArray(receipt?.feesBreakdown) ? receipt.feesBreakdown : []),
-    [receipt]
+    () => (Array.isArray(receiptData?.feesBreakdown) ? receiptData.feesBreakdown : []),
+    [receiptData]
   );
   const hasParentEmail = Boolean(student.parentEmail);
   const hasParentPhone = Boolean(student.parentPhone);
@@ -306,12 +311,15 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
       return;
     }
 
-    // Pre-filled message the parent will see. Keep it short — wa.me only
-    // supports a plain `text` query param, and long messages get truncated.
-    const receiptRef = receipt?.receiptNumber || receipt?.reference || paymentId;
-    const message = `Hello, your payment receipt ${receiptRef} from ${
-      school?.name || 'school'
-    } is ready. Please find it attached.`;
+    // Pre-filled message the parent will see. wa.me only supports a plain
+    // `text` query param, so keep the message concise but informative.
+    const receiptRef = receiptData?.receiptNumber || receiptData?.reference || paymentId;
+    const amountPaidToday = Number(receiptData?.amount || 0) / 100;
+    const totalFees = Number(student?.totalOwed || 0) / 100;
+    const alreadyPaid = Number(student?.totalPaid || 0) / 100;
+    const leftToPay = Math.max(0, totalFees - alreadyPaid);
+    const balance = Math.max(0, leftToPay - amountPaidToday);
+    const message = `Hello ${studentName}, your payment receipt ${receiptRef} from ${school?.name || 'school'} is ready.\nTotal Fees: GHc ${totalFees.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nAmount Paid Today: GHc ${amountPaidToday.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nAlready Paid: GHc ${alreadyPaid.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nRemaining Balance: GHc ${balance.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     const url = `https://wa.me/${msisdn}?text=${encodeURIComponent(message)}`;
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -432,9 +440,42 @@ const ReceiptDialog = ({ open, paymentId, onClose }) => {
         <>
           <iframe
             title="Receipt preview"
-            srcDoc={buildReceiptHtml(receipt, student, school)}
+            srcDoc={buildReceiptHtml(receiptData, student, school)}
             className="h-[720px] w-full border-0"
           />
+          <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+            <div className="flex items-baseline gap-2 mb-1">
+              <span className="text-[13px] font-semibold text-slate-900">
+                {studentName}
+              </span>
+              <span className="text-[12px] text-slate-500">
+                {studentId} &middot; {maskPhone(student.parentPhone || '')}
+              </span>
+            </div>
+            <div className="text-[12px] text-slate-500 mb-3">
+              {className || '—'}
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-[12px]">
+              <div>
+                <span className="block text-slate-500">Total Fees</span>
+                <span className="block font-semibold text-slate-900">
+                  {money(Number(student?.totalOwed || 0))}
+                </span>
+              </div>
+              <div>
+                <span className="block text-slate-500">Amount Already Paid</span>
+                <span className="block font-semibold text-slate-900">
+                  {money(Number(student?.totalPaid || 0))}
+                </span>
+              </div>
+              <div>
+                <span className="block text-slate-500">Remaining Fees to Pay</span>
+                <span className="block font-semibold text-slate-900">
+                  {money(Number(student?.balance || 0))}
+                </span>
+              </div>
+            </div>
+          </div>
           {emailPromptOpen && (
             <form
               onSubmit={submitEmailPrompt}
