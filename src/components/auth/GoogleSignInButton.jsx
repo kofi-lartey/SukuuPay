@@ -196,7 +196,7 @@ const GoogleSignInButton = ({ onCredential, onError, disabled = false, variant =
     }
   }, [blocked, onCredential, onError]);
 
-  if (!enabled) return null;
+  if (!enabled || disabled) return null;
 
   /*
     * Two different promises, and the copy has to match the one being made.

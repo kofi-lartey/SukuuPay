@@ -165,6 +165,8 @@ export const PARENT_ROUTES = {
   plan: (token) => `/pay/${encodeURIComponent(token ?? '')}/plan`,
   support: (token) => `/pay/${encodeURIComponent(token ?? '')}/support`,
   INVALID: '/pay/invalid',
+  /** Factory for the invalid/expired link page — same static path, but callable. */
+  invalid: () => '/pay/invalid',
 
   // ── The portal's full surface ──
   //

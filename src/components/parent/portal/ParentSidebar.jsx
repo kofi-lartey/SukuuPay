@@ -4,6 +4,7 @@ import { PRIMARY_NAV, SECONDARY_NAV } from './navConfig';
 import { PARENT_ROUTES } from '../../../utils/constants';
 import { initialsOf } from '../../../utils/parentFormat';
 import { LogoMark } from '../../common/Logo';
+import { LogOut } from 'lucide-react';
 
 /**
  * The portal's left rail — the desktop face of `BottomNav`.
@@ -33,55 +34,88 @@ import { LogoMark } from '../../common/Logo';
  * looking for Home in a slide-out that was never supposed to exist.
  */
 const ParentSidebar = () => {
-  const { token, student, school, unreadCount } = useParentPay();
+  const { token, student, school, unreadCount, logout } = useParentPay();
 
   /** One nav row, shared by both groups. */
-  const row = (item) => (
-    <NavLink
-      key={item.key}
-      to={item.path(token)}
-      end={item.key === 'home'}
-      className={({ isActive }) =>
-        `group relative flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-[13.5px] font-bold transition-colors ${
-          isActive
-            ? 'bg-emerald-50 text-[#0A5C36]'
-            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-        }`
-      }
-    >
-      {({ isActive }) => (
-        <>
-          {/* Left accent bar on active — a thin visual thread that makes the
-              current row findable at a glance without needing a heavy fill. */}
+  const row = (item) => {
+    // Special handling for logout - use button instead of link
+    if (item.key === 'logout') {
+      return (
+        <button
+          key={item.key}
+          type="button"
+          onClick={logout}
+          className={`
+            group relative flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-[13.5px] font-bold transition-colors
+            text-red-600 hover:bg-red-50 hover:text-red-700
+          `}
+        >
           <span
             aria-hidden="true"
-            className={`absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full bg-[#0A5C36] transition-all ${
-              isActive ? 'h-5 w-1' : 'h-0 w-0'
-            }`}
+            className="absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full bg-red-500 transition-all h-0 w-0"
           />
-
           <svg
             viewBox="0 0 24 24"
             className="h-[19px] w-[19px] shrink-0"
             fill="none"
             stroke="currentColor"
-            strokeWidth={isActive ? 2.3 : 2}
+            strokeWidth={2}
             aria-hidden="true"
           >
             {item.icon}
           </svg>
-
           <span className="truncate">{item.label}</span>
+        </button>
+      );
+    }
 
-          {item.key === 'messages' && unreadCount > 0 ? (
-            <span className="ml-auto inline-flex h-[18px] min-w-[20px] items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10.5px] font-extrabold tabular-nums text-amber-900">
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </span>
-          ) : null}
-        </>
-      )}
-    </NavLink>
-  );
+    return (
+      <NavLink
+        key={item.key}
+        to={item.path(token)}
+        end={item.key === 'home'}
+        className={({ isActive }) =>
+          `group relative flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-[13.5px] font-bold transition-colors ${
+            isActive
+              ? 'bg-emerald-50 text-[#0A5C36]'
+              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+          }`
+        }
+      >
+        {({ isActive }) => (
+          <>
+            {/* Left accent bar on active — a thin visual thread that makes the
+                current row findable at a glance without needing a heavy fill. */}
+            <span
+              aria-hidden="true"
+              className={`absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full bg-[#0A5C36] transition-all ${
+                isActive ? 'h-5 w-1' : 'h-0 w-0'
+              }`}
+            />
+
+            <svg
+              viewBox="0 0 24 24"
+              className="h-[19px] w-[19px] shrink-0"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={isActive ? 2.3 : 2}
+              aria-hidden="true"
+            >
+              {item.icon}
+            </svg>
+
+            <span className="truncate">{item.label}</span>
+
+            {item.key === 'messages' && unreadCount > 0 ? (
+              <span className="ml-auto inline-flex h-[18px] min-w-[20px] items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10.5px] font-extrabold tabular-nums text-amber-900">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            ) : null}
+          </>
+        )}
+      </NavLink>
+    );
+  };
 
   return (
     <aside className="hidden w-full flex-col gap-6 border-r border-slate-200/80 bg-white px-3 py-5 lg:flex lg:sticky lg:top-0 lg:h-dvh">

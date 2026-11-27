@@ -1,15 +1,24 @@
-import { createContext, useContext, useMemo } from 'react';
-import { Outlet, useParams } from 'react-router-dom';
+import { createContext, useContext, useMemo, useState, useCallback } from 'react';
+import { Outlet, useParams, useNavigate, Navigate } from 'react-router-dom';
 import { useParentPortal } from '../hooks/parent/useParentPortal';
 import { ParentTopBar, BottomNav } from '../components/parent/portal/ParentTopBar';
 import ParentSidebar from '../components/parent/portal/ParentSidebar';
 import ScrollToTop from '../components/layout/ScrollToTop';
+import PinVerificationModal from '../components/parent/portal/PinVerificationModal';
+import { ROUTES } from '../utils/constants';
 
 const ParentPayContext = createContext(null);
+const PinVerificationContext = createContext(null);
 
 export const useParentPay = () => {
   const ctx = useContext(ParentPayContext);
   if (!ctx) throw new Error('useParentPay must be used inside ParentLayout');
+  return ctx;
+};
+
+export const usePinVerification = () => {
+  const ctx = useContext(PinVerificationContext);
+  if (!ctx) throw new Error('usePinVerification must be used inside ParentLayout');
   return ctx;
 };
 
@@ -40,7 +49,88 @@ const ShellSkeleton = () => (
 
 const ParentLayout = () => {
   const { token } = useParams();
+  const navigate = useNavigate();
   const { data, isLoading, error, refetch } = useParentPortal(token);
+
+  // Redirect to login if no token provided
+  if (!token) {
+    return <Navigate to="/pay/login" replace />;
+  }
+
+  // PIN verification state
+  const [pinVerified, setPinVerified] = useState(false);
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [pinLoading, setPinLoading] = useState(false);
+  const [pinError, setPinError] = useState(null);
+
+  // Logout function - redirects to main login page
+  const logout = useCallback(() => {
+    navigate(ROUTES.LOGIN, { replace: true });
+  }, [navigate]);
+
+  const openPinModal = useCallback(() => {
+    setPinError(null);
+    setIsPinModalOpen(true);
+  }, []);
+
+  const closePinModal = useCallback(() => {
+    setIsPinModalOpen(false);
+    setPinError(null);
+  }, []);
+
+  const verifyPin = useCallback(
+    async (pin) => {
+      setPinLoading(true);
+      setPinError(null);
+      try {
+        const response = await fetch(`/api/pay/${encodeURIComponent(token)}/verify-pin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin }),
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.message || 'Incorrect PIN');
+        }
+        setPinVerified(true);
+        setIsPinModalOpen(false);
+        return result;
+      } catch (err) {
+        setPinError(err.message);
+        throw err;
+      } finally {
+        setPinLoading(false);
+      }
+    },
+    [token]
+  );
+
+  const resetPinVerification = useCallback(() => {
+    setPinVerified(false);
+  }, []);
+
+  const pinVerificationValue = useMemo(
+    () => ({
+      pinVerified,
+      isPinModalOpen,
+      pinLoading,
+      pinError,
+      openPinModal,
+      closePinModal,
+      verifyPin,
+      resetPinVerification,
+    }),
+    [
+      pinVerified,
+      isPinModalOpen,
+      pinLoading,
+      pinError,
+      openPinModal,
+      closePinModal,
+      verifyPin,
+      resetPinVerification,
+    ]
+  );
 
   const value = useMemo(
     () => ({
@@ -57,8 +147,9 @@ const ParentLayout = () => {
       loading: isLoading,
       error,
       refresh: refetch,
+      logout,
     }),
-    [token, data, isLoading, error, refetch]
+    [token, data, isLoading, error, refetch, logout]
   );
 
   if (error) {
@@ -83,26 +174,39 @@ const ParentLayout = () => {
 
   return (
     <ParentPayContext.Provider value={value}>
-      <div className="min-h-dvh bg-[#F7F9F8]">
-        {/* Renders null; outside the grid so it never becomes a cell. */}
-        <ScrollToTop />
+      <PinVerificationContext.Provider value={pinVerificationValue}>
+        <div className="min-h-dvh bg-[#F7F9F8]">
+          {/* Renders null; outside the grid so it never becomes a cell. */}
+          <ScrollToTop />
 
-        <div className="lg:grid lg:grid-cols-[260px_1fr]">
-          <ParentSidebar />
+          <div className="lg:grid lg:grid-cols-[260px_1fr]">
+            <ParentSidebar />
 
-          <div className="flex min-h-dvh flex-col">
-            <ParentTopBar student={value.student} unread={value.unreadCount} />
-            {/* `pb-28` clears the fixed bottom bar on mobile; the rail takes
-                over at `lg`, where the bar hides itself. */}
-            <main className="flex-1 px-4 pb-28 pt-4 sm:px-6 lg:px-8 lg:pb-12 lg:pt-6">
-              <div className="mx-auto w-full max-w-5xl">
-                <Outlet context={value} />
-              </div>
-            </main>
+            <div className="flex min-h-dvh flex-col">
+              <ParentTopBar student={value.student} unread={value.unreadCount} />
+              {/* `pb-28` clears the fixed bottom bar on mobile; the rail takes
+                  over at `lg`, where the bar hides itself. */}
+              <main className="flex-1 px-4 pb-28 pt-4 sm:px-6 lg:px-8 lg:pb-12 lg:pt-6">
+                <div className="mx-auto w-full max-w-5xl">
+                  <Outlet context={value} />
+                </div>
+              </main>
+            </div>
           </div>
+          <BottomNav />
+
+          {/* PIN Verification Modal */}
+          <PinVerificationModal
+            isOpen={isPinModalOpen}
+            onClose={closePinModal}
+            onVerify={verifyPin}
+            token={token}
+            loading={pinLoading}
+            error={pinError}
+            submitLabel="Verify PIN"
+          />
         </div>
-        <BottomNav />
-      </div>
+      </PinVerificationContext.Provider>
     </ParentPayContext.Provider>
   );
 };

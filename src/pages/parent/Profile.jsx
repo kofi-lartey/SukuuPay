@@ -5,6 +5,7 @@ import {
   FileText,
   HelpCircle,
   History,
+  LogOut,
   Mail,
   MapPin,
   MessageCircle,
@@ -15,7 +16,6 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useParentPay } from '../../layouts/ParentLayout';
-import { PARENT_ROUTES } from '../../utils/constants';
 import StudentRow from '../../components/parent/shared/StudentRow';
 import SectionLabel from '../../components/parent/shared/SectionLabel';
 
@@ -55,7 +55,7 @@ const Row = ({ to, icon: Icon, label, trailing, badge, external }) => {
 };
 
 const Profile = () => {
-  const { token, student, school, unreadCount } = useParentPay();
+  const { token, student, school, unreadCount, logout } = useParentPay();
 
   return (
     <div className="space-y-6">
@@ -189,6 +189,24 @@ const Profile = () => {
             label="Terms of service"
             external
           />
+        </div>
+      </section>
+
+      {/* Account */}
+      <section>
+        <SectionLabel className="mb-2 px-1">Account</SectionLabel>
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-1 shadow-sm">
+          <button
+            type="button"
+            onClick={logout}
+            className="flex w-full min-h-[52px] items-center gap-3 rounded-xl px-3 transition-colors hover:bg-red-50 text-red-600 font-bold text-[14px]"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600">
+              <LogOut className="h-[17px] w-[17px]" aria-hidden="true" />
+            </span>
+            <span className="min-w-0 flex-1 truncate">Log out</span>
+            <span className="text-[12px] text-slate-500">End session</span>
+          </button>
         </div>
       </section>
 

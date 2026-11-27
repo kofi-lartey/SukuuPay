@@ -35,6 +35,8 @@ import ParentThread from './pages/parent/MessageThread';import ParentPaymentHist
 import ParentPaymentPlan from './pages/parent/PaymentPlan';
 import ParentProfile from './pages/parent/Profile';
 import ParentMessageSchool from './pages/parent/MessageSchool';
+import ParentLogin from './pages/parent/ParentLogin';
+import PinDemo from './pages/parent/PinDemo';
 import InvalidLink from './pages/parent/InvalidLink';
 import DashboardLayout from './components/dashboard/DashboardLayout';
 import SubscriptionGuard from './routes/SubscriptionGuard';
@@ -543,6 +545,8 @@ function App() {
               the 3G connection this is built for is the difference between a site
               and a series of pages.
             */}
+            {/* Login page — outside ParentLayout since no token yet */}
+            <Route path="/pay/login" element={<ParentLogin />} />
             <Route path="/pay" element={<ParentLayout />}>
               {/*
                 Declared with the token's static siblings ranked first by React
@@ -570,6 +574,7 @@ function App() {
               <Route path=":token/notifications" element={<ParentNotifications />} />
               <Route path=":token/lms" element={<StudentLms />} />
               <Route path=":token/profile" element={<ParentProfile />} />
+              <Route path=":token/pin-demo" element={<PinDemo />} />
               {/*
                 Kept last among the token's static children: the routes above
                 are more specific, and React Router ranks them ahead of this

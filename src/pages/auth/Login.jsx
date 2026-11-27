@@ -12,7 +12,10 @@ import {
   ChevronRight,
   Smartphone,
   Gift,
-  Headphones
+  Headphones,
+  UserCheck,
+  GraduationCap,
+  Briefcase
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import AuthShell from '../../components/auth/AuthShell';
@@ -186,6 +189,20 @@ const Login = () => {
   const [needsVerification, setNeedsVerification] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Sign-in role options
+  const roleOptions = [
+    { key: 'bursar', label: 'Bursar Sign in', icon: UserCheck, description: 'Manage fees, payments & finances' },
+    { key: 'teacher', label: 'Teacher Sign in', icon: GraduationCap, description: 'Access classes, grades & attendance' },
+    { key: 'admin', label: 'School Admin Sign in', icon: Briefcase, description: 'Oversee school operations & staff' },
+  ];
+  const [selectedRole, setSelectedRole] = useState('bursar');
+
+  const handleRoleChange = (role) => {
+    setSelectedRole(role);
+    setError('');
+    setNeedsVerification(false);
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError('');
@@ -293,7 +310,9 @@ const Login = () => {
   return (
     <AuthShell
       aside={<LoginAsideCarousel />}
-      eyebrow="Bursar sign in"
+      eyebrow={
+        roleOptions.find(r => r.key === selectedRole)?.label || 'Bursar sign in'
+      }
       title="Welcome back"
       description="Sign in with the work email your school registered with."
     >
@@ -328,6 +347,40 @@ const Login = () => {
             </span>
           </div>
         )}
+
+        {/* Role Selector */}
+        <div className="mb-4">
+          <p className="text-xs font-medium text-slate-500 mb-2">Sign in as</p>
+          <div className="grid grid-cols-3 gap-2">
+            {roleOptions.map((role) => (
+              <button
+                key={role.key}
+                type="button"
+                onClick={() => handleRoleChange(role.key)}
+                className={`
+                  relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all duration-200
+                  ${selectedRole === role.key
+                    ? 'border-[#0A5C36] bg-emerald-50'
+                    : 'border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50'
+                  }
+                `}
+              >
+                <div className={`
+                  flex h-8 w-8 items-center justify-center rounded-lg
+                  ${selectedRole === role.key ? 'bg-[#0A5C36] text-white' : 'bg-slate-100 text-slate-500'}
+                `}>
+                  <role.icon className="h-4 w-4" />
+                </div>
+                <span className={`
+                  text-[11px] font-bold leading-tight text-center
+                  ${selectedRole === role.key ? 'text-[#0A5C36]' : 'text-slate-600'}
+                `}>
+                  {role.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
 
         <Field
           label="Work email"
@@ -407,7 +460,7 @@ const Login = () => {
           tokens are kept.
         */}
         <GoogleSignInButton
-          disabled={loading}
+          disabled={true}
           onCredential={handleGoogleCredential}
           onError={(err) => setError(err?.message || 'Google sign-in failed. Please try again.')}
         />
@@ -417,6 +470,8 @@ const Login = () => {
           <AsideLink to="/signup">Create a school account</AsideLink>
           <span className="text-slate-400">·</span>
           <AsideLink to="/student/login">Student login</AsideLink>
+          <span className="text-slate-400">·</span>
+          <AsideLink to="/pay/login">Parent login</AsideLink>
         </AuthLinks>
       </form>
     </AuthShell>

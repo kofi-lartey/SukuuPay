@@ -86,6 +86,14 @@ const PROFILE_ICON = (
   </>
 );
 
+const LOGOUT_ICON = (
+  <>
+    <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M16 17l5-5-5-5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M21 12H9" strokeLinecap="round" strokeLinejoin="round" />
+  </>
+);
+
 /**
  * The five destinations that earn a permanent slot on the phone's bar.
  *
@@ -142,5 +150,11 @@ export const SECONDARY_NAV = [
     label: 'Profile & Settings',
     path: (token) => PARENT_ROUTES.profile(token),
     icon: PROFILE_ICON,
+  },
+  {
+    key: 'logout',
+    label: 'Log out',
+    path: (token) => '#', // Handled by ParentSidebar onClick
+    icon: LOGOUT_ICON,
   },
 ];

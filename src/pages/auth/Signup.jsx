@@ -656,7 +656,7 @@ const Signup = () => {
         */}
         <GoogleSignInButton
           variant="signup"
-          disabled={loading}
+          disabled={true}
           onCredential={handleGoogleCredential}
           onError={(err) => setFormError(err?.message || 'Google sign-up failed. Please try again.')}
         />
