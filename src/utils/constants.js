@@ -31,6 +31,7 @@ export const ROUTES = {
   DASHBOARD_USERS: '/dashboard/user-management',
    DASHBOARD_SETTINGS: '/dashboard/settings',
    DASHBOARD_UPGRADE: '/dashboard/settings/upgrade',
+   DASHBOARD_SUBSCRIPTION_MANAGE: '/dashboard/subscription/manage',
    DASHBOARD_ACADEMICS: '/dashboard/academics',
    DASHBOARD_ACADEMICS_GRADES: '/dashboard/academics/grades',
    DASHBOARD_ACADEMICS_CLASSES: '/dashboard/academics/classes',

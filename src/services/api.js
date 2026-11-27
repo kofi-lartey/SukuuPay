@@ -114,16 +114,22 @@ api.interceptors.request.use(
  * whatever changed server-side.
  */
 let provisionRedirectIssued = false;
+let subscriptionLockedRedirectIssued = false;
 
 const routeToSchoolProvisioning = () => {
   if (provisionRedirectIssued) return;
   const { pathname } = window.location;
-  // Already inside the wizard: the step itself owns the message, and a redirect
-  // from `/onboarding/school-profile` to `/onboarding/school-profile` would
-  // discard the user's half-typed form.
   if (pathname.startsWith('/onboarding')) return;
   provisionRedirectIssued = true;
   window.location.href = '/onboarding/school-profile';
+};
+
+const routeToSubscriptionManage = () => {
+  if (subscriptionLockedRedirectIssued) return;
+  const { pathname } = window.location;
+  if (pathname === '/dashboard/subscription/manage') return;
+  subscriptionLockedRedirectIssued = true;
+  window.location.href = '/dashboard/subscription/manage';
 };
 
 // Response interceptor to handle token refresh
@@ -134,6 +140,11 @@ api.interceptors.response.use(
 
     if (error.response?.data?.code === 'SCHOOL_NOT_LINKED') {
       routeToSchoolProvisioning();
+      return Promise.reject(error);
+    }
+
+    if (error.response?.data?.code === 'SUBSCRIPTION_LOCKED') {
+      routeToSubscriptionManage();
       return Promise.reject(error);
     }
 

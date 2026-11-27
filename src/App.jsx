@@ -37,6 +37,7 @@ import ParentProfile from './pages/parent/Profile';
 import ParentMessageSchool from './pages/parent/MessageSchool';
 import InvalidLink from './pages/parent/InvalidLink';
 import DashboardLayout from './components/dashboard/DashboardLayout';
+import SubscriptionGuard from './routes/SubscriptionGuard';
 import Overview from './pages/dashboard/Overview';
 import Students from './pages/dashboard/Students';
 import Payments from './pages/dashboard/Payments';
@@ -53,6 +54,7 @@ import ActivityLog from './pages/dashboard/ActivityLog';
 import UserManagement from './pages/dashboard/UserManagement';
 import Settings from './pages/dashboard/Settings';
 import Upgrade from './pages/dashboard/Upgrade';
+import SubscriptionManage from './pages/subscription/SubscriptionManage';
 import AcademicsOverview from './pages/dashboard/academics/AcademicsOverview';
 import Timetables from './pages/dashboard/academics/Timetables';
 import GradeApproval from './pages/dashboard/academics/GradeApproval';
@@ -280,51 +282,58 @@ function App() {
                 than a new guarded branch. The shell owns the rail and the
                 topbar; each child owns only its page. */}
             <Route element={<OnboardingGuard />}>
-              <Route path="/dashboard" element={<DashboardLayout />}>
-                {/*
-                  A platform admin opening /dashboard is sent to the console that
-                  belongs to them.
+              {/* Subscription management page — reachable even when a school is
+                  locked, so it must sit outside SubscriptionGuard. */}
+              <Route path="/dashboard/subscription/manage" element={<SubscriptionManage />} />
 
-                  `OnboardingGuard` waves a `super_admin` straight through — they
-                  legitimately have no school, so `linkState.linked` is false for
-                  them and the onboarding redirect would lock them out of the only
-                  console they have. But every module under /dashboard is
-                  school-scoped, so the alternative was a school console full of
-                  empty panels around a rail that says "Your school". The redirect
-                  is here rather than in the guard because it is a *routing*
-                  preference about where a super admin lands, not an access rule:
-                  the guard still decides they are allowed in.
-                */}
-                <Route
-                  index
-                  element={
-                    <RoleLanding role="super_admin" to={ROUTES.ADMIN}>
-                      <RoleLanding role="teacher" to={TEACHER_ROUTES.dashboard}>
-                        <Overview />
+              {/* All other dashboard modules are behind the subscription guard,
+                  which redirects locked schools to the manage page. */}
+              <Route element={<SubscriptionGuard />}>
+                <Route path="/dashboard" element={<DashboardLayout />}>
+                  {/*
+                    A platform admin opening /dashboard is sent to the console that
+                    belongs to them.
+
+                    `OnboardingGuard` waves a `super_admin` straight through — they
+                    legitimately have no school, so `linkState.linked` is false for
+                    them and the onboarding redirect would lock them out of the only
+                    console they have. But every module under /dashboard is
+                    school-scoped, so the alternative was a school console full of
+                    empty panels around a rail that says "Your school". The redirect
+                    is here rather than in the guard because it is a *routing*
+                    preference about where a super admin lands, not an access rule:
+                    the guard still decides they are allowed in.
+                  */}
+                  <Route
+                    index
+                    element={
+                      <RoleLanding role="super_admin" to={ROUTES.ADMIN}>
+                        <RoleLanding role="teacher" to={TEACHER_ROUTES.dashboard}>
+                          <Overview />
+                        </RoleLanding>
                       </RoleLanding>
-                    </RoleLanding>
-                  }
-                />
-                <Route path="students" element={<Students />} />
-                <Route path="payments" element={<Payments />} />
-                <Route path="installment-plans" element={<InstallmentPlans />} />
-                <Route path="cashflow-analytics" element={<CashFlowAnalytics />} />
-                <Route path="lms-analytics" element={<LmsAnalytics />} />
-                <Route path="sms-reminders" element={<SmsReminders />} />
-                <Route path="sms-requests" element={<SmsCreditRequests />} />
-                <Route path="messages" element={<ParentMessages />} />
-                <Route path="community" element={<CommunityGuard><CommunityProvider><StudentCommunity /></CommunityProvider></CommunityGuard>} />
-                <Route path="advertisements" element={<Advertisements />} />
-                <Route path="campuses" element={<CampusManagement />} />
-                <Route path="reports" element={<Reports />} />
-                <Route path="activity-log" element={<ActivityLog />} />
-                <Route path="user-management" element={<UserManagement />} />
-                <Route path="settings" element={<Settings />} />
-                <Route path="settings/upgrade" element={<Upgrade />} />
-                <Route path="id-cards/settings" element={<IdCardSettings />} />
-                <Route path="id-cards/templates" element={<IdCardTemplates />} />
-                <Route path="id-cards/bulk" element={<IdCardBulkPrint />} />
-                 <Route path="id-cards/batch/:batchId/print" element={<IdCardBatchPrint />} />
+                    }
+                  />
+                  <Route path="students" element={<Students />} />
+                  <Route path="payments" element={<Payments />} />
+                  <Route path="installment-plans" element={<InstallmentPlans />} />
+                  <Route path="cashflow-analytics" element={<CashFlowAnalytics />} />
+                  <Route path="lms-analytics" element={<LmsAnalytics />} />
+                  <Route path="sms-reminders" element={<SmsReminders />} />
+                  <Route path="sms-requests" element={<SmsCreditRequests />} />
+                  <Route path="messages" element={<ParentMessages />} />
+                  <Route path="community" element={<CommunityGuard><CommunityProvider><StudentCommunity /></CommunityProvider></CommunityGuard>} />
+                  <Route path="advertisements" element={<Advertisements />} />
+                  <Route path="campuses" element={<CampusManagement />} />
+                  <Route path="reports" element={<Reports />} />
+                  <Route path="activity-log" element={<ActivityLog />} />
+                  <Route path="user-management" element={<UserManagement />} />
+                  <Route path="settings" element={<Settings />} />
+                  <Route path="settings/upgrade" element={<Upgrade />} />
+                  <Route path="id-cards/settings" element={<IdCardSettings />} />
+                  <Route path="id-cards/templates" element={<IdCardTemplates />} />
+                  <Route path="id-cards/bulk" element={<IdCardBulkPrint />} />
+                  <Route path="id-cards/batch/:batchId/print" element={<IdCardBatchPrint />} />
                   <Route path="academics">
                     <Route index element={<AcademicsOverview />} />
                     <Route path="grades" element={<GradeApproval />} />
@@ -338,14 +347,15 @@ function App() {
                       inside Classes: assignment is per *teacher*, and the
                       class flow is per class. See the page's own notes.
                     */}
-<Route
-  path="teacher-assignment"
-  element={<TeacherAssignment />}
-/>
-<Route path="teacher-attendance" element={<TeacherAttendance />} />
-<Route path={ACADEMICS_ROUTES.timetables} element={<Timetables />} />
+                    <Route
+                      path="teacher-assignment"
+                      element={<TeacherAssignment />}
+                    />
+                    <Route path="teacher-attendance" element={<TeacherAttendance />} />
+                    <Route path={ACADEMICS_ROUTES.timetables} element={<Timetables />} />
                   </Route>
-                <Route path="*" element={<NotFound variant="app" />} />
+                  <Route path="*" element={<NotFound variant="app" />} />
+                </Route>
               </Route>
             </Route>
 
